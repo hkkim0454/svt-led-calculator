@@ -1598,8 +1598,10 @@ function renderCompare() {
   if (svCode) { renderCompareSignage(head); return; }
   if (head) head.innerHTML = LED_CMP_HEAD;
   const sW = spaceWmm(), sH = spaceHmm();
-  const cs4b = $('#useCS4B')?.checked ?? false;
-  const rows = visibleModels().map(m => ({ m, r: computeConfig(m, sW, sH, { mode: 'fill', cs4b }) }));
+  // 메인 산출과 동일한 opts() 사용(이사 요청 2026-09-15): 배열 직접 지정 시 그 배열을, 자동 채움 시 ② LED
+  //   설치 크기(비우면 벽면)를 대상으로 각 모델을 계산한다. 기존엔 항상 벽공간(fill)이라 지정 크기·중량이 어긋났음.
+  const o = opts();
+  const rows = visibleModels().map(m => ({ m, r: computeConfig(m, sW, sH, o) }));
   const body = $('#cmpBody'); body.innerHTML = '';
   for (const { m, r } of rows) {
     const tr = document.createElement('tr');
