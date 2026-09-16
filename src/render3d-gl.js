@@ -18,14 +18,15 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=376';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=377';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
-} from './gl-model.js?v=376';
+  BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling,
+} from './gl-model.js?v=377';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -55,6 +56,8 @@ export const GL_PALETTE = Object.freeze({
   wallAccent: '#afc9be',    // 포인트 벽(차분한 세이지) — 기존 3D 뷰와 같은 색
   gridMinor: 'rgba(89,104,125,.10)',   // 바닥 격자 600mm
   gridMajor: 'rgba(89,104,125,.20)',   // 바닥 격자 1200mm
+  baseboard: '#c3cbd6',     // 걸레받이 — 벽보다 한 단계 어두운 회색(튀지 않게)
+  ceiling: '#f4f6fa',       // 천장 아랫면 — 벽보다 살짝 밝게
   dimLine: '#8c95a3',       // 치수 보조선
 });
 
@@ -105,16 +108,19 @@ function makeGlowTexture() {
 }
 
 // ── 바닥 격자 ───────────────────────────────────────────────────────────────
-// 격자를 '바닥 위에 띄운 판'으로 만들면 시점에 따라 떠 보이고 z-fighting(지글거림)이 난다.
-// 그래서 **바닥 재질의 무늬로** 그려 넣는다 — 물리적으로 바닥 그 자체가 된다.
+// 바닥 격자 — **바닥(재질)과 완전히 분리한 얇은 덧판**이다.
+//   격자를 바닥 재질의 무늬로 넣으면 격자를 끌 때 바닥 색까지 같이 바뀐다(예전 동작).
+//   이제 바닥은 늘 같은 재질이고, 격자만 3mm 위에 얹었다 뺐다 한다.
+//   뜨거나 지글거리지 않도록 polygonOffset + depthWrite:false 로 바닥에 붙여 그린다.
 //   한 타일 = 1200mm(주 격자). 그 안에 600mm(보조) 선을 하나 더 넣는다.
 function makeGridTexture() {
   const S = 256;                       // 타일 한 장(= 1200mm)의 픽셀 수
   const cv = document.createElement('canvas');
   cv.width = cv.height = S;
   const c = cv.getContext('2d');
-  c.fillStyle = GL_PALETTE.floor;
-  c.fillRect(0, 0, S, S);
+  // 배경은 칠하지 않는다 — 격자는 바닥 '위에 얹는 선'일 뿐,
+  //   바닥 재질 자체가 아니다(격자를 꺼도 바닥은 그대로 있어야 한다).
+  c.clearRect(0, 0, S, S);
   // 보조선(600mm) — 타일 한가운데
   c.strokeStyle = GL_PALETTE.gridMinor;
   c.lineWidth = 1.5;
@@ -153,25 +159,36 @@ function buildRoomGroup(model, shared) {
   const matWallSide = new THREE.MeshStandardMaterial({
     color: GL_PALETTE.wallSide, roughness: 0.96, metalness: 0, side: THREE.FrontSide,
   });
+  // 바닥 재질 — 격자를 켜든 끄든 **항상 같다**. 격자는 별도의 덧판이다.
   const matFloor = new THREE.MeshStandardMaterial({
-    color: 0xffffff, roughness: 0.92, metalness: 0, side: THREE.FrontSide,
+    color: GL_PALETTE.floor, roughness: 0.92, metalness: 0, side: THREE.FrontSide,
   });
-  // 바닥 격자 — 바닥 재질의 무늬로 넣는다(별도 판을 띄우지 않으므로 뜨거나 지글거리지 않는다).
-  if (model.show?.grid !== false) {
-    const tex = shared.gridTex();
-    // 타일 한 장 = 1200mm. 방 크기에 맞춰 반복 횟수를 정한다.
-    tex.repeat.set(room.W / u(GRID_MAJOR_MM), room.D / u(GRID_MAJOR_MM));
-    matFloor.map = tex;
-  } else {
-    matFloor.color.set(GL_PALETTE.floor);
-  }
+  const matBaseboard = new THREE.MeshStandardMaterial({
+    color: GL_PALETTE.baseboard, roughness: 0.85, metalness: 0,
+  });
 
-  // ① 바닥 — XZ 평면. PlaneGeometry는 XY 평면에 서 있으므로 눕힌다.
+  // ① 바닥 — 방 치수(W×D)와 정확히 같다. PlaneGeometry는 XY 평면에 서 있으므로 눕힌다.
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.D), matFloor);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(room.W / 2, 0, room.D / 2);
   floor.name = 'floor';
   g.add(floor);
+
+  // ①' 바닥 격자(선택) — 바닥과 같은 크기의 투명 덧판. 끄면 이 덧판만 사라진다.
+  if (model.show?.grid !== false) {
+    const tex = shared.gridTex();
+    // 타일 한 장 = 1200mm. 방 크기에 맞춰 반복 횟수를 정한다.
+    tex.repeat.set(room.W / u(GRID_MAJOR_MM), room.D / u(GRID_MAJOR_MM));
+    const matGrid = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    });
+    const grid = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.D), matGrid);
+    grid.rotation.x = -Math.PI / 2;
+    grid.position.set(room.W / 2, u(GRID_LIFT_MM), room.D / 2);
+    grid.name = 'floorGrid';
+    g.add(grid);
+  }
 
   // 벽 두께. 0이면 예전처럼 얇은 판 하나로 그린다(두께 없는 벽).
   //   두께가 있으면 상자로 세우되 **방 바깥쪽으로만** 붙여 안쪽 치수를 건드리지 않는다.
@@ -256,6 +273,43 @@ function buildRoomGroup(model, shared) {
     wallRight.name = 'wallRight';
     g.add(wallRight);
   }
+
+  // ④' 걸레받이 — 벽과 바닥이 만나는 자리에 두르는 얇은 띠(70 × 18mm, 실제 시공값).
+  //   이것 하나로 '벽이 바닥에 꽂혀 있다'는 느낌이 생긴다. 벽이 켜진 면에만 붙인다.
+  //   모서리에서 서로 겹치면 윗면이 같은 높이라 지글거리므로, 앞뒤 띠를 옆 두께만큼 줄인다.
+  const bbH = u(BASEBOARD_MM.h), bbT = u(BASEBOARD_MM.thk);
+  const addBaseboard = (w, d, x, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, bbH, d), matBaseboard);
+    m.position.set(x, bbH / 2, z);
+    m.name = 'baseboard';
+    g.add(m);
+  };
+  const bbW = Math.max(0.001, room.W - bbT * 2);
+  if (wallOn.front !== false) addBaseboard(bbW, bbT, room.W / 2, bbT / 2);
+  if (wallOn.back) addBaseboard(bbW, bbT, room.W / 2, room.D - bbT / 2);
+  if (wallOn.left !== false) addBaseboard(bbT, room.D, bbT / 2, room.D / 2);
+  if (wallOn.right) addBaseboard(bbT, room.D, room.W - bbT / 2, room.D / 2);
+
+  // ④" 천장 — 실내 시점에서만 보인다. 아이소·평면도에서 천장이 있으면 방 안이 안 보인다.
+  //   보이는 것은 아랫면뿐이라 얇은 상자 하나면 충분하다(복잡한 천장은 만들지 않는다).
+  //   벽 두께만큼 넓혀 벽 위 모서리를 닫는다 — 실내에서 천장과 벽 사이가 벌어지지 않게.
+  const ceilThk = u(CEILING_THK_MM);
+  //   천장 아랫면은 아래를 향해서 위에서 내리쬐는 조명을 전혀 받지 못한다 —
+  //   그대로 두면 흰 천장이 어두운 회색 슬래브로 보인다. 조명 구성은 손대지 않고
+  //   재질 자체에 옅은 자발광(emissive)을 주어 '흰 천장'으로 읽히게 한다.
+  //   (STEP 3에서 실내 조명이 들어오면 이 보정은 걷어낼 수 있다.)
+  const ceiling = new THREE.Mesh(
+    new THREE.BoxGeometry(room.W + thk * 2, ceilThk, room.D + thk * 2),
+    new THREE.MeshStandardMaterial({
+      color: GL_PALETTE.ceiling, roughness: 0.95, metalness: 0,
+      emissive: new THREE.Color(GL_PALETTE.ceiling), emissiveIntensity: 0.62,
+    }),
+  );
+  ceiling.position.set(room.W / 2, room.H + ceilThk / 2, room.D / 2);
+  ceiling.name = 'ceiling';
+  ceiling.visible = false;          // 실제 표시 여부는 시점에 따라 정한다(applyShellVisibility)
+  g.add(ceiling);
+  g.userData.ceiling = ceiling;
 
   // ⑤ LED — 벽에서 캐비닛 깊이만큼 튀어나온 상자 + 그 앞면에 붙는 화면.
   //    상자와 화면을 나누면 옆면(두께)과 화면 색을 따로 줄 수 있다.
@@ -827,6 +881,22 @@ export function createViewerGL(canvas, { onError } = {}) {
     scene.remove(gr);
   }
 
+  /**
+   * 시점에 따라 달라지는 방 껍데기 요소를 켜고 끈다(지금은 천장 하나).
+   *   실내 4종 → 보임 / 아이소 · 평면도 → 숨김. 저장해 둔 커스텀 시점은 카메라 위치로 판단한다.
+   *   판단 규칙은 gl-model.js(showCeiling)에 있다 — 브라우저 없이 검사할 수 있게.
+   */
+  function applyShellVisibility() {
+    const ceiling = group?.userData?.ceiling;
+    if (!ceiling || !model) return;
+    ceiling.visible = showCeiling({
+      presetId,
+      ortho: !!camera.isOrthographicCamera,
+      position: camera.position.toArray(),
+      room: model.room,
+    });
+  }
+
   function loop() {
     if (disposed) return;
     raf = requestAnimationFrame(loop);
@@ -839,6 +909,7 @@ export function createViewerGL(canvas, { onError } = {}) {
     const moved = controls.enabled ? controls.update() : false;
     if (moving || moved || needsRender) {
       needsRender = false;
+      applyShellVisibility();
       renderer.render(scene, camera);
       const { w, h } = size();
       labels.update(model, camera, w, h);
@@ -960,6 +1031,7 @@ export function createViewerGL(canvas, { onError } = {}) {
       const { w, h } = size();
       const k = Math.max(1, Math.min(4, scale));
       const prevPR = renderer.getPixelRatio();
+      applyShellVisibility();   // 화면과 같은 천장 상태로 저장한다
       // 캔버스의 CSS 크기는 그대로 두고(false) 그리기 해상도만 올린다.
       renderer.setPixelRatio(1);
       renderer.setSize(Math.round(w * k), Math.round(h * k), false);
