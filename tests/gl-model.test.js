@@ -73,6 +73,22 @@ test('buildGLModel — 무대는 배치 계산(room-presets) 결과를 읽기만
   assert.equal(m.stage.z, src.z / 1000);
 });
 
+test('buildGLModel — 배치 목록은 mm 그대로 넘긴다(가구 쪽에서 환산)', () => {
+  const lay = layoutRoom('hall_s', defaultOptions('hall_s'), { W: 10000, D: 10000 });
+  const m = buildGLModel({
+    space: { W: 10000, H: 3500, D: 10000 },
+    led: { w: 3840, h: 2160, marginW: 3080, mount: 1000, cols: 4, rows: 4, depth: 79.5 },
+    items: lay.items,
+  });
+  assert.equal(m.items.length, lay.items.length);
+  assert.deepEqual(m.items[0], lay.items[0], '배치값을 바꾸지 않고 그대로 들고 간다');
+  // 좌석은 mm 단위 그대로여야 한다(= 1000 단위의 큰 수)
+  const seat = m.items.find(it => it.type === 'seat' || it.type === 'chair');
+  if (seat) assert.ok(Math.abs(seat.x) > 100, '좌석 좌표가 mm 가 아니다');
+  // items 가 없어도 안전하다
+  assert.deepEqual(buildGLModel({ space: { W: 1, H: 1, D: 1 }, led: { w: 1, h: 1, marginW: 0, mount: 0 } }).items, []);
+});
+
 test('buildGLModel — 무대가 없는 공간 타입이면 stage는 null', () => {
   const lay = layoutRoom('meeting', defaultOptions('meeting'), { W: 8000, D: 6800 });
   const m = buildGLModel({

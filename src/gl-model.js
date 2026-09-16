@@ -65,6 +65,9 @@ export function buildGLModel({ space, led, items }) {
   const stageItem = (items || []).find(it => it && it.type === 'stage');
   return {
     room,
+    // 배치 목록은 mm 그대로 들고 간다 — 가구를 세우는 쪽(furniture-gl.js)에서 환산한다.
+    //   여기서 미리 바꾸면 room-presets 결과와 대조하기 어려워진다.
+    items: items || [],
     led: {
       x: u(led.marginW),          // 왼쪽 벽 ~ LED 왼쪽 끝
       y: u(led.mount),            // 바닥 ~ LED 아래(하단 높이)

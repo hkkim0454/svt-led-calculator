@@ -18,12 +18,13 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=356';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose,
-} from './gl-model.js?v=355';
+} from './gl-model.js?v=356';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -93,6 +94,8 @@ function makeGlowTexture() {
 // 방·LED·무대를 하나의 Group에 담아 돌려준다. 모델이 바뀌면 이 Group만 통째로 갈아 끼운다.
 function buildRoomGroup(model, shared) {
   const { room, led, stage } = model;
+  // 가구(좌석·통로·테이블 등)는 room-presets 배치를 그대로 세운다 — 여기서 새로 계산하지 않는다.
+  const furniture = buildFurnitureGroup(model.items);
   const g = new THREE.Group();
   g.name = 'roomGroup';
 
@@ -184,6 +187,7 @@ function buildRoomGroup(model, shared) {
     g.add(box);
   }
 
+  g.add(furniture);
   return g;
 }
 
@@ -446,6 +450,7 @@ export function createViewerGL(canvas, { onError } = {}) {
   // 씬에서 Group 하나를 떼어내고 그 안의 GPU 자원을 모두 반납한다(메모리 누수 방지).
   function disposeGroup(gr) {
     if (!gr) return;
+    disposeFurniture(gr.getObjectByName('furniture'));
     gr.traverse(o => {
       o.geometry?.dispose?.();
       const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
