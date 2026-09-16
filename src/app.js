@@ -1736,6 +1736,15 @@ function vpCondNoteHTML(item) {
   if (!unknowns.length) return '';
   return `<div class="vpCondNote">${esc(unknowns.join(' · '))} 지원 여부가 공식 사양에 없어 추정하지 않았습니다. 그 외 입력 · 출력 · 레이어 요구는 모두 충족합니다.</div>`;
 }
+// 사진 옆 한 줄 요약 — 형태(고정형/슬롯형) + 최대 입출력. 데이터에 있는 값만, 없으면 '—'(추정 금지).
+function vpPlateSummaryHTML(item, isSlot) {
+  const p = item.proc, i = p.inputs || {}, o = p.outputs || {}, cp = item.cardPlan;
+  const v = x => (x != null ? x : '—');
+  let form, detail;
+  if (isSlot) { form = '슬롯형'; detail = `입력 ${v(cp?.inSlots)}슬롯 · 출력 ${v(cp?.outSlots)}슬롯`; }
+  else { form = '고정형'; detail = `4K 입력 ${v(i.maxIndependent4k)} · Active 출력 ${v(o.maxActiveOutputs)}`; }
+  return `<div class="vpPlateSum"><span class="vpPlateForm">${form}</span><span class="vpPlateDetail">${esc(detail)}</span></div>`;
+}
 function vpItemHTML(item, rank) {
   const p = item.proc;
   const needsVer = p.verification?.status !== 'official';
@@ -1746,15 +1755,25 @@ function vpItemHTML(item, rank) {
   // 포트 고정형 제품은 펼친 본문의 '포트별 입출력' 버튼으로 포트 팝업을 연다(요약 줄엔 이름만).
   const fixed = procHasFixedPorts(p);
   const rankHTML = rank ? `<span class="vpRank">${rank}</span>` : '';
-  // 제품 전면 사진 플레이트(있는 제품만). 클릭 시 앞/뒤 이미지 팝업(openProcImgPopup) 재사용.
+  // 제품 사진 플레이트(전면). 오른쪽에는 후면 썸네일 + 한 줄 요약(형태·최대 입출력)을 채운다(이사 요청 2026-09-16).
   const hasImg = PROC_IMG_IDS.has(p.id);
-  // 사진 있으면 클릭 확대 판, 없으면 '사진 미등록' 표시 판(빈칸으로 두지 않음).
+  const summaryHTML = vpPlateSummaryHTML(item, isSlot);
+  // 사진 있으면 전면(큰 판)+후면(작은 썸네일) 둘 다 클릭 확대. 없으면 '사진 미등록' 판.
   const plateHTML = hasImg ? `<div class="vpPlate">
-      <div class="vpPlateBox" data-procimg="${esc(p.id)}" role="button" tabindex="0" title="제품 앞·뒤 이미지 크게 보기"><img src="${procImgSrc(p.id, 'front')}" alt="${esc(p.manufacturer)} ${esc(p.model)} 전면" draggable="false"/></div>
-      <div class="vpPlateCap"><span class="t">전면 패널</span><span class="s">클릭하면 앞 · 뒤 확대</span></div>
+      <div class="vpPlateBox" data-procimg="${esc(p.id)}" data-piside="front" role="button" tabindex="0" title="전면 크게 보기"><img src="${procImgSrc(p.id, 'front')}" alt="${esc(p.manufacturer)} ${esc(p.model)} 전면" draggable="false"/></div>
+      <div class="vpPlateSide">
+        <div class="vpBackThumb" data-procimg="${esc(p.id)}" data-piside="back" role="button" tabindex="0" title="후면 크게 보기">
+          <div class="vpPlateBox vpBackBox"><img src="${procImgSrc(p.id, 'back')}" alt="${esc(p.manufacturer)} ${esc(p.model)} 후면" draggable="false"/></div>
+          <div class="vpBackCap"><span class="t">후면</span><span class="s">누르면 확대</span></div>
+        </div>
+        ${summaryHTML}
+      </div>
     </div>` : `<div class="vpPlate">
       <div class="vpPlateBox vpPlateEmpty" aria-hidden="true"><span class="vpNoImg">사진 미등록</span></div>
-      <div class="vpPlateCap"><span class="t">전면 패널</span><span class="s">제품 사진 미등록</span></div>
+      <div class="vpPlateSide">
+        <div class="vpBackCap"><span class="t">전면 패널</span><span class="s">제품 사진 미등록</span></div>
+        ${summaryHTML}
+      </div>
     </div>`;
   // 펼친 본문 상단의 빠른 버튼: 포트별 입출력(고정형만). 이미지는 아래 사진 판을 눌러 확대.
   const portBtn = fixed ? `<button type="button" class="vpActBtn" data-portproc="${esc(p.id)}" title="포트별 입출력 수량 보기">포트별 입출력 ⌄</button>` : '';
@@ -2549,7 +2568,7 @@ $('#vpBuildProc')?.addEventListener('change', renderProcessors);
 // 포트 고정형 프로세서 이름 클릭/엔터 → 포트별 입출력 수량 팝업. Esc로 닫기.
 document.addEventListener('click', e => { const t = e.target.closest('[data-portproc]'); if (t) { if (t.closest('summary')) e.preventDefault(); openPortPopup(t.dataset.portproc); } });
 // 프로세서 카드 '이미지' 버튼 → 제품 앞/뒤 이미지 뷰어 팝업. (요약 줄 안에서 눌러도 접힘 토글은 막는다)
-document.addEventListener('click', e => { const t = e.target.closest('[data-procimg]'); if (t) { if (t.closest('summary')) e.preventDefault(); openProcImgPopup(t.dataset.procimg); } });
+document.addEventListener('click', e => { const t = e.target.closest('[data-procimg]'); if (t) { if (t.closest('summary')) e.preventDefault(); openProcImgPopup(t.dataset.procimg, t.dataset.piside); } });
 // 제조사 필터 칩 → 잠금(숨김)/해제(표시) 토글. '__all__'은 전체 해제.
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-mfrlock]'); if (!t) return;
