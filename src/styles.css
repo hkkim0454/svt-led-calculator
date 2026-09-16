@@ -766,6 +766,16 @@ body.printing .previewStage{width:640px!important;height:auto!important}
 .vc .cn{flex:none}
 .vc .cv{color:var(--muted);margin-left:auto;font-family:var(--mono);font-size:11px;white-space:nowrap}
 @media (max-width:640px){ .vpCardGrid{grid-template-columns:1fr} }
+/* 좁은 화면(모바일): STEP 1 스탯 타일·STEP 2 입력 그룹을 세로로 쌓아 숫자 넘침(겹침) 방지 */
+@media (max-width:680px){
+  .vpStatGrid{grid-template-columns:1fr}
+  .vpInputs{grid-template-columns:1fr}
+  .vpStatVal{font-size:24px}
+}
+/* 아주 좁은 화면: 소스·레이어 2×2 필드도 한 줄씩 */
+@media (max-width:380px){
+  .vpFieldGrid{grid-template-columns:1fr}
+}
 
 /* 하단 접이식 행 — 부적합 / 내 장비 검증 */
 .vpFail{margin-top:2px;border-radius:18px;background:rgba(215,0,21,.06);border:1px solid rgba(215,0,21,.22)}
