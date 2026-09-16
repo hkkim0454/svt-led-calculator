@@ -1601,6 +1601,16 @@ function cardChannelPhrase(p, perCard, side) {
   if (perCard != null) return `카드당 4K ${perCard}채널`;   // 표 밖 제품: 데이터 있으면 일반 문구
   return '카드당 채널 미상';                                 // 없으면 미상(추정 금지)
 }
+// 카드 1장당 4K 채널 수(숫자). 계열별 확정값 우선, 없으면 cardPlan의 perCard, 그것도 없으면 null(미상).
+//   FHD 채널은 4K 1채널 = FHD 4채널(2×2 공간 분할) 환산으로만 파생한다(제품 스펙을 지어내지 않음).
+function cardChan4k(p, perCard) {
+  const fam = p.family, mfr = p.manufacturer;
+  if (mfr === 'Analog Way' && fam === 'Aquilon') return 4;
+  if (mfr === 'Colorlight' && fam === 'Universe') return 2;
+  if (mfr === 'Colorlight' && fam === 'X100 Pro') return 1;
+  if (mfr === 'NovaStar' && fam === 'H') return 1;
+  return perCard != null ? perCard : null;
+}
 // 고정형 입력 커넥터 종류·수량 문구(요청 2026-09-15). 데이터에 있는 커넥터만, 없으면 null(미상).
 const CONNECTOR_LABELS = [
   ['hdmi20', 'HDMI 2.0'], ['dp12', 'DP 1.2'], ['hdmi14', 'HDMI 1.4'],
@@ -1620,30 +1630,34 @@ function slotVizHTML(reqCards, slots) {
     const cls = (i < slots) ? (i < reqCards ? 'used' : 'free') : 'short';   // 물리슬롯 내: 사용/여유, 초과분: 부족
     blocks += `<span class="slotBlk ${cls}"></span>`;
   }
-  const used = Math.min(reqCards, slots), free = Math.max(0, slots - reqCards), short = Math.max(0, reqCards - slots);
-  const legend = `사용 ${used}` + (short > 0 ? ` · <b class="vpShort">부족 ${short}</b>` : ` · 여유 ${free}`);
-  return `<div class="vpSlotViz" aria-hidden="true">${blocks}</div><div class="vpSlotLegend">${legend}</div>`;
+  return `<div class="vpSlotViz" aria-hidden="true">${blocks}</div>`;   // 요약 텍스트는 slotSideHTML의 남은 슬롯 줄로 이동
 }
-// 슬롯형 카드의 한쪽(입력/출력) 영역. 계산값은 cardPlan에서 오고 여기선 표시만.
+// 슬롯형 카드의 한쪽(입력/출력) 영역. 채널 용량 중심 표기(이사 요청 2026-09-16):
+//   ① 카드 1장 = 4K N채널 · FHD 4N채널(환산)  ② 최대(전체 슬롯 기준) 총 용량  ③ 슬롯 시각화  ④ 남은 슬롯 요약.
 function slotSideHTML(side, p, need, reqCards, slots, perCard) {
   const kLabel = side === 'in' ? '입력' : '출력';
-  const reqTxt = !(need > 0) ? '필요 <b>0</b>장 <span class="muted-note">(요구 없음)</span>'
-    : (reqCards != null ? `필요 <b>${reqCards}</b>장` : '필요 <b>미상</b>');
-  const slotTxt = (slots != null) ? `전체 <b>${slots}</b>슬롯` : '전체 슬롯 <b>미상</b>';
-  const chan = cardChannelPhrase(p, perCard, side);
+  const ch4k = cardChan4k(p, perCard);                       // 카드당 4K 채널(숫자) 또는 null
+  // ① 카드당 채널: 4K는 확정, FHD는 4배 환산(공간 분할)
+  const chanLine = ch4k != null
+    ? `카드 1장 = <b>4K ${ch4k}채널</b> · FHD ${ch4k * 4}채널 <span class="vpConv">환산</span>`
+    : '카드당 채널 <span class="muted-note">미상</span>';
+  // ② 최대 총 용량(전체 슬롯 × 카드당 채널). 슬롯·채널 중 하나라도 미상이면 생략.
+  const capLine = (ch4k != null && slots != null)
+    ? `<div class="vpColCap">최대 <b>4K ${ch4k * slots}채널</b> · FHD ${ch4k * slots * 4}채널</div>` : '';
+  // ④ 남은 슬롯 요약(전체 · 사용 · 남은). 부족하면 강조.
   let remTxt, remCls = '';
-  if (slots == null || reqCards == null) remTxt = `남는 ${kLabel} 슬롯 <span class="muted-note">미상</span>`;
+  if (slots == null || reqCards == null) remTxt = `슬롯 <span class="muted-note">미상</span>`;
   else {
     const rem = slots - reqCards;
-    if (rem < 0) { remTxt = `<b class="vpShort">${kLabel} 슬롯 ${-rem}개 부족</b>`; remCls = 'short'; }
-    else { remTxt = `남는 ${kLabel} 슬롯 <b>${rem}</b>개`; remCls = rem >= 2 ? 'ok' : 'warn'; }
+    if (rem < 0) remTxt = `전체 <b>${slots}</b>슬롯 · <b class="vpShort">${-rem}개 부족</b>`, remCls = 'short';
+    else { remTxt = `전체 <b>${slots}</b>슬롯 · 사용 <b>${reqCards}</b> · 남은 슬롯 <b>${rem}</b>`; remCls = rem >= 2 ? 'ok' : 'warn'; }
   }
   return `<div class="vpCardCol">
     <h5 class="vpColHd">${kLabel} 카드</h5>
-    <div class="vpColLine">${reqTxt} / ${slotTxt}</div>
-    <div class="vpColChan">${esc(chan)}</div>
-    <div class="vpColRem ${remCls}">${remTxt}</div>
+    <div class="vpColChan">${chanLine}</div>
+    ${capLine}
     ${slotVizHTML(reqCards, slots)}
+    <div class="vpColRem ${remCls}">${remTxt}</div>
   </div>`;
 }
 // 슬롯형(customizable) 제품 카드 본문 — 입력/출력 2열 + 슬롯 시각화 + 상태 칩.
