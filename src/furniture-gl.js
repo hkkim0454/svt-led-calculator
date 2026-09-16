@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=367';
+import { u } from './gl-model.js?v=370';
 
 const DEG = Math.PI / 180;
 
@@ -26,6 +26,9 @@ export const FURNITURE_COLORS = Object.freeze({
   consoleTop: '#f3f6f9', consoleBase: '#9ba6b4', monitor: '#1b2532', monitorBase: '#8f99a7',
   podium: '#eef2f7', podiumTop: '#f7f9fc',
   rug: '#c1c9d5',
+  // 객석 단(계단). 윗면은 바닥보다 밝게, **옆면(챌판)은 뚜렷하게 어둡게** —
+  //   옆면이 바닥색과 비슷하면 단 경계가 안 보여 그냥 평평한 단 하나로 읽힌다.
+  riserTop: '#e6eaf0', riserSide: '#b9c1cd',
   plantPot: '#f2f5f9', plantLeaf: '#8fae9c',
 });
 
@@ -131,7 +134,8 @@ function groupKey(item) {
 const _m = new THREE.Matrix4(), _r = new THREE.Matrix4(), _t = new THREE.Matrix4(), _s = new THREE.Matrix4();
 
 function partMatrix(item, part, out) {
-  _t.makeTranslation(u(item.x), 0, u(item.z));
+  // item.y = 그 물건이 올라앉은 바닥 높이(계단식 객석의 단차). 없으면 0.
+  _t.makeTranslation(u(item.x), u(item.y || 0), u(item.z));
   _r.makeRotationY(-(item.rotY || 0) * DEG);   // faceTowards와 부호가 반대 — 파일 머리말 참고
   _m.multiplyMatrices(_t, _r);
   _t.makeTranslation(u(part.dx || 0), u(part.y), u(part.dz || 0));
@@ -268,6 +272,16 @@ export function buildFurnitureGroup(items) {
     let obj = null;
     if (it.type === 'table') obj = tableMesh(it, mat);
     else if (it.type === 'plant') obj = plantMesh(mat);
+    else if (it.type === 'riser') {
+      // 객석 단 — 윗면과 옆면 색을 나눠 낮고 얇은 단으로 읽히게 한다.
+      const h = u(it.h || 200);
+      obj = new THREE.Mesh(
+        new THREE.BoxGeometry(u(it.w || 6000), h, u(it.d || 2000)),
+        [mat.riserSide, mat.riserSide, mat.riserTop, mat.riserSide, mat.riserSide, mat.riserSide],
+      );
+      obj.position.y = h / 2;
+      obj.renderOrder = -1;   // 좌석보다 먼저 — 단 위에 앉은 좌석이 묻히지 않게
+    }
     else if (it.type === 'rug') {
       obj = new THREE.Mesh(
         new THREE.BoxGeometry(u(it.w || 4000), u(SIZES.rug.h), u(it.d || 3000)), mat.rug);
@@ -275,6 +289,7 @@ export function buildFurnitureGroup(items) {
     }
     if (!obj) continue;
     obj.position.x += u(it.x);
+    obj.position.y += u(it.y || 0);
     obj.position.z += u(it.z);
     obj.rotation.y = -(it.rotY || 0) * DEG;
     obj.name = it.type;

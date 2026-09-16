@@ -12,9 +12,34 @@ test('정상 구성은 값이 그대로 왕복(roundtrip)된다', () => {
     spareRate: '7', spareEdited: true, sboxSpare: 2, signalMode: 'uhd',
     selectedId: 'IF015RM', selectedModel: { id: 'IF015RM', name: 'IF015R-M' },
     etcCost: 500000, etcSell: 700000, visibleLines: ['IF', 'MM'], indirectDisabled: ['연금보험료'],
+    wallThk: 120,
+    customViews: [{ id: 'v1', label: '내 시점', position: [1, 2, 3], target: [0, 1, 0], fov: 40 }],
   };
   const out = normalizeConfig(cfg);
   assert.deepEqual(out, cfg);
+});
+
+test('저장한 시점(customViews) — 형태가 맞는 것만 남는다', () => {
+  const ok = { id: 'a', label: '내 시점', position: [1, 2, 3], target: [0, 1, 0], fov: 40 };
+  const out = normalizeConfig({ customViews: [
+    ok,
+    { id: 'b', position: [1, 2], target: [0, 0, 0] },   // 좌표가 3개가 아님
+    { id: 'c', target: [0, 0, 0] },                      // position 없음
+    null, 'x', 42,
+  ] });
+  assert.equal(out.customViews.length, 1);
+  assert.deepEqual(out.customViews[0], ok);
+  // 배열이 아니면 기본값
+  assert.equal(normalizeConfig({ customViews: 'x' }).customViews, null);
+  // 너무 많으면 앞에서 24개까지만
+  const many = Array.from({ length: 40 }, (_, i) => ({ id: 'v' + i, position: [0, 0, 0], target: [0, 0, 0] }));
+  assert.equal(normalizeConfig({ customViews: many }).customViews.length, 24);
+});
+
+test('벽 두께 — 숫자가 아니면 기본값', () => {
+  assert.equal(normalizeConfig({ wallThk: 250 }).wallThk, 250);
+  assert.equal(normalizeConfig({ wallThk: 'abc' }).wallThk, CONFIG_DEFAULTS.wallThk);
+  assert.equal(normalizeConfig({}).wallThk, CONFIG_DEFAULTS.wallThk);
 });
 
 test('누락 항목은 기본값으로 채워진다', () => {

@@ -16,6 +16,8 @@ export const CONFIG_DEFAULTS = Object.freeze({
   spaceD: 0,             // 공간 깊이(mm). 0 = 비움(공간 타입별 자동) — 3D 뷰 전용
   roomType: 'meeting',   // 3D 뷰 공간 타입(회의실·강의실·강당·상황실)
   roomOpts: null,        // 그 타입의 옵션(테이블 모양·좌석 수 등). null = 타입 기본값
+  wallThk: 100,          // 벽 두께(mm) — 3D 뷰 전용. 방 안쪽 치수(W×H×D)는 그대로 둔다
+  customViews: null,     // 3D 뷰에서 사용자가 저장한 시점 목록. null = 없음
   baseHeight: 1000,      // 바닥에서 LED 아래까지(mm)
   ledW: 4000,            // 'LED 크기 지정' 모드의 LED 가로(mm)
   ledH: 2300,            // 'LED 크기 지정' 모드의 LED 세로(mm)
@@ -68,6 +70,14 @@ export function normalizeConfig(raw) {
     // 옵션은 타입마다 항목이 달라 여기서는 '객체면 그대로' 두고, 화면에서 타입 스키마로 정리한다
     //   (room-presets.js의 normalizeOptions). 이 파일이 가구 규칙을 알 필요는 없다.
     roomOpts: (r.roomOpts && typeof r.roomOpts === 'object' && !Array.isArray(r.roomOpts)) ? { ...r.roomOpts } : D.roomOpts,
+    wallThk: asNum(r.wallThk, D.wallThk),
+    // 저장된 시점은 형태만 확인하고 그대로 둔다(카메라 좌표의 의미는 3D 뷰가 안다).
+    customViews: Array.isArray(r.customViews)
+      ? r.customViews.filter(v => v && typeof v === 'object'
+          && Array.isArray(v.position) && v.position.length === 3
+          && Array.isArray(v.target) && v.target.length === 3)
+        .slice(0, 24).map(v => ({ ...v }))
+      : D.customViews,
     baseHeight: asNum(r.baseHeight, D.baseHeight),
     ledW: asNum(r.ledW, D.ledW),
     ledH: asNum(r.ledH, D.ledH),

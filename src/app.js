@@ -4,15 +4,15 @@ import { MODELS } from './models.js?v=276';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=276';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=276';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=367';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=367';
-import { createViewerGL } from './render3d-gl.js?v=367';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=367';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=370';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=370';
+import { createViewerGL } from './render3d-gl.js?v=370';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=370';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -263,6 +263,8 @@ let roomTypeId = DEFAULT_ROOM_TYPE;
 let roomOpts = defaultOptions(DEFAULT_ROOM_TYPE);
 let cubeViewId = DEFAULT_CUBE_VIEW;   // (구 Canvas 뷰의 시점 id — 구성 저장 호환용으로만 남긴다)
 let presetId = DEFAULT_PRESET;        // 3D 카메라 시점 프리셋
+let customViews = [];                 // 사용자가 저장한 시점(구성과 함께 저장된다)
+let viewEditMode = false;             // 시점 편집 모드 — 켜면 '+'(저장)와 '×'(삭제)가 보인다
 const pv3dShow = { person: true, dims: true, grid: true, accentWall: true };
 let viewer3d = null;   // createViewerGL() 인스턴스(3D 뷰를 처음 열 때 만든다)
 let gl3dFailed = false;   // WebGL을 쓸 수 없는 환경인지(한 번 실패하면 다시 시도하지 않는다)
@@ -833,7 +835,7 @@ function renderPreview3D() {
 
   // 계산 결과를 '읽기만' 해서 넘긴다 — 크기·배열·하단 높이 모두 engine / room-presets 값 그대로.
   viewer3d.setModel(buildGLModel({
-    space: { W: sW, H: sH, D },
+    space: { W: sW, H: sH, D, wallThk: num($('#wallThk')?.value) },
     led: {
       w: r.actualW, h: r.actualH, marginW: r.marginW, mount,
       cols: r.cols, rows: r.rows, depth: (m && m.depth) || 60,
@@ -918,6 +920,20 @@ function buildSizeProxy() {
   return box;
 }
 
+// 벽 두께(mm) — 3D 뷰 전용 표시 설정. 방 안쪽 치수(W×H×D)는 건드리지 않는다.
+function buildWallThkField() {
+  const lab = document.createElement('label');
+  lab.className = 'pv3dField';
+  const t = document.createElement('span'); t.textContent = '벽 두께 (mm)';
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.id = 'wallThk'; inp.min = '0'; inp.max = '600'; inp.step = '10';
+  inp.value = String(CONFIG_DEFAULTS.wallThk);
+  inp.title = '벽은 방 바깥쪽으로 두꺼워집니다 — 안쪽 공간 크기는 그대로입니다';
+  inp.addEventListener('input', () => renderPreview());
+  lab.append(t, inp);
+  return lab;
+}
+
 // 대리 입력칸을 원본 값에 맞춘다(01 카드에서 바꿨을 때 따라오도록).
 function syncSizeProxy() {
   for (const inp of document.querySelectorAll('.pv3dSize input[data-proxy]')) {
@@ -936,6 +952,7 @@ function buildInspector() {
   const typeField = $('#roomType')?.closest('.pv3dField');
   if (typeField) s1.body.appendChild(typeField);     // 이동(복제 아님)
   s1.body.appendChild(buildSizeProxy());
+  s1.body.appendChild(buildWallThkField());
 
   // [좌석 설정] 타입별 옵션(줄 수·줄당 좌석·통로 등) — renderRoomOptions가 채우는 그릇
   const s2 = inspectorSection('좌석 설정');
@@ -966,17 +983,29 @@ function buildInspector() {
 
   // 시점 프리셋 — 캔버스 아래 가운데. 기존 선택칸(#cubeView)은 숨기고 값만 공유한다.
   if (presetBar) {
-    presetBar.innerHTML = '';
-    for (const p of CAMERA_PRESETS) {
-      const btn = document.createElement('button');
-      btn.type = 'button'; btn.dataset.preset = p.id; btn.textContent = p.label;
-      presetBar.appendChild(btn);
-    }
+    renderPresetBar();
     presetBar.addEventListener('click', e => {
+      // 편집 토글 — 켜면 '＋'(현재 화면 저장)와 저장한 시점의 '×'(삭제)가 보인다
+      if (e.target.closest('[data-viewedit]')) {
+        viewEditMode = !viewEditMode;
+        renderPresetBar();
+        return;
+      }
+      // ＋ — 지금 보이는 화면을 그대로 저장
+      if (e.target.closest('[data-viewadd]')) { saveCurrentView(); return; }
+      // × — 저장한 시점 삭제
+      const del = e.target.closest('[data-viewdel]');
+      if (del) {
+        customViews = customViews.filter(v => v.id !== del.dataset.viewdel);
+        if (presetId === del.dataset.viewdel) presetId = DEFAULT_PRESET;
+        renderPresetBar(); saveLastSession();
+        return;
+      }
       const btn = e.target.closest('button[data-preset]'); if (!btn) return;
-      presetId = cameraPreset(btn.dataset.preset).id;
-      viewer3d?.setPreset(presetId);
-      syncPresetSel();
+      const id = btn.dataset.preset;
+      const saved = customViews.find(v => v.id === id);
+      if (saved) { presetId = id; viewer3d?.applyPose(saved); renderPresetBar(); }
+      else { presetId = cameraPreset(id).id; viewer3d?.setPreset(presetId); syncPresetSel(); }
     });
   }
   // 보조 도구 — 캔버스 오른쪽 위
@@ -1001,6 +1030,44 @@ function buildInspector() {
   inspectorBuilt = true;
 }
 
+// 시점 막대를 다시 그린다 — 기본 6종 + 저장한 시점 + 편집 토글(+ 추가/삭제).
+function renderPresetBar() {
+  const bar = $('#pv3dPresetBar'); if (!bar) return;
+  const esc2 = t => esc(String(t));
+  let html = CAMERA_PRESETS
+    .map(p => `<button type="button" data-preset="${p.id}">${esc2(p.label)}</button>`).join('');
+  if (customViews.length) {
+    html += '<span class="pv3dPresetSep"></span>';
+    html += customViews.map(v => `<button type="button" class="saved" data-preset="${esc2(v.id)}">`
+      + `${esc2(v.label)}`
+      + (viewEditMode ? `<i class="pv3dDel" data-viewdel="${esc2(v.id)}" title="이 시점 삭제">×</i>` : '')
+      + '</button>').join('');
+  }
+  html += '<span class="pv3dPresetSep"></span>';
+  html += `<button type="button" class="pv3dEdit${viewEditMode ? ' on' : ''}" data-viewedit`
+    + ' title="시점 저장/삭제 켜기">시점 저장</button>';
+  if (viewEditMode) {
+    html += '<button type="button" class="pv3dAdd" data-viewadd title="지금 보이는 화면을 시점으로 저장">＋</button>';
+  }
+  bar.innerHTML = html;
+  syncPresetButtons();
+}
+
+// 지금 보이는 화면을 그대로 시점으로 저장한다(구성과 함께 저장되어 다음에도 남는다).
+function saveCurrentView() {
+  const pose = viewer3d?.getPose();
+  if (!pose) { alert('먼저 3D 뷰를 표시한 뒤 저장하세요.'); return; }
+  if (customViews.length >= 24) { alert('저장한 시점은 최대 24개까지입니다. 하나 지우고 다시 저장하세요.'); return; }
+  const base = `${roomType(roomTypeId).label} 시점`;
+  let n = customViews.length + 1;
+  while (customViews.some(v => v.label === `${base} ${n}`)) n++;
+  const id = 'cv' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  customViews.push({ id, label: `${base} ${n}`, ...pose });
+  presetId = id;
+  renderPresetBar();
+  saveLastSession();
+}
+
 // 프리셋 버튼의 선택 표시를 현재 시점에 맞춘다.
 function syncPresetButtons() {
   for (const b of document.querySelectorAll('#pv3dPresetBar button[data-preset]')) {
@@ -1019,7 +1086,7 @@ function applyStagedUi() {
   show($('#btn3dPng'), true);              // PNG 저장 — FINAL STEP
   syncPerson3dSel();
   syncSizeProxy();
-  syncPresetButtons();
+  renderPresetBar();
 }
 
 // 3D에 세울 사람 — 정면 뷰와 같은 인물·같은 키를 쓴다(pvPerson · PEOPLE).
@@ -2657,6 +2724,8 @@ function gatherConfig() {
   return {
     spaceW: spaceWmm(), spaceH: spaceHmm(), spaceD: spaceDmm(),
     roomType: roomTypeId, roomOpts: { ...roomOpts },
+    wallThk: num($('#wallThk')?.value) || CONFIG_DEFAULTS.wallThk,
+    customViews: customViews.map(v => ({ ...v })),
     baseHeight: num($('#baseHeight').value), ledW: num($('#ledW').value), ledH: num($('#ledH').value),
     mode, manCols: num($('#manCols').value), manRows: num($('#manRows').value),
     redundancy: $('#redundancy').checked, cs4b: userCS4B, gbicFB: $('#gbicFB').checked,
@@ -2682,6 +2751,9 @@ function applyConfig(raw) {
   if ($('#spaceD')) $('#spaceD').value = c.spaceD > 0 ? c.spaceD / 1000 : '';    // 0 = 비움(자동)
   roomTypeId = roomType(c.roomType).id;
   roomOpts = normalizeOptions(roomTypeId, c.roomOpts);
+  if ($('#wallThk')) $('#wallThk').value = c.wallThk;
+  customViews = Array.isArray(c.customViews) ? c.customViews.map(v => ({ ...v })) : [];
+  renderPresetBar();
   renderRoomOptions();
   $('#baseHeight').value = c.baseHeight; $('#ledW').value = c.ledW; $('#ledH').value = c.ledH;
   $('#manCols').value = c.manCols; $('#manRows').value = c.manRows;

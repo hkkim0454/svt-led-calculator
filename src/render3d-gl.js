@@ -18,13 +18,13 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=367';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=370';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
-} from './gl-model.js?v=367';
+} from './gl-model.js?v=370';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -171,9 +171,20 @@ function buildRoomGroup(model, shared) {
   floor.name = 'floor';
   g.add(floor);
 
+  // 벽 두께. 0이면 예전처럼 얇은 판 하나로 그린다(두께 없는 벽).
+  //   두께가 있으면 상자로 세우되 **방 바깥쪽으로만** 붙여 안쪽 치수를 건드리지 않는다.
+  const thk = room.wallThk || 0;
+  const wallMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
+
   // ② 정면 벽(LED가 붙는 벽, z=0) — 방 안쪽(+Z)을 향한다.
-  const wallFront = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallFront);
-  wallFront.position.set(room.W / 2, room.H / 2, 0);
+  let wallFront;
+  if (thk > 0) {
+    wallFront = wallMesh(room.W + thk * 2, room.H, thk, matWallFront);
+    wallFront.position.set(room.W / 2, room.H / 2, -thk / 2);
+  } else {
+    wallFront = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallFront);
+    wallFront.position.set(room.W / 2, room.H / 2, 0);
+  }
   wallFront.name = 'wallFront';
   g.add(wallFront);
 
@@ -187,19 +198,34 @@ function buildRoomGroup(model, shared) {
     color: new THREE.Color(GL_PALETTE.wallSide).lerp(new THREE.Color(GL_PALETTE.wallAccent), ACCENT_ALPHA),
     roughness: 0.96, metalness: 0, side: THREE.FrontSide,
   });
-  const sideMat = side => (accentOn && side === ACCENT_WALL_SIDE) ? matAccent : matWallSide;
+  // 두께 있는 벽(상자)은 '방 안쪽을 향한 면'에만 포인트 색을 칠한다.
+  //   윗면·바깥면까지 칠하면 흰 벽과 만나는 모서리에서 색이 끊겨 보인다(기존 3D 뷰 DEC-058과 같은 이유).
+  //   BoxGeometry 면 순서: +X, −X, +Y, −Y, +Z, −Z
+  const sideMat = side => {
+    const isAccent = accentOn && side === ACCENT_WALL_SIDE;
+    if (!isAccent) return matWallSide;
+    if (!thk) return matAccent;
+    const inner = side === 'left' ? 0 : 1;   // 왼쪽 벽은 +X면이, 오른쪽 벽은 −X면이 방 안쪽
+    return [0, 1, 2, 3, 4, 5].map(i => (i === inner ? matAccent : matWallSide));
+  };
 
-  const wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('left'));
-  wallLeft.rotation.y = Math.PI / 2;               // 방 안쪽(+X)을 향한다
-  wallLeft.position.set(0, room.H / 2, room.D / 2);
+  let wallLeft, wallRight;
+  if (thk > 0) {
+    wallLeft = wallMesh(thk, room.H, room.D, sideMat('left'));
+    wallLeft.position.set(-thk / 2, room.H / 2, room.D / 2);
+    wallRight = wallMesh(thk, room.H, room.D, sideMat('right'));
+    wallRight.position.set(room.W + thk / 2, room.H / 2, room.D / 2);
+  } else {
+    wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('left'));
+    wallLeft.rotation.y = Math.PI / 2;             // 방 안쪽(+X)을 향한다
+    wallLeft.position.set(0, room.H / 2, room.D / 2);
+    wallRight = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('right'));
+    wallRight.rotation.y = -Math.PI / 2;           // 방 안쪽(−X)을 향한다
+    wallRight.position.set(room.W, room.H / 2, room.D / 2);
+  }
   wallLeft.name = 'wallLeft';
-  g.add(wallLeft);
-
-  const wallRight = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('right'));
-  wallRight.rotation.y = -Math.PI / 2;             // 방 안쪽(−X)을 향한다
-  wallRight.position.set(room.W, room.H / 2, room.D / 2);
   wallRight.name = 'wallRight';
-  g.add(wallRight);
+  g.add(wallLeft, wallRight);
 
   // ⑤ LED — 벽에서 캐비닛 깊이만큼 튀어나온 상자 + 그 앞면에 붙는 화면.
   //    상자와 화면을 나누면 옆면(두께)과 화면 색을 따로 줄 수 있다.
@@ -834,6 +860,53 @@ export function createViewerGL(canvas, { onError } = {}) {
     /** 초기화(Reset) — 기본 시점(실내)으로 돌아간다. */
     resetView() { applyPreset(DEFAULT_PRESET); },
     resize,
+    /**
+     * 지금 카메라 자세를 그대로 담아 돌려준다 — '이 화면 저장'에 쓴다.
+     * 저장한 값은 나중에 applyPose()에 그대로 넣으면 같은 그림이 나온다.
+     */
+    getPose() {
+      return {
+        ortho: !!camera.isOrthographicCamera,
+        position: camera.position.toArray(),
+        target: controls.target.toArray(),
+        up: camera.up.toArray(),
+        fov: camera.isPerspectiveCamera ? camera.fov : null,
+        orthoHeight: camera.isOrthographicCamera ? (camera.top - camera.bottom) : null,
+      };
+    },
+    /** 저장해 둔 카메라 자세로 이동한다(프리셋과 같은 방식으로 부드럽게). */
+    applyPose(pose, { animate = true } = {}) {
+      if (!pose || !model) return;
+      presetId = pose.id || 'custom';
+      const wantOrtho = !!pose.ortho;
+      const typeChange = (wantOrtho ? orthoCam : perspCam) !== camera;
+      if (typeChange && !wantOrtho) {
+        const now = snapshot();
+        perspCam.position.copy(now.pos);
+        perspCam.aspect = Math.max(0.3, camera.aspect || 16 / 9);
+        perspCam.updateProjectionMatrix();
+        useCamera(perspCam);
+        controls.target.copy(now.target);
+      }
+      const to = {
+        pos: new THREE.Vector3(...pose.position),
+        target: new THREE.Vector3(...pose.target),
+        fov: pose.fov ?? null,
+        orthoHeight: pose.orthoHeight ?? null,
+        up: pose.up || [0, 1, 0],
+        swapToOrtho: typeChange && wantOrtho,
+      };
+      // 저장한 시점은 방 밖·위에서 본 것일 수 있으므로 회전 제한을 풀어 둔다.
+      applyControlLimits('iso');
+      userMoved = false;
+      if (!animate) { finishPreset(to); return; }
+      tween = {
+        t0: (typeof performance !== 'undefined' ? performance.now() : Date.now()),
+        dur: TRANSITION_MS, from: snapshot(), to,
+      };
+      controls.enabled = false;
+      needsRender = true;
+    },
     /** 지금 카메라 상태(디버깅·검증용). */
     getView() {
       return {

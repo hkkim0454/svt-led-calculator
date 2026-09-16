@@ -61,7 +61,11 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @returns { room, led, stage }  전부 unit
  */
 export function buildGLModel({ space, led, items, show, person }) {
-  const room = { W: u(space.W), H: u(space.H), D: u(space.D) };
+  // 벽 두께는 '방 바깥쪽'으로 붙인다 — 안쪽 치수(W×H×D)는 계산값 그대로여야 한다.
+  const room = {
+    W: u(space.W), H: u(space.H), D: u(space.D),
+    wallThk: u(clamp(Number(space.wallThk) || 0, 0, 600)),
+  };
   const stageItem = (items || []).find(it => it && it.type === 'stage');
   return {
     room,
