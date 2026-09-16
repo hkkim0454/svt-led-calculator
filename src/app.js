@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=354';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=354';
-import { createViewerGL } from './render3d-gl.js?v=354';
-import { buildGLModel } from './gl-model.js?v=354';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=355';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=355';
+import { createViewerGL } from './render3d-gl.js?v=355';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=355';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -261,7 +261,8 @@ const pvShow = { person: true, eye: true, grid: true, dims: true, cellgrid: true
 let pvView = '2d';
 let roomTypeId = DEFAULT_ROOM_TYPE;
 let roomOpts = defaultOptions(DEFAULT_ROOM_TYPE);
-let cubeViewId = DEFAULT_CUBE_VIEW;
+let cubeViewId = DEFAULT_CUBE_VIEW;   // (구 Canvas 뷰의 시점 id — 구성 저장 호환용으로만 남긴다)
+let presetId = DEFAULT_PRESET;        // 3D 카메라 시점 프리셋
 const pv3dShow = { person: true, dims: true, grid: true, accentWall: true };
 let viewer3d = null;   // createViewerGL() 인스턴스(3D 뷰를 처음 열 때 만든다)
 let gl3dFailed = false;   // WebGL을 쓸 수 없는 환경인지(한 번 실패하면 다시 시도하지 않는다)
@@ -820,6 +821,9 @@ function renderPreview3D() {
       onError: e => { gl3dFailed = true; console.error('[3D] WebGL 초기화 실패 —', e); },
     });
     if (!viewer3d) gl3dFailed = true;
+    // 자동 검증(헤드리스 브라우저)에서 카메라 상태를 읽기 위한 손잡이.
+    //   읽기 전용 정보만 노출한다 — 화면 동작에는 영향이 없다.
+    if (viewer3d) window.__svtViewer3d = viewer3d;
   }
   if (!viewer3d) {
     host.hidden = true; stage.hidden = false;
@@ -839,19 +843,32 @@ function renderPreview3D() {
 
   const note = $('#room3dNote');
   if (note) {
-    note.textContent = 'STEP 1 — 공간·LED·무대만 표시합니다(좌석·치수·사람·PNG는 다음 단계). '
-      + '끌기=회전 · 휠=확대 · 오른쪽 끌기=이동';
+    note.textContent = 'STEP 2 — 공간·LED·무대와 시점 프리셋까지(좌석·치수·사람·PNG는 다음 단계). '
+      + '끌기=회전 · 휠=확대 · 오른쪽 끌기=이동 · 돌린 뒤 ‘맞춤’을 누르면 시점으로 돌아옵니다';
   }
 }
 
-// STEP 1에서 아직 동작하지 않는 3D 조작 버튼은 숨긴다.
-//   (마크업은 그대로 두고 표시만 끈다 — 다음 단계에서 기능이 붙으면 이 함수만 지우면 된다.)
-function applyStep1Ui() {
-  const hide = el => { if (el) el.hidden = true; };
-  hide($('#person3dSel')?.closest('.pv3dGroup'));   // 사람·치수·바닥 격자·포인트 벽 묶음
-  hide($('#cubeView')?.closest('.pv3dField'));      // 시점 선택
-  hide($('#btn3dRotL')); hide($('#btn3dRotR'));
-  hide($('#btn3dPng'));
+// 시점 프리셋 선택칸을 채운다(기존 '시점' 선택칸을 그대로 쓴다 — 새 UI를 만들지 않는다).
+function syncPresetSel() {
+  const sel = $('#cubeView'); if (!sel) return;
+  const want = CAMERA_PRESETS.map(p => p.id).join(',');
+  if (sel.dataset.filled !== want) {
+    sel.innerHTML = CAMERA_PRESETS.map(p => `<option value="${p.id}">${esc(p.label)}</option>`).join('');
+    sel.dataset.filled = want;
+  }
+  if (viewer3d) presetId = viewer3d.getPreset();
+  sel.value = presetId;
+}
+
+// 아직 동작하지 않는 3D 조작 버튼은 숨긴다.
+//   (마크업은 그대로 두고 표시만 끈다 — 기능이 붙으면 이 함수에서 한 줄씩 지우면 된다.)
+//   STEP 2에서 시점 선택칸과 ◀ ▶ 는 되살렸다. 남은 것은 사람·치수·격자·포인트 벽·PNG.
+function applyStagedUi() {
+  const show = (el, on) => { if (el) el.hidden = !on; };
+  show($('#person3dSel')?.closest('.pv3dGroup'), false);   // 사람·치수·바닥 격자·포인트 벽 묶음
+  show($('#cubeView')?.closest('.pv3dField'), true);       // 시점 프리셋 — STEP 2에서 사용
+  show($('#btn3dRotL'), true); show($('#btn3dRotR'), true);
+  show($('#btn3dPng'), false);
 }
 
 // 공간 타입 선택 + 그 타입의 옵션 입력칸을 그린다(타입마다 옵션이 다르므로 매번 새로 만든다).
@@ -884,13 +901,6 @@ function syncPerson3dSel() {
   sel.disabled = !pv3dShow.person;
 }
 
-// 큐브 시점 선택칸을 현재 시점에 맞춘다.
-function syncCubeView() {
-  const sel = $('#cubeView'); if (!sel) return;
-  if (!sel.options.length) sel.innerHTML = CUBE_VIEWS.map(v => `<option value="${v.id}">${esc(v.label)}</option>`).join('');
-  if (viewer3d) cubeViewId = viewer3d.getView().viewId;
-  sel.value = cubeViewId;
-}
 
 // 정면 뷰 ↔ 3D 뷰 전환. 2D 전용 컨트롤(신호·사람 토글)은 3D에서 숨긴다.
 function setPreviewView(v) {
@@ -901,7 +911,7 @@ function setPreviewView(v) {
   if ($('#pvToggles')) $('#pvToggles').hidden = is3d;
   if ($('#signalMode')) $('#signalMode').hidden = is3d;
   if (!is3d && $('#stage3d')) { $('#stage3d').hidden = true; $('#stage').hidden = false; }
-  if (is3d) { renderRoomOptions(); applyStep1Ui(); }
+  if (is3d) { renderRoomOptions(); applyStagedUi(); syncPresetSel(); }
   renderPreview();
 }
 
@@ -949,8 +959,14 @@ $('#pv3dBar')?.addEventListener('click', e => {
 });
 
 // 큐브 시점 — 좌우 한 칸씩 돌리거나 목록에서 고른다(자유 회전은 없음).
-// 시점 프리셋(◀ ▶ · 목록)과 PNG 저장은 다음 단계에서 Three.js 카메라에 다시 붙인다.
-//   지금은 OrbitControls로 자유롭게 돌려 보고, '맞춤'으로 처음 위치로 되돌린다.
+// 시점 프리셋 — 목록에서 고르거나 ◀ ▶ 로 한 칸씩 돈다. '맞춤'은 지금 프리셋 자리로 되돌린다.
+//   (PNG 저장은 다음 단계에서 붙인다.)
+$('#btn3dRotL')?.addEventListener('click', () => { viewer3d?.stepPreset(-1); syncPresetSel(); });
+$('#btn3dRotR')?.addEventListener('click', () => { viewer3d?.stepPreset(1); syncPresetSel(); });
+$('#cubeView')?.addEventListener('change', () => {
+  presetId = cameraPreset($('#cubeView').value).id;
+  viewer3d?.setPreset(presetId);
+});
 $('#btn3dReset')?.addEventListener('click', () => viewer3d?.resetView());
 $('#btn3dPng')?.addEventListener('click', () => {
   const url = viewer3d?.toPNG(3);   // 제안서·인쇄용 3배 해상도

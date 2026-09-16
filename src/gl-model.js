@@ -79,3 +79,134 @@ export function buildGLModel({ space, led, items }) {
     } : null,
   };
 }
+
+// ── 카메라 프리셋 ───────────────────────────────────────────────────────────
+// 하나의 Scene을 여러 각도에서 본다 — 방을 새로 만들지 않는다. 카메라만 옮긴다.
+//
+//   interior  실내 시점. 관람자가 공간 안에 서서 LED를 바라보는 느낌(Reference A).
+//   corner-l  좌측 코너에서
+//   front     정면에서 (3D 씬을 정면으로 본 것 — 정면 '계산' 뷰와는 별개다)
+//   corner-r  우측 코너에서
+//   iso       아이소메트릭. 방 전체 구조를 한눈에 보는 배치도(Reference B).
+//   top       평면도. 위에서 내려다본 배치. 여기만 정사투영(원근 없음)을 쓴다.
+export const CAMERA_PRESETS = Object.freeze([
+  { id: 'interior', label: '실내',      ortho: false },
+  { id: 'corner-l', label: '좌측 코너', ortho: false },
+  { id: 'front',    label: '정면',      ortho: false },
+  { id: 'corner-r', label: '우측 코너', ortho: false },
+  { id: 'iso',      label: '아이소',    ortho: false },
+  { id: 'top',      label: '평면도',    ortho: true  },
+]);
+
+export const DEFAULT_PRESET = 'interior';
+
+export function cameraPreset(id) {
+  return CAMERA_PRESETS.find(p => p.id === id) || CAMERA_PRESETS.find(p => p.id === DEFAULT_PRESET);
+}
+
+/** 프리셋 목록을 좌(-1)·우(+1)로 한 칸 돈다. */
+export function stepPreset(id, step) {
+  const i = Math.max(0, CAMERA_PRESETS.findIndex(p => p.id === cameraPreset(id).id));
+  const n = CAMERA_PRESETS.length;
+  return CAMERA_PRESETS[(i + step + n) % n].id;
+}
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const DEG = Math.PI / 180;
+
+// 화각(세로)과 화면비로 가로 화각을 구한다. 세로로 긴 화면에서는 가로가 더 빡빡해진다.
+function hFovOf(fovDeg, aspect) {
+  return 2 * Math.atan(Math.tan(fovDeg * DEG / 2) * Math.max(0.3, aspect));
+}
+
+/** 가로 w × 세로 h 의 사각형이 화면에 들어오는 최소 거리. */
+function fitDistance(w, h, fovDeg, aspect) {
+  const vFov = fovDeg * DEG;
+  return Math.max(
+    (h / 2) / Math.tan(vFov / 2),
+    (w / 2) / Math.tan(hFovOf(fovDeg, aspect) / 2),
+  );
+}
+
+// 실내 계열(interior·corner·front) 공통 설정.
+//   eye   : 카메라 눈높이(m)
+//   look  : 바라보는 높이(m)
+//   yaw   : 정면에서 좌우로 돈 각도(°). 음수 = 왼쪽
+//   fov   : 화각(°)
+//   pad   : LED를 화면의 몇 배 크기로 담을지 — 클수록 방이 많이 보이고 LED는 작아진다
+const INSIDE = {
+  // Reference A. 눈높이를 사람 키 가까이 내려 '천장에서 내려다보는' 느낌을 없앤다.
+  //   바라보는 높이가 눈높이보다 높아 시선이 살짝 올라간다 — 실제로 스크린을 볼 때와 같다.
+  interior: { eye: 1.75, look: 2.05, yaw: 12,  fov: 42, padW: 1.85, padH: 2.30 },
+  // 둘러보기 3종. 조금 높은 시점에서 방과 LED의 관계를 본다.
+  'corner-l': { eye: 2.20, look: 1.45, yaw: -28, fov: 40, padW: 2.30, padH: 2.90 },
+  front:      { eye: 2.10, look: 1.40, yaw: 0,   fov: 40, padW: 2.25, padH: 2.85 },
+  'corner-r': { eye: 2.20, look: 1.45, yaw: 28,  fov: 40, padW: 2.30, padH: 2.90 },
+};
+
+/**
+ * 프리셋 id → 카메라 설정. **순수 계산** — Three.js도 DOM도 쓰지 않는다.
+ *
+ * @param id     프리셋 id
+ * @param model  buildGLModel() 결과 { room, led, stage }
+ * @param aspect 화면 가로/세로비
+ * @returns {{
+ *   id, ortho, position:[x,y,z], target:[x,y,z], up:[x,y,z],
+ *   fov:number|null, orthoHeight:number|null
+ * }}  길이 단위는 전부 unit(1 = 1 m)
+ */
+export function presetPose(id, model, aspect = 16 / 9) {
+  const p = cameraPreset(id);
+  const { room, led } = model;
+  const a = Math.max(0.3, aspect);
+  const cx = led.x + led.w / 2;               // LED 가로 중심
+
+  // ── 평면도 — 위에서 수직으로 내려다본다(정사투영) ──
+  if (p.id === 'top') {
+    // 바로 위에서 보면 '위쪽'이 정해지지 않는다. -Z를 위로 두면 도면처럼
+    //   '오른쪽 = +X, 화면 위 = LED 벽'이 된다(+Z를 쓰면 좌우가 뒤집힌다).
+    const height = Math.max(room.D, room.W / a) * 1.08;
+    return {
+      id: p.id, ortho: true,
+      position: [room.W / 2, Math.max(room.H * 3, 10), room.D / 2],
+      target: [room.W / 2, 0, room.D / 2],
+      up: [0, 0, -1],
+      fov: null, orthoHeight: height,
+    };
+  }
+
+  // ── 아이소메트릭 — 방 전체를 한눈에. 카메라는 방 밖에 선다 ──
+  if (p.id === 'iso') {
+    const fov = 30;                            // 좁은 화각 = 원근이 약해 아이소메트릭처럼 보인다
+    const yaw = 34 * DEG, pitch = 30 * DEG;    // 30° — 지나친 top-down을 피한다
+    // 방을 감싸는 구의 반지름으로 거리를 잡으면 어느 방 모양에서도 전체가 들어온다.
+    const R = 0.5 * Math.hypot(room.W, room.H, room.D);
+    const minFov = Math.min(fov * DEG, hFovOf(fov, a));
+    const dist = (R / Math.sin(minFov / 2)) * 1.06;
+    const target = [room.W / 2, room.H * 0.35, room.D * 0.45];
+    return {
+      id: p.id, ortho: false,
+      position: [
+        target[0] + dist * Math.cos(pitch) * Math.sin(yaw),
+        target[1] + dist * Math.sin(pitch),
+        target[2] + dist * Math.cos(pitch) * Math.cos(yaw),
+      ],
+      target, up: [0, 1, 0],
+      fov, orthoHeight: null,
+    };
+  }
+
+  // ── 실내 계열 — 카메라가 방 안에 선다 ──
+  const s = INSIDE[p.id] || INSIDE.interior;
+  const yaw = s.yaw * DEG;
+  const target = [cx, Math.min(s.look, room.H * 0.8), led.depth];
+  // 거리는 LED 크기로 정하고, 방보다 뒤로는 못 간다(뒷벽 밖으로 나가면 벽이 사라진다).
+  const want = fitDistance(led.w * s.padW, led.h * s.padH, s.fov, a);
+  const dist = clamp(want, 1.6, Math.max(1.6, room.D - 0.6));
+  const position = [
+    clamp(cx + dist * Math.sin(yaw), 0.3, Math.max(0.3, room.W - 0.3)),
+    clamp(s.eye, 0.6, room.H - 0.2),
+    clamp(led.depth + dist * Math.cos(yaw), 0.8, Math.max(0.8, room.D - 0.3)),
+  ];
+  return { id: p.id, ortho: false, position, target, up: [0, 1, 0], fov: s.fov, orthoHeight: null };
+}
