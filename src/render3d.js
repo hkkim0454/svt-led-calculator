@@ -13,8 +13,8 @@ import {
   buildScene, roomShellQuads, visibleWallSides, cabinetQuads, floorGridLines,
   makeCamera, projectPoint, cullAndSort, fitTransform, toScreen, fitAnchors,
   cubeView, rotateCubeView, DEFAULT_CUBE_VIEW, clampView, VIEW_LIMITS, CUBE_VIEWS,
-} from './scene3d.js?v=348';
-import { furnitureGroups, footprint } from './furniture3d.js?v=348';
+} from './scene3d.js?v=349';
+import { furnitureGroups, footprint } from './furniture3d.js?v=349';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 방·가구는 제품 렌더처럼 '항상 밝은 톤'으로 그린다(다크모드에서도 동일).

@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v348) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v349) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
