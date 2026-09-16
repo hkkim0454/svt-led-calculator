@@ -69,6 +69,30 @@ function arcBandShape(w, thk, sag, seg) {
   return s;
 }
 
+/**
+ * 보트형(배 모양) 상판 윤곽 — 가운데가 살짝 불룩한 회의 테이블.
+ * 양 끝 폭은 그대로 두고 **가운데만** 부풀린다(사인 곡선). 부푸는 양은 명세가 정한다.
+ *   과장하면 타원 식탁이 되고, 0이면 사각과 같다 — 실제 기업 회의 테이블은 4~8% 정도다.
+ * @param w      길이(장변 방향)
+ * @param d      양 끝의 폭
+ * @param bulge  가운데가 한쪽으로 더 나가는 양(편측)
+ */
+function boatShape(w, d, bulge, seg) {
+  const n = Math.max(8, seg * 4);
+  const s = new THREE.Shape();
+  const edge = t => d / 2 + Math.sin(t * Math.PI) * bulge;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, x = -w / 2 + w * t;
+    if (i === 0) s.moveTo(x, edge(t)); else s.lineTo(x, edge(t));
+  }
+  for (let i = n; i >= 0; i--) {
+    const t = i / n, x = -w / 2 + w * t;
+    s.lineTo(x, -edge(t));
+  }
+  s.closePath();
+  return s;
+}
+
 // 윤곽 → 두께가 있는 입체. 가장자리에 작은 경사를 줘 빛을 받게 한다.
 function extrude(shape, depth, bevel, d) {
   const b = Math.max(1e-5, Math.min(bevel, depth / 2 - 1e-5));
@@ -210,6 +234,21 @@ export function createGeometryCache() {
       const seg = q(detail).radial;
       return take(`c|${rTop}|${rBottom}|${h}|${seg}`,
         () => new THREE.CylinderGeometry(rTop, rBottom, h, seg));
+    },
+
+    /**
+     * 보트형 상판 — 눕힌 판이되 장변이 가운데에서 살짝 부푼다.
+     * 캐시 열쇠가 `slab`(s|…)과 **다른 머리글자**를 쓴다 — 사각과 보트가 같은 도형을 물려받으면
+     *   한 화면에서 먼저 그린 모양이 다른 테이블까지 덮어쓴다.
+     */
+    boatTop(w, d, thk, { bulge = 0, seg = 8, detail = 'high' } = {}) {
+      const dd = q(detail);
+      const key = `w|${w}|${d}|${thk}|${bulge}|${seg}|${detail}`;
+      return take(key, () => {
+        const geo = extrude(boatShape(w, d, bulge, seg), thk, thk * 0.3, dd);
+        geo.rotateX(-Math.PI / 2);   // 밀어낸 방향(두께)을 위아래로 눕힌다
+        return geo;
+      });
     },
 
     /**

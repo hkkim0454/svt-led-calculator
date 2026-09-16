@@ -336,7 +336,9 @@ export const PART_FINISH = Object.freeze({
   glassWall: Object.freeze({ material: 'glassPartition' }),
   acousticWall: Object.freeze({ material: 'acousticPanel' }),
   boardroomTop: Object.freeze({ material: 'lightOak' }),        // 별칭으로도 적을 수 있다
-  corporateTop: Object.freeze({ material: 'neutralLaminate' }),
+  // 대기업 회의 테이블 상판 — 따뜻한 밝은 중성색. **순백은 쓰지 않는다**:
+  //   새하얀 상판은 3D에서 플라스틱 판처럼 보이고, 어두운 의자와 대비가 과해진다.
+  corporateTop: Object.freeze({ material: 'neutralLaminate', color: '#e9e4da' }),
 });
 
 /**

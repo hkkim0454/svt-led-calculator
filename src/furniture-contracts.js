@@ -197,7 +197,7 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '대기업 회의 테이블',
     category: 'table',
     family: 'conferenceTable',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    status: CONTRACT_STATUS.IMPLEMENTED,   // PHASE 2-b — 이 계약대로 도형을 만들었다
     phase: 2,
     rooms: Object.freeze(['corporateMeeting']),
     instancing: 'sized',

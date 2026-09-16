@@ -9,9 +9,10 @@ import {
   assetFor, assetParts, assetKey,
   createConferenceChair, createAuditoriumChair, createTrainingChair,
   createTrainingDesk, createConferenceTable, createAvCredenza, createCorporateChair,
+  createCorporateTable, corporateSupportXs, fitsCorporateTable,
 } from '../src/furniture-assets.js';
-import { layoutRoom, ROOM_TYPES, defaultOptions } from '../src/room-presets.js';
-import { PART_FINISH, finishForPart } from '../src/materials.js';
+import { layoutRoom, ROOM_TYPES, defaultOptions, FURNITURE } from '../src/room-presets.js';
+import { PART_FINISH, PART_MATERIAL, finishForPart } from '../src/materials.js';
 import { FURNITURE_CONTRACTS } from '../src/furniture-contracts.js';
 
 // 부품 하나가 차지하는 y 구간 [아래, 위]. 기울기가 있으면 회전 후 높이로 계산한다.
@@ -412,4 +413,168 @@ test('대기업 의자 — 휜 판의 둥글림이 두께를 넘지 않는다(�
   const frame = parts.filter(p => p.kind === 'chairFrame' && p.sag).sort((a, b) => b.h - a.h)[0];
   assert.ok(mesh.d < frame.d && mesh.w < frame.w && mesh.h < frame.h,
     '메시가 테두리보다 크면 테두리가 안 보인다');
+});
+
+// ── PHASE 2-b · 대기업 회의 테이블 ──────────────────────────────────────────
+// 핵심 규칙
+//   (1) 작업면 높이·상판 두께는 **계약이 유일한 기준**이다.
+//   (2) 실제 가로·세로는 **배치 계산이 준 값**을 쓴다 — 여기서 방을 다시 재지 않는다.
+//   (3) 받침이 **좌석 자리에 오지 않는다**(무릎이 기둥에 부딪히지 않게).
+//   (4) 기존 회의 테이블은 한 글자도 바뀌지 않는다.
+
+test('대기업 테이블 — 런타임 자산으로 등록되었고 계약 치수를 그대로 쓴다', () => {
+  const a = FURNITURE_ASSETS.corporateTable;
+  assert.ok(a, '런타임 카탈로그에 없다');
+  assert.equal(a.id, 'corporateTable');
+  assert.equal(a.instanced, false, '방에 한두 개뿐이라 묶을 대상이 아니다');
+  assert.equal(a.sized, true, '크기가 방에 따라 달라진다');
+  const C = FURNITURE_CONTRACTS.corporateTable.dimensions;
+  const t = createCorporateTable({ shape: 'rect', w: 3200, d: 1200 });
+  assert.equal(t.surfaceY, C.surfaceY, '작업면 높이가 계약과 다르다');
+  assert.equal(t.surfaceY, 740);
+  assert.equal(t.topThk, C.topThk, '상판 두께가 계약과 다르다');
+  assert.equal(t.topThk, 25);
+  assert.equal(t.topBottom, C.surfaceY - C.topThk);
+  // 숫자를 베껴 적지 않고 계약을 '읽어' 써야 한다.
+  const src = readFileSync(new URL('../src/furniture-assets.js', import.meta.url), 'utf8');
+  assert.ok(/FURNITURE_CONTRACTS\.corporateTable\.dimensions/.test(src),
+    'createCorporateTable 이 계약을 읽지 않고 숫자를 따로 적고 있다');
+});
+
+test('대기업 테이블 — 크기는 배치 계산이 정한다(키우지도 줄이지도 않는다)', () => {
+  // 배치가 준 값을 **그대로** 쓴다. 방 크기를 여기서 다시 재지 않는다.
+  for (const [w, d] of [[2600, 1500], [4000, 1500], [3200, 1100], [6000, 1600]]) {
+    const t = createCorporateTable({ shape: 'rect', w, d });
+    assert.equal(t.w, w, `가로 ${w}`);
+    assert.equal(t.d, d, `세로 ${d}`);
+  }
+  // 값이 아예 없을 때만 계약의 최소 치수를 기본값으로 쓴다.
+  const C = FURNITURE_CONTRACTS.corporateTable.dimensions;
+  const none = createCorporateTable({});
+  assert.equal(none.w, C.minWidth);
+  assert.equal(none.d, C.minDepth);
+});
+
+test('대기업 테이블 — 작은 조각은 키우지 않고 맡지 않는다(배치가 바뀌면 안 된다)', () => {
+  const C = FURNITURE_CONTRACTS.corporateTable.dimensions;
+  assert.ok(fitsCorporateTable({ shape: 'boat', w: 4000, d: 1500 }));
+  assert.ok(fitsCorporateTable({ shape: 'rect', w: C.minWidth, d: C.minDepth }), '최소 치수는 맡는다');
+  // U자형 옆날개(900×2000)처럼 계약보다 작은 조각은 **거절**한다 —
+  //   맡아서 최소 치수로 키우면 테이블이 배치 밖으로 삐져나간다.
+  assert.equal(fitsCorporateTable({ shape: 'rect', w: 900, d: 2000 }), false);
+  assert.equal(fitsCorporateTable({ shape: 'rect', w: 5100, d: 800 }), false);
+  // 계약 밖 모양도 거절한다.
+  assert.equal(fitsCorporateTable({ shape: 'round', w: 4000, d: 4000 }), false);
+  assert.equal(fitsCorporateTable({ shape: 'u', w: 4000, d: 2000 }), false);
+
+  // 실제 U자형 배치를 그대로 넣어 본다 — 한 조각도 맡지 않아야 한다.
+  const u = layoutRoom('meeting', { tableShape: 'u', seats: 12, credenza: true },
+    { W: 8000, D: 6800, ledBottom: 900 });
+  const seg = (u.items || u).filter(x => x.type === 'table');
+  assert.ok(seg.length > 1, 'U자형은 여러 조각이다');
+  for (const it of seg) {
+    if (fitsCorporateTable(it)) continue;      // 앞날개는 크기가 충분할 수 있다
+    assert.equal(fitsCorporateTable(it), false);
+  }
+  assert.ok(seg.some(it => !fitsCorporateTable(it)), 'U자형 옆날개는 대기업 테이블이 맡지 않는다');
+});
+
+test('렌더러 — 조각이 여럿인 배치에서는 대기업 테이블을 쓰지 않는다', () => {
+  // 화면 조립(furniture-gl.js)은 Three.js가 있어야 돌아가므로 소스에서 조건을 확인한다.
+  const src = readFileSync(new URL('../src/furniture-gl.js', import.meta.url), 'utf8');
+  assert.match(src, /const oneTable = items\.filter\(x => x\.type === 'table'\)\.length === 1;/,
+    '테이블 조각 수를 세는 곳이 없다');
+  assert.match(src, /useCorporate = assetFor\(it\) === 'corporateTable'\s*&& oneTable && fitsCorporateTable\(it\)/,
+    '대기업 테이블 선택 조건에 조각 수·계약 범위 확인이 빠졌다');
+});
+
+test('대기업 테이블 — 사각·보트 두 모양을 지원하고 보트는 살짝만 부푼다', () => {
+  const rect = createCorporateTable({ shape: 'rect', w: 4000, d: 1500 });
+  assert.equal(rect.shape, 'rect');
+  assert.equal(rect.bulge, 0, '사각형은 부풀지 않는다');
+  const boat = createCorporateTable({ shape: 'boat', w: 4000, d: 1500 });
+  assert.equal(boat.shape, 'boat');
+  // **과장된 타원 금지** — 깊이의 4~8%만 부푼다(오너 지침 §9).
+  assert.ok(boat.bulge / boat.d >= 0.04 && boat.bulge / boat.d <= 0.08,
+    `보트 부풀림 ${(boat.bulge / boat.d * 100).toFixed(1)}% — 4~8% 밖이다`);
+  // 계약이 다루지 않는 모양(원형·U 등)은 사각으로 떨어진다 — 이 자산의 몫이 아니다.
+  assert.deepEqual([...FURNITURE_CONTRACTS.corporateTable.shapes], ['rect', 'boat']);
+  for (const shape of ['round', 'u', undefined, '없는모양']) {
+    assert.equal(createCorporateTable({ shape, w: 3000, d: 1200 }).shape, 'rect', String(shape));
+  }
+});
+
+test('대기업 테이블 — 받침이 좌석 자리를 피한다(무릎이 기둥에 부딪히지 않게)', () => {
+  // 회의실 좌석은 테이블 중심에서 **좌석 간격(700mm)의 배수**에 놓인다.
+  //   받침이 그 자리에 오면 앉은 사람 무릎이 정확히 기둥을 만난다.
+  const PITCH = FURNITURE.chairPitch;
+  assert.equal(PITCH, 700, '좌석 간격이 바뀌면 받침 규칙도 다시 봐야 한다');
+  for (let w = 1800; w <= 9000; w += 100) {
+    const xs = corporateSupportXs(w);
+    assert.ok(xs.length % 2 === 0, `w=${w}: 받침이 홀수 — 하나가 정중앙(좌석 자리)에 온다`);
+    // 좌우 대칭이어야 한다.
+    assert.deepEqual([...xs].sort((a, b) => a - b).map(v => Math.abs(v)).sort(),
+      [...xs].map(v => Math.abs(v)).sort(), `w=${w}: 비대칭`);
+    for (const x of xs) {
+      assert.notEqual(Math.abs(x) % PITCH, 0, `w=${w}: 받침 ${x} 이 좌석 자리와 겹친다`);
+      // 좌석 중심에서 최소 300mm 떨어져 있어야 무릎 공간이 나온다.
+      const nearest = Math.abs(Math.abs(x) - Math.round(Math.abs(x) / PITCH) * PITCH);
+      assert.ok(nearest >= 300, `w=${w}: 받침 ${x} 이 좌석에서 ${nearest}mm 밖에 안 떨어졌다`);
+      // 상판 밖으로 나가지 않는다.
+      assert.ok(Math.abs(x) <= w / 2 - 150, `w=${w}: 받침 ${x} 이 상판 끝에 너무 붙었다`);
+    }
+  }
+  // 긴 테이블은 받침이 더 많다.
+  assert.equal(corporateSupportXs(3200).length, 2);
+  assert.equal(corporateSupportXs(6000).length, 4);
+});
+
+test('대기업 테이블 — 얇은 상판 + T형 받침이고 바닥에 닿는다', () => {
+  const t = createCorporateTable({ shape: 'boat', w: 4000, d: 1500 });
+  // 중역 테이블처럼 두꺼운 몸통이 아니다.
+  assert.ok(t.topThk <= 30, `상판 ${t.topThk}mm — 도마처럼 두껍다`);
+  assert.ok(t.topRadius <= 40, `모서리 ${t.topRadius}mm — 둥글림이 과하다`);
+  for (const sp of t.supports) {
+    // 발이 바닥(0)에서 시작하고 기둥이 그 위에 선다 — 뜨거나 박히지 않는다.
+    assert.equal(sp.post.y0, sp.foot.h, '기둥이 발 위에 서 있지 않다');
+    assert.ok(sp.post.y1 < t.topBottom + 1e-9, '기둥이 상판을 뚫는다');
+    assert.ok(sp.post.y1 > t.topBottom - 60, '기둥이 상판에 못 닿아 떠 보인다');
+    // T형: 바닥 발이 기둥보다 넓고 깊다.
+    assert.ok(sp.foot.w > sp.post.w && sp.foot.d > sp.post.d, 'T형 받침이 아니다');
+    assert.ok(sp.post.w <= 120, `기둥 ${sp.post.w}mm — 식탁 다리처럼 굵다`);
+    assert.ok(sp.foot.d <= t.d, '발이 상판보다 깊어 밖으로 나온다');
+  }
+  // 보강대는 거의 안 보일 만큼 얇다.
+  assert.ok(t.beam && t.beam.h <= 60, `보강대 ${t.beam?.h}mm — 눈에 띈다`);
+  assert.ok(t.beam.y + t.beam.h / 2 <= t.topBottom, '보강대가 상판을 뚫는다');
+});
+
+test('대기업 테이블 — 마감이 계약대로 풀린다(상판만 새 표, 받침은 기존 경로)', () => {
+  const c = FURNITURE_CONTRACTS.corporateTable;
+  assert.deepEqual([...c.parts], ['corporateTop', 'tableBase', 'tableBeam']);
+  // 상판만 새 마감 표를 탄다.
+  assert.equal(PART_FINISH.corporateTop.material, 'neutralLaminate');
+  assert.ok(PART_FINISH.corporateTop.color, '상판 색이 없다');
+  assert.notEqual(PART_FINISH.corporateTop.color.toLowerCase(), '#ffffff',
+    '순백 상판은 3D에서 플라스틱 판처럼 보인다');
+  assert.ok(finishForPart('corporateTop'), '상판 마감이 풀리지 않는다');
+  // 받침·보강대는 **기존 재질 경로** 그대로 — 새 마감을 만들지 않았다.
+  assert.equal(finishForPart('tableBase'), null);
+  assert.equal(finishForPart('tableBeam'), null);
+  assert.equal(PART_MATERIAL.tableBase, 'metalFrame');
+  assert.equal(PART_MATERIAL.tableBeam, 'metalFrame');
+});
+
+test('기존 회의 테이블 — PHASE 2-b 에서 한 글자도 바뀌지 않았다', () => {
+  for (const shape of ['rect', 'boat', 'round']) {
+    const S = createConferenceTable({ shape, w: 2800, d: 1300 });
+    assert.equal(S.surfaceY, 740);
+    assert.equal(S.topThk, 30, '기존 테이블 상판 두께는 30mm 그대로다');
+    assert.equal(S.topBottom, 710);
+    if (shape === 'round') { assert.ok(S.post && S.foot); assert.equal(S.legs.length, 0); }
+    else { assert.equal(S.legs.length, 2); assert.ok(S.beam); }
+  }
+  assert.equal(DIMS.conferenceTable.surfaceY, 740);
+  assert.equal(DIMS.conferenceTable.topThk, 30);
+  assert.equal(assetFor({ type: 'table' }), 'conferenceTable', '기본 테이블은 그대로다');
 });
