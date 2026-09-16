@@ -121,10 +121,17 @@ test('강의실 — 책상마다 의자가 뒤에 붙고, 방이 작으면 줄·
   const W = 10000, D = 11000;
   const res = layoutRoom('classroom', { rows: 4, cols: 4, aisle: true, podium: true }, { W, D });
   assert.equal(res.placed.desks, 16);
-  assert.equal(res.items.filter(i => i.type === 'desk').length, 16);
-  assert.equal(res.items.filter(i => i.type === 'chair').length, 16);
+  // 강사 영역(교탁 + 강사석)이 켜져 있으면 책상 1·의자 1이 더 놓인다 — 수강생 것과 구분해 센다.
+  const student = res.items.filter(i => (i.type === 'desk' || i.type === 'chair') && i.rotY === 0);
+  assert.equal(student.filter(i => i.type === 'desk').length, 16);
+  assert.equal(student.filter(i => i.type === 'chair').length, 16);
   assert.equal(res.items.filter(i => i.type === 'podium').length, 1);
-  for (const c of res.items.filter(i => i.type === 'chair')) assert.equal(c.rotY, 0);   // 모두 LED를 본다
+  for (const c of student.filter(i => i.type === 'chair')) assert.equal(c.rotY, 0);   // 수강생은 모두 LED를 본다
+  // 강사석은 반대로 수강생을 바라본다.
+  const instr = res.items.filter(i => (i.type === 'desk' || i.type === 'chair') && i.rotY === 180);
+  assert.equal(instr.length, 2, '강사 책상 1 + 의자 1');
+  const noInstr = layoutRoom('classroom', { rows: 4, cols: 4, aisle: true, podium: false }, { W, D });
+  assert.equal(noInstr.items.filter(i => i.type === 'desk').length, 16, '강사 영역을 끄면 수강생 책상만');
   assertInside(res, W, D, '강의실');
 
   const small = layoutRoom('classroom', { rows: 20, cols: 20, aisle: true }, { W: 7000, D: 7000 });
@@ -508,4 +515,60 @@ test('회의실 — 테이블 길이와 좌석 수가 방 크기를 따라간다
     assert.ok(c, `${shape}: 수납장이 없다`);
     assert.equal(c.x, 4500, `${shape}: 중심축`);
   }
+});
+
+
+// ── 강의실 프리셋(STEP 7) ───────────────────────────────────────────────────
+
+test('강의실 — 2인용 테이블이면 책상 한 대에 두 자리가 좌우로 붙는다', () => {
+  const room = { W: 12000, D: 12000 };
+  const base = { rows: 3, cols: 3, aisle: false, podium: false, plant: false };
+  const one = layoutRoom('classroom', { ...base, deskType: 'single' }, room);
+  const two = layoutRoom('classroom', { ...base, deskType: 'double' }, room);
+
+  assert.equal(one.placed.perDesk, 1);
+  assert.equal(two.placed.perDesk, 2);
+  assert.equal(two.placed.chairs, two.placed.desks * 2, '책상 수 × 2 = 좌석 수');
+  assert.equal(two.items.filter(i => i.type === 'chair').length, two.placed.chairs);
+
+  const deskW = t => t.items.find(i => i.type === 'desk').w;
+  assert.equal(deskW(one), FURNITURE.deskW);
+  assert.equal(deskW(two), FURNITURE.deskW2);
+  assert.ok(deskW(two) > deskW(one), '2인용이 더 넓다');
+
+  // 한 책상 뒤의 두 자리는 책상 중심을 기준으로 좌우 대칭이다.
+  const d0 = two.items.find(i => i.type === 'desk');
+  const pair = two.items.filter(i => i.type === 'chair' && Math.abs(i.z - (d0.z + 750)) < 1
+    && Math.abs(i.x - d0.x) <= FURNITURE.deskSeatDx + 1);
+  assert.equal(pair.length, 2);
+  assert.equal(pair[0].x + pair[1].x, d0.x * 2, '좌우 대칭');
+  // 두 자리 모두 책상 폭 안에 들어간다.
+  for (const c of pair) assert.ok(Math.abs(c.x - d0.x) < deskW(two) / 2, '의자가 책상 밖으로 나간다');
+  assertInside(two, room.W, room.D, '2인용 강의실');
+});
+
+test('강의실 — 2인용은 간격이 넓어 같은 방에 들어가는 열 수가 1인용 이하다', () => {
+  const room = { W: 10000, D: 12000 };
+  const base = { rows: 4, cols: 20, aisle: true, podium: false, plant: false };
+  const one = layoutRoom('classroom', { ...base, deskType: 'single' }, room);
+  const two = layoutRoom('classroom', { ...base, deskType: 'double' }, room);
+  assert.ok(two.placed.cols <= one.placed.cols, '2인용 간격이 더 넓다');
+  assert.ok(two.capacity >= one.capacity * 0.8, '열이 줄어도 정원은 크게 떨어지지 않는다(한 대에 2명)');
+  assertInside(one, room.W, room.D, '1인용');
+  assertInside(two, room.W, room.D, '2인용');
+});
+
+test('강의실 — 강사 영역은 수강생 배치에 끼어들지 않는다', () => {
+  const room = { W: 11000, D: 12000 };
+  const base = { rows: 3, cols: 4, aisle: true, plant: false };
+  const on = layoutRoom('classroom', { ...base, podium: true }, room);
+  const off = layoutRoom('classroom', { ...base, podium: false }, room);
+  assert.equal(on.placed.desks, off.placed.desks);
+  assert.equal(on.placed.chairs, off.placed.chairs);
+  // 강사 책상·의자는 첫 줄 앞(수강생 구역 바깥)에 있다.
+  const firstRowZ = Math.min(...off.items.filter(i => i.type === 'desk').map(i => i.z));
+  for (const it of on.items.filter(i => i.rotY === 180 && i.type !== 'podium')) {
+    assert.ok(it.z < firstRowZ, '강사 영역이 수강생 첫 줄보다 앞에 있어야 한다');
+  }
+  assertInside(on, room.W, room.D, '강사 영역');
 });

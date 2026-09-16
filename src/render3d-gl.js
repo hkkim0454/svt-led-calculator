@@ -18,8 +18,8 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=381';
-import { createMaterialLibrary } from './materials-gl.js?v=381';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=382';
+import { createMaterialLibrary } from './materials-gl.js?v=382';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -27,7 +27,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize,
-} from './gl-model.js?v=381';
+} from './gl-model.js?v=382';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
