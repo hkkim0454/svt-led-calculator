@@ -716,7 +716,7 @@ body.printing .previewStage{width:640px!important;height:auto!important}
 .procImgBody img{display:block;width:100%;height:auto;border-radius:12px;border:1px solid var(--line);background:#fff}
 /* 원형 돋보기(확대 렌즈): 이미지 위에서 커서를 따라 해당 부분을 확대(이사 요청 2026-09-15). */
 .procImgZoom{position:relative;cursor:crosshair;line-height:0}
-.procLoupe{position:absolute;width:133px;height:133px;border-radius:50%;border:3px solid #fff;
+.procLoupe{position:absolute;width:160px;height:160px;border-radius:50%;border:3px solid #fff;
   box-shadow:0 6px 20px rgba(10,20,60,.45),0 0 0 1px rgba(0,0,0,.15);pointer-events:none;z-index:5;
   background-repeat:no-repeat;background-color:#fff}
 
