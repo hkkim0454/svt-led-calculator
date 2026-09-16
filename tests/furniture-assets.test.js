@@ -9,7 +9,7 @@ import {
   assetFor, assetParts, assetKey,
   createConferenceChair, createAuditoriumChair, createTrainingChair,
   createTrainingDesk, createConferenceTable, createAvCredenza, createCorporateChair,
-  createCorporateTable, corporateSupportXs, fitsCorporateTable,
+  createCorporateTable, corporateSupportXs, fitsCorporateTable, BOAT_BULGE_RATIO,
 } from '../src/furniture-assets.js';
 import { layoutRoom, ROOM_TYPES, defaultOptions, FURNITURE } from '../src/room-presets.js';
 import { PART_FINISH, PART_MATERIAL, finishForPart } from '../src/materials.js';
@@ -497,6 +497,15 @@ test('대기업 테이블 — 사각·보트 두 모양을 지원하고 보트�
   // **과장된 타원 금지** — 깊이의 4~8%만 부푼다(오너 지침 §9).
   assert.ok(boat.bulge / boat.d >= 0.04 && boat.bulge / boat.d <= 0.08,
     `보트 부풀림 ${(boat.bulge / boat.d * 100).toFixed(1)}% — 4~8% 밖이다`);
+  // PHASE 2-b.1 — 그 범위 안에서 **8%로 고정**한다. 6%는 멀리서 사각형과 구분이 안 됐다.
+  assert.equal(BOAT_BULGE_RATIO, 0.08);
+  assert.equal(boat.bulge, Math.round(1500 * 0.08), '깊이 1500 → 부풀림 120mm');
+  for (const d of [1100, 1200, 1500, 1600, 2000]) {
+    const t = createCorporateTable({ shape: 'boat', w: 4000, d });
+    assert.equal(t.bulge, Math.round(d * 0.08), `깊이 ${d}`);
+    // 양 끝 폭은 그대로다 — 가운데만 넓어질 뿐 **끝단이 좁아지지 않는다.**
+    assert.equal(t.d, d, `깊이 ${d}: 끝단 폭은 배치가 준 값 그대로`);
+  }
   // 계약이 다루지 않는 모양(원형·U 등)은 사각으로 떨어진다 — 이 자산의 몫이 아니다.
   assert.deepEqual([...FURNITURE_CONTRACTS.corporateTable.shapes], ['rect', 'boat']);
   for (const shape of ['round', 'u', undefined, '없는모양']) {
