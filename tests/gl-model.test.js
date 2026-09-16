@@ -520,3 +520,42 @@ test('평면도 — 원근을 켜면 원근 카메라, 끄면 정사투영이고
   const narrow = presetPose('top', VIEW_MODEL, 1.5, { topPerspective: true, fov: 24 });
   assert.ok(narrow.position[1] > persp.position[1]);
 });
+
+
+// ── 천장 on/off 토글 ────────────────────────────────────────────────────────
+
+test('천장 토글 — 끄면 어느 시점에서도 감춘다', () => {
+  const room = { W: 10, H: 3.5, D: 12 };
+  for (const id of ['interior', 'corner-l', 'front', 'corner-r']) {
+    assert.equal(showCeiling({ presetId: id, enabled: true }), true, `${id} 켬`);
+    assert.equal(showCeiling({ presetId: id, enabled: false }), false, `${id} 끔`);
+  }
+  // 저장해 둔 커스텀 시점도 마찬가지.
+  assert.equal(showCeiling({ presetId: 'custom', position: [5, 1.8, 9], room, enabled: true }), true);
+  assert.equal(showCeiling({ presetId: 'custom', position: [5, 1.8, 9], room, enabled: false }), false);
+});
+
+test('천장 토글 — 켜도 아이소·평면도에는 생기지 않는다(방 안이 안 보이게 되므로)', () => {
+  assert.equal(showCeiling({ presetId: 'iso', enabled: true }), false);
+  assert.equal(showCeiling({ presetId: 'top', ortho: true, enabled: true }), false);
+  // 값을 주지 않으면 켠 것으로 본다(기존 동작 보존).
+  assert.equal(showCeiling({ presetId: 'interior' }), true);
+  assert.equal(showCeiling({ presetId: 'iso' }), false);
+});
+
+test('천장 토글 — 모델의 show.ceiling 기본값은 켬이고, 다른 표시는 건드리지 않는다', () => {
+  const space = { W: 10000, H: 3500, D: 12000, wallThk: 100 };
+  const led = { w: 4000, h: 2300, marginW: 500, mount: 1000 };
+  assert.equal(buildGLModel({ space, led }).show.ceiling, true, '기본은 켬');
+  assert.equal(buildGLModel({ space, led, show: { ceiling: false } }).show.ceiling, false);
+  assert.equal(buildGLModel({ space, led, show: { ceiling: true } }).show.ceiling, true);
+
+  // 천장을 꺼도 방 치수·벽 구성·다른 표시 토글은 그대로다.
+  const on = buildGLModel({ space, led, show: { ceiling: true } });
+  const off = buildGLModel({ space, led, show: { ceiling: false } });
+  assert.deepEqual(off.room, on.room);
+  assert.deepEqual(off.show.walls, on.show.walls);
+  assert.equal(off.show.dims, on.show.dims);
+  assert.equal(off.show.grid, on.show.grid);
+  assert.equal(off.show.accentWall, on.show.accentWall);
+});

@@ -149,7 +149,7 @@
 ## Current Verification Status
 
 - **Build**: N/A (빌드리스 단일 HTML)
-- **Automated Tests**: `node:test` 자동화 **371/371 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
+- **Automated Tests**: `node:test` 자동화 **379/379 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
 - **Integration Tests**: N/A
 - **Security Checks**: 외부 의존성 0, 개인정보 미수집 → 저위험. 정식 점검 미수행
 - **Acceptance Review**: 프로토타입 v0.1 오너 리뷰 대기
