@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=379';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=379';
-import { createViewerGL } from './render3d-gl.js?v=379';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=379';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=380';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=380';
+import { createViewerGL } from './render3d-gl.js?v=380';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=380';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -820,7 +820,7 @@ function renderPreview3D() {
   const D = spaceDmm() || autoDepthForType(roomTypeId, sW);          // 깊이 입력이 없으면 타입별 자동
   const baseH = num($('#baseHeight').value);
   const mount = Math.min(Math.max(0, baseH), Math.max(0, sH - r.actualH));   // 바닥 ~ LED 아래
-  const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D });
+  const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D, ledBottom: mount });
 
   // 3D 뷰어는 처음 열 때 한 번만 만든다. WebGL을 못 쓰는 환경이면 정면 뷰 안내로 되돌린다.
   if (!viewer3d && !gl3dFailed) {

@@ -468,3 +468,44 @@ test('강당 단차 — 좌석은 단 위에서도 여전히 LED 벽을 바라�
     assert.equal(s.rotY % 360, 0, `좌석이 LED 벽을 안 본다 (rotY=${s.rotY})`);
   }
 });
+
+
+// ── 회의실 프리셋(STEP 5) ───────────────────────────────────────────────────
+
+test('회의실 — AV 수납장은 LED 벽에 붙고, LED 하단이 낮으면 놓지 않는다', () => {
+  const opts = { ...defaultOptions('meeting'), credenza: true };
+  const res = layoutRoom('meeting', opts, { W: 8000, D: 6800, ledBottom: 1000 });
+  const cz = res.items.filter(i => i.type === 'credenza');
+  assert.equal(cz.length, 1, '수납장 1개');
+  assert.equal(cz[0].x, 8000 / 2, '방 중심축에 놓인다');
+  assert.ok(cz[0].z - cz[0].d / 2 >= 0 && cz[0].z < 400, 'LED 벽에 붙는다');
+  assert.ok(cz[0].w >= 1200 && cz[0].w <= 2400, `폭 ${cz[0].w}`);
+
+  // LED 하단이 850mm 미만이면 수납장(700mm)과 부딪히므로 놓지 않는다.
+  const low = layoutRoom('meeting', opts, { W: 8000, D: 6800, ledBottom: 600 });
+  assert.equal(low.items.filter(i => i.type === 'credenza').length, 0);
+  // 끄면 당연히 없다.
+  const off = layoutRoom('meeting', { ...opts, credenza: false }, { W: 8000, D: 6800, ledBottom: 1000 });
+  assert.equal(off.items.filter(i => i.type === 'credenza').length, 0);
+  // 수납장을 켜도 좌석 수는 그대로다(배치 계산에 끼어들지 않는다).
+  assert.equal(res.placed.chairs, off.placed.chairs);
+});
+
+test('회의실 — 테이블 길이와 좌석 수가 방 크기를 따라간다(임의 값이 아니다)', () => {
+  const mk = (W, D) => layoutRoom('meeting', { ...defaultOptions('meeting'), seats: 40, rug: false, plant: false },
+    { W, D, ledBottom: 1000 });
+  const small = mk(6000, 6000), big = mk(14000, 11000);
+  const tbl = r => r.items.find(i => i.type === 'table');
+  assert.ok(tbl(big).w > tbl(small).w, '방이 넓으면 테이블도 길어진다');
+  assert.ok(big.placed.chairs > small.placed.chairs, '방이 넓으면 좌석도 는다');
+  assert.ok(tbl(small).w <= 6000 - 800 * 2, '테이블이 벽 여유를 넘지 않는다');
+  assert.ok(tbl(big).w <= 14000 - 800 * 2);
+  // 모든 테이블 모양에서 수납장 위치가 같다.
+  for (const shape of ['rect', 'boat', 'round', 'u', 'none']) {
+    const r = layoutRoom('meeting', { ...defaultOptions('meeting'), tableShape: shape, credenza: true },
+      { W: 9000, D: 8000, ledBottom: 1200 });
+    const c = r.items.find(i => i.type === 'credenza');
+    assert.ok(c, `${shape}: 수납장이 없다`);
+    assert.equal(c.x, 4500, `${shape}: 중심축`);
+  }
+});

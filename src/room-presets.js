@@ -82,6 +82,7 @@ export const ROOM_TYPES = Object.freeze([
           { value: 'none', label: '없음' },
         ] },
       { key: 'seats', label: '좌석 수', type: 'number', default: 12, min: 0, max: 60 },
+      { key: 'credenza', label: 'AV 수납장', type: 'toggle', default: true },
       { key: 'rug', label: '러그', type: 'toggle', default: true },
       { key: 'plant', label: '화분', type: 'toggle', default: true },
     ],
@@ -179,7 +180,9 @@ export function autoDepthForType(typeId, spaceWmm) {
  *   notes    : 사용자에게 알릴 말(요청보다 줄었을 때 등)
  */
 export function layoutRoom(typeId, opts, room) {
-  const o = normalizeOptions(typeId, opts);
+  // LED 하단 높이는 옵션이 아니라 계산값이다 — 화면이 넘겨주면 배치가 참고한다
+  //   (지금은 AV 수납장이 LED와 부딪히는지 판단하는 데만 쓴다).
+  const o = { ...normalizeOptions(typeId, opts), ledBottom: Number(room.ledBottom) };
   const W = Math.max(1000, room.W), D = Math.max(1000, room.D);
   switch (roomType(typeId).id) {
     case 'classroom': return layoutClassroom(o, W, D);
@@ -190,9 +193,22 @@ export function layoutRoom(typeId, opts, room) {
 }
 
 // ── 회의실 ──────────────────────────────────────────────────────────────────
+// AV 수납장 — LED 벽 아래에 붙이는 낮은 수납장(신호 분배기·앰프가 들어가는 자리).
+//   장식이 아니라 공간의 현실감을 위한 보조 요소라 아주 단순하게, 방 폭에 맞춰 놓는다.
+//   LED 하단이 낮으면(수납장 높이 + 여유보다 낮으면) 부딪히므로 놓지 않는다.
+const CREDENZA = Object.freeze({ h: 700, d: 450, minW: 1200, maxW: 2400, clearMm: 150 });
+function addCredenza(items, W, ledBottom) {
+  if (Number.isFinite(ledBottom) && ledBottom < CREDENZA.h + CREDENZA.clearMm) return false;
+  const w = clamp(W * 0.34, CREDENZA.minW, CREDENZA.maxW);
+  items.push({ type: 'credenza', x: W / 2, z: CREDENZA.d / 2 + 30, rotY: 0, w, d: CREDENZA.d });
+  return true;
+}
+
 function layoutMeeting(o, W, D) {
   const F = FURNITURE;
   const items = [], notes = [];
+  // LED 벽 아래 AV 수납장 — 테이블 모양과 무관하게 같은 자리다.
+  if (o.credenza) addCredenza(items, W, o.ledBottom);
   const usableW = W - F.wallClear * 2;
   const usableD = D - F.frontClear - F.wallClear;
   const cz = F.frontClear + usableD / 2;                       // 테이블 중심 깊이
@@ -220,7 +236,7 @@ function layoutMeeting(o, W, D) {
     return { items, placed: { chairs: n }, capacity, notes };
   }
 
-  if (o.tableShape === 'u') return layoutUTable(o, W, D, cz);
+  if (o.tableShape === 'u') return layoutUTable(o, W, D, cz, items);
 
   // 사각형 · 보트형 — 긴 변(X) 양쪽 + 양 끝(Z)에 앉는다.
   //   테이블 길이는 '방 크기'가 아니라 '앉을 사람 수'에 맞춘다(방을 꽉 채우지 않게).
@@ -259,9 +275,9 @@ function layoutMeeting(o, W, D) {
 }
 
 // U자형 — LED 벽을 향해 열린 ㄷ 모양. 바깥쪽에 앉는다.
-function layoutUTable(o, W, D, cz) {
+function layoutUTable(o, W, D, cz, seed = []) {
   const F = FURNITURE;
-  const items = [], notes = [];
+  const items = [...seed], notes = [];   // seed = 이미 놓인 것(AV 수납장 등)
   const tW = clamp(W - F.wallClear * 2 - F.chairClear * 2, 2000, 9000);
   const tD = clamp(Math.min(D - F.frontClear - F.wallClear - F.chairClear * 2, 4500), 1600, 5000);
   const seg = 900;                                    // 상판 폭
@@ -462,7 +478,7 @@ function addPlant(items, W, D) {
 //   · LED 옆에 서야 화면 크기를 눈으로 가늠할 수 있다(LED를 가리지 않게 옆쪽).
 //   · 테이블·의자와 겹치면 사람이 가구를 뚫고 선 것처럼 보이므로 빈 곳을 찾는다.
 // 무대(stage)도 피한다 — 사람은 바닥(y=0)에 세우므로 단상 위에 두면 발이 묻힌다.
-export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage']));
+export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage', 'credenza']));
 
 export function personSpot(room, led, items = []) {
   const W = Math.max(2000, room.W), D = Math.max(2000, room.D);
