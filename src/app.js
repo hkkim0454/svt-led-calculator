@@ -1637,13 +1637,13 @@ function slotVizHTML(reqCards, slots) {
 function slotSideHTML(side, p, need, reqCards, slots, perCard) {
   const kLabel = side === 'in' ? '입력' : '출력';
   const ch4k = cardChan4k(p, perCard);                       // 카드당 4K 채널(숫자) 또는 null
-  // ① 카드당 채널: 4K는 확정, FHD는 4배 환산(공간 분할)
+  // ① 카드당 4K 채널만 표기(FHD 환산 표기 제거 — 이사 요청 2026-09-16).
   const chanLine = ch4k != null
-    ? `카드 1장 = <b>4K ${ch4k}채널</b> · FHD ${ch4k * 4}채널 <span class="vpConv">환산</span>`
+    ? `카드 1장 = <b>4K ${ch4k}채널</b>`
     : '카드당 채널 <span class="muted-note">미상</span>';
   // ② 최대 총 용량(전체 슬롯 × 카드당 채널). 슬롯·채널 중 하나라도 미상이면 생략.
   const capLine = (ch4k != null && slots != null)
-    ? `<div class="vpColCap">최대 <b>4K ${ch4k * slots}채널</b> · FHD ${ch4k * slots * 4}채널</div>` : '';
+    ? `<div class="vpColCap">최대 <b>4K ${ch4k * slots}채널</b></div>` : '';
   // ④ 장착 용량 중심: "이 쪽에 최대 N장 장착 가능". 이번 구성에 필요한 장수는 작게 곁들이고, 부족하면 강조(이사 요청 2026-09-16).
   let remTxt, remCls = '';
   if (slots == null) remTxt = `${kLabel} 슬롯 <span class="muted-note">미상</span>`;
