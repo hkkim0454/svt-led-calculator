@@ -463,7 +463,12 @@ function renderPreview() {
   const yTopC = Math.min(proj(0, 0, Dp).y, proj(Lx, topDimV, 0).y) - 8;   // 콘텐츠 세로 범위(캔버스 좌표)
   const yBotC = Math.max(proj(0, SHp, Dp).y, personLbl.y + 20) + 8;
   const contentH = Math.max(1, yBotC - yTopC);
-  const ZOOM = 1.30;                              // 전체 뷰 약 30% 확대(이사 요청: 20% 이상 크게)
+  // 전체 뷰 약 30% 확대(이사 요청: 20% 이상 크게)하되, 초광폭 LED(예: 가로 50m)는 좌우가 프레임 밖으로
+  //   잘리지 않게 ZOOM을 자동 축소해 전부 보이게 한다(이사 요청 2026-09-16). LED 평면(d=0) 좌우 끝이
+  //   프레임(CW) 안에 들어오는 최대 배율로 캡 — 정상 비율 벽은 1.30 그대로 유지된다.
+  const fLed = P / (P + ZW);                                          // LED 평면(d=0) 투영배율(≈0.5)
+  const ledHalfX = Math.max(Math.abs((Lx - SWp / 2) * fLed), Math.abs((Lx + Lw - SWp / 2) * fLed), 1);
+  const ZOOM = Math.max(0.5, Math.min(1.30, (CW * 0.98) / (2 * ledHalfX)));   // LED 폭이 프레임에 다 들어오게
   const effFit = fit * ZOOM;                      // 화면 실제 배율(라벨 폰트는 --fit=effFit로 고정 보정)
   const tx = (CW * fit) / 2 - CX * effFit;        // 방 중앙을 프레임 가로 중앙에
   const frameH = Math.round(Math.min(CH * fit, contentH * effFit));
