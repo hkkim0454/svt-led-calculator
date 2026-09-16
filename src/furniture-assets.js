@@ -19,7 +19,7 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=404';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=405';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -348,6 +348,10 @@ export function createConferenceTable(item = {}) {
  * 치수는 전부 계약(FURNITURE_CONTRACTS.corporateTable)에서 온다.
  * 실제 가로·세로는 **배치 계산이 준 값**을 쓴다 — 여기서 방 크기를 다시 재지 않는다.
  */
+// 보트형 상판이 가운데에서 넓어지는 비율(깊이 대비, 편측).
+//   절제된 기업 회의 테이블의 기준선이다 — 올리면 타원 식탁, 내리면 사각형으로 읽힌다.
+export const BOAT_BULGE_RATIO = 0.08;
+
 const SUPPORT_HALF_PITCH = 350;   // 좌석 간격 700의 절반
 
 // 목표 위치에 가장 가까운 '350의 홀수 배수'. 상판 밖으로 나가지 않게 줄여 가며 맞춘다.
@@ -409,7 +413,9 @@ export function createCorporateTable(item = {}) {
     shape, w, d,
     surfaceY: C.surfaceY, topThk: C.topThk, topBottom,
     topRadius: 26,                                   // 상판 모서리 — 아주 약하게만
-    bulge: shape === 'boat' ? Math.round(d * 0.06) : 0,   // 보트형: 가운데가 깊이의 6%만 부푼다
+    // 보트형: **가운데만** 깊이의 8%만큼 넓어진다(양 끝 폭은 그대로 — 끝을 좁히지 않는다).
+    //   6%는 멀리서 보면 사각형과 구분이 안 됐고, 기존 회의 테이블의 16%는 타원 식탁처럼 읽혔다.
+    bulge: shape === 'boat' ? Math.round(d * BOAT_BULGE_RATIO) : 0,
     supports,
     beam: span > 0 ? { w: span, h: 48, d: 70, y: topBottom - 54 } : null,
   };
