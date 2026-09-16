@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>Seoul AV LED Configurator</title>
-<link rel="stylesheet" href="./styles.css?v=383"/>
+<link rel="stylesheet" href="./styles.css?v=384"/>
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"></div>
@@ -224,46 +224,63 @@
       </div>
 
       <details class="card vpSection" id="vpCard">
-        <summary class="vpSectionHead"><h2><span class="idx">05</span> 비디오 프로세서 <span class="muted-note">— 04 산출값 기반 자동 추천</span></h2></summary>
-        <div id="vpAuto" class="vpAuto"></div>
-        <div class="vpInputs">
-          <label class="field"><span class="lab">독립 4K 입력 소스 수</span><input type="number" id="vpIn4k" value="1" min="0" step="1"/></label>
-          <label class="field"><span class="lab">독립 2K(FHD) 입력 소스 수</span><input type="number" id="vpIn2k" value="0" min="0" step="1"/></label>
-          <label class="field"><span class="lab">동시 표시 레이어 수 (4K)</span><input type="number" id="vpLayers4k" value="1" min="0" step="1"/></label>
-          <label class="field"><span class="lab">필요 4K 출력 수 <span class="muted-note">(비우면 자동)</span></span><input type="number" id="vpOut4k" min="0" step="1" placeholder="자동"/></label>
-          <label class="field"><span class="lab">운용 방식</span>
-            <select id="vpMode">
-              <option value="split">단순 화면 분할</option>
-              <option value="fade">프리셋 + 페이드</option>
-              <option value="seamless">Seamless A/B (무손실 전환)</option>
-              <option value="show">공연 · 방송급 (고급 트랜지션)</option>
-            </select>
-          </label>
-          <label class="field"><span class="lab">운용 환경</span>
-            <select id="vpApp">
-              <option value="other">선택 안 함</option>
-              <option value="exec">중역회의실</option>
-              <option value="conference">회의실</option>
-              <option value="auditorium">강당 (공연·이벤트 포함)</option>
-              <option value="control_room">상황실 / 관제실</option>
-              <option value="lobby">로비 LED 사이니지</option>
-            </select>
-          </label>
-        </div>
-        <div class="hint">💡 <b>독립 입력 ≠ 레이어</b> — 같은 소스를 여러 창에 <b>복제</b>하면 레이어가 입력보다 많을 수 있어요. 예) 4K 소스 <b>8개를 2배 복제 = 16 레이어</b> (독립 입력 8, 동시 레이어 16). 서로 <b>다른</b> 소스가 16개 필요하면 입력 수로 판정합니다.</div>
-        <details class="vpAdv">
-          <summary>추가 필수 조건 (선택)</summary>
-          <div class="vpChecks">
-            <label class="checkline"><input type="checkbox" id="vpGenlock"/><span>Genlock 필요</span></label>
-            <label class="checkline"><input type="checkbox" id="vpHdr"/><span>HDR 필요</span></label>
-            <label class="checkline"><input type="checkbox" id="vp10bit"/><span>10-bit 필요</span></label>
-            <label class="checkline"><input type="checkbox" id="vpCtrl"/><span>AMX / Crestron 외부제어 필요</span></label>
+        <summary class="vpSectionHead">
+          <div class="vpHeadMain">
+            <h2><span class="idx">05</span><span class="vpTitle">비디오 프로세서</span></h2>
+            <div class="vpSubT">04 산출값과 아래 운용 요구를 합쳐 제품별로 판정합니다</div>
           </div>
-        </details>
+          <span class="vpAutoPill" id="vpAutoPill">자동 추천</span>
+        </summary>
+
+        <div class="vpStep"><span class="vpStepLab">STEP 1 · 04 산출값</span><span class="vpStepRule"></span></div>
+        <div id="vpAuto" class="vpAuto"></div>
+
+        <div class="vpStep"><span class="vpStepLab">STEP 2 · 운용 요구</span><span class="vpStepRule"></span></div>
+        <div class="vpInputs">
+          <div class="vpInGroup">
+            <h4 class="vpInHd">소스 · 레이어</h4>
+            <div class="vpFieldGrid">
+              <label class="vpField"><span class="lab">독립 4K 입력</span><span class="vpFieldBox"><input type="number" id="vpIn4k" value="1" min="0" step="1"/><span class="unit">개</span></span></label>
+              <label class="vpField"><span class="lab">독립 2K 입력</span><span class="vpFieldBox"><input type="number" id="vpIn2k" value="0" min="0" step="1"/><span class="unit">개</span></span></label>
+              <label class="vpField"><span class="lab">동시 4K 레이어</span><span class="vpFieldBox"><input type="number" id="vpLayers4k" value="1" min="0" step="1"/><span class="unit">장</span></span></label>
+              <label class="vpField" id="vpOut4kField"><span class="lab">4K 출력 <span class="auto">자동</span></span><span class="vpFieldBox"><input type="number" id="vpOut4k" min="0" step="1" placeholder="자동"/><span class="unit">개</span></span></label>
+            </div>
+            <div class="vpInHint"><b>독립 입력 ≠ 레이어</b> — 같은 소스를 복제하면 레이어가 입력보다 많습니다. 예) 4K 8개 ×2 복제 = 16 레이어</div>
+          </div>
+          <div class="vpInGroup">
+            <h4 class="vpInHd">운용 방식 · 환경</h4>
+            <label class="vpSelect"><span class="lab">운용 방식</span><span class="vpSelBox">
+              <select id="vpMode">
+                <option value="split">단순 화면 분할</option>
+                <option value="fade">프리셋 + 페이드</option>
+                <option value="seamless">Seamless A/B (무손실 전환)</option>
+                <option value="show">공연 · 방송급 (고급 트랜지션)</option>
+              </select></span></label>
+            <label class="vpSelect"><span class="lab">운용 환경</span><span class="vpSelBox">
+              <select id="vpApp">
+                <option value="other">선택 안 함</option>
+                <option value="exec">중역회의실</option>
+                <option value="conference">회의실</option>
+                <option value="auditorium">강당 (공연·이벤트 포함)</option>
+                <option value="control_room">상황실 / 관제실</option>
+                <option value="lobby">로비 LED 사이니지</option>
+              </select></span></label>
+            <div class="vpCondRow">
+              <span class="vpCondLab">추가 필수 조건</span>
+              <div class="vpChipToggles">
+                <label class="vpChipToggle"><input type="checkbox" id="vpGenlock"/><span>Genlock</span></label>
+                <label class="vpChipToggle"><input type="checkbox" id="vpHdr"/><span>HDR</span></label>
+                <label class="vpChipToggle"><input type="checkbox" id="vp10bit"/><span>10-bit</span></label>
+                <label class="vpChipToggle"><input type="checkbox" id="vpCtrl"/><span>AMX / Crestron</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="vpStep"><span class="vpStepLab">STEP 3 · 추천 결과</span><span class="vpStepRule"></span></div>
         <div id="vpResult" class="vpResult"></div>
-        <div class="hint" style="margin-top:10px">판정: <b>PASS</b>(됨) · <b>CONDITIONAL</b>(일부 사양 확인 필요) · <b>FAIL</b>(안 됨). "확인 필요"는 공식 사양이 미확인이라 추정하지 않은 항목입니다.</div>
-        <details class="vpAdv" id="vpBuildBox" style="margin-top:12px">
-          <summary>🔧 내 장비 구성으로 검증 (선택) — 실제 꽂을 카드 수 입력</summary>
+        <details class="vpAdv" id="vpBuildBox">
+          <summary>내 장비 구성으로 검증 <span class="vpBuildSub">실제 꽂을 카드 수 입력 — 필요 ≤ 보유 확인</span></summary>
           <div class="hint" style="margin:8px 0">실제 구성할 <b>프로세서</b>와 <b>카드 수</b>를 넣으면, 그 구성이 이 LED에 충분한지(필요 ≤ 보유) + 제품 최대에 맞는지 확인합니다. 비운 항목은 검사하지 않습니다.</div>
           <div class="vpInputs">
             <label class="field"><span class="lab">대상 프로세서</span><select id="vpBuildProc"></select></label>
@@ -327,7 +344,7 @@
         Gbic(광 컨버터, QSFP-LR4) — CS4B 계열 컨트롤러(MMF 기본 CS4BPGS는 자동, 그 외 라인은 'CS4B(광전송)' 선택) 시 1920×2160 영역마다 1 SET(SBOX측 1 + LED측 1 = 2 EA) = ⌈가로/1920⌉ × ⌈세로/2160⌉ SET. 표기 수량은 총 EA(=SET×2), 포워드/백워드 이중화 시 ×2.
         중량·전력이 <code>—</code>인 모델은 데이터시트 실측값 입력이 필요합니다.<br>
         <strong>⚠ 사내 견적 보조용</strong> — 공식 견적은 삼성/설치 파트너 확인이 필요합니다.
-        <span class="verTag">화면 버전 v383</span>
+        <span class="verTag">화면 버전 v384</span>
       </div>
     </div>
   </div>
@@ -422,6 +439,6 @@
 
 <!-- 자산 변경 시 v= 숫자를 올려 캐시 무효화(브라우저가 옛 파일을 쓰지 않도록).
      app.js가 import하는 모든 모듈의 v=, 그리고 모듈끼리의 내부 import(processor-validator.js → processor-limits.js)의 v=도 함께 올릴 것. -->
-<script type="module" src="./app.js?v=383"></script>
+<script type="module" src="./app.js?v=384"></script>
 </body>
 </html>
