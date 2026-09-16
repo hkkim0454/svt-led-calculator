@@ -653,6 +653,27 @@ body.printing .previewStage{width:640px!important;height:auto!important}
 .vpLegItem{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--ink-2)}
 .vpLegSw{width:9px;height:9px;border-radius:3px;flex:none}
 
+/* 제조사 잠금 필터 — 칩을 눌러 제조사별로 숨김(잠금)/표시 토글 */
+.vpMfrFilter{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.vpMfrFilterLab{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--muted)}
+.vpMfrChips{display:flex;flex-wrap:wrap;gap:6px}
+.vpMfrChip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px 5px 9px;border-radius:999px;
+  background:var(--panel-solid);border:1px solid var(--line);color:var(--ink-2);font:inherit;font-size:11.5px;
+  font-weight:700;cursor:pointer;transition:background .15s ease,border-color .15s ease,color .15s ease,opacity .15s ease}
+.vpMfrChip:hover{border-color:var(--line-2)}
+.vpMfrChip .vpLockIco{width:13px;height:13px;flex:none;color:var(--ok)}
+.vpMfrChipName{white-space:nowrap}
+.vpMfrChipN{min-width:16px;height:16px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:999px;background:var(--field-fill);color:var(--muted);font-size:10px;font-weight:800;font-variant-numeric:tabular-nums}
+.vpMfrChip.locked{background:transparent;border:1px dashed var(--line-2);color:var(--muted);opacity:.72}
+.vpMfrChip.locked .vpLockIco{color:var(--muted)}
+.vpMfrChip.locked .vpMfrChipName{text-decoration:line-through}
+.vpMfrChip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vpMfrReset{padding:5px 11px;border-radius:999px;background:var(--accent-tint);border:1px solid transparent;
+  color:var(--accent-2);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer}
+.vpMfrReset:hover{background:var(--accent);color:#fff}
+.vpMfrReset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
 .vpResult{display:flex;flex-direction:column;gap:10px;margin:0}
 
 /* 추천 카드 — 등급 색 시스템. 등급 로컬 변수(--g-*)를 통해 내부 요소가 색을 상속 */
