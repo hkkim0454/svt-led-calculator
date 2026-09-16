@@ -1742,9 +1742,8 @@ function vpItemHTML(item, rank) {
   // 형태: preconfigured=고정형(커넥터), customizable=슬롯형(카드 구성). 없으면 cardPlan로 보조.
   const isSlot = p.configurationType === 'customizable' || (p.configurationType == null && cp?.cardBased);
   const bodyMain = !cp ? '' : (isSlot ? vpSlotCardHTML(item) : vpFixedCardHTML(item));
-  // 포트 고정형 제품은 이름을 누르면 포트별 입출력 수량 팝업(이사 요청).
+  // 포트 고정형 제품은 펼친 본문의 '포트별 입출력' 버튼으로 포트 팝업을 연다(요약 줄엔 이름만).
   const fixed = procHasFixedPorts(p);
-  const nameAttr = fixed ? ` class="vpName vpNameClickable" data-portproc="${esc(p.id)}" role="button" tabindex="0" title="포트별 입출력 수량 보기"` : ' class="vpName"';
   const rankHTML = rank ? `<span class="vpRank">${rank}</span>` : '';
   // 제품 전면 사진 플레이트(있는 제품만). 클릭 시 앞/뒤 이미지 팝업(openProcImgPopup) 재사용.
   const hasImg = PROC_IMG_IDS.has(p.id);
@@ -1756,19 +1755,27 @@ function vpItemHTML(item, rank) {
       <div class="vpPlateBox vpPlateEmpty" aria-hidden="true"><span class="vpNoImg">사진 미등록</span></div>
       <div class="vpPlateCap"><span class="t">전면 패널</span><span class="s">제품 사진 미등록</span></div>
     </div>`;
-  return `<div class="vpItem ${VP_BADGE_CLASS[item.label] || ''}">
-    <div class="vpHead">
+  // 펼친 본문 상단의 빠른 버튼: 포트별 입출력(고정형만). 이미지는 아래 사진 판을 눌러 확대.
+  const portBtn = fixed ? `<button type="button" class="vpActBtn" data-portproc="${esc(p.id)}" title="포트별 입출력 수량 보기">포트별 입출력 ⌄</button>` : '';
+  const actions = portBtn ? `<div class="vpActions">${portBtn}</div>` : '';
+  // 목록은 이름만 보이는 접이식 줄(summary). 줄을 누르면 사진·슬롯·상세가 펼쳐진다(body). 1순위는 기본 펼침.
+  const openAttr = rank === 1 ? ' open' : '';
+  return `<details class="vpItem ${VP_BADGE_CLASS[item.label] || ''}"${openAttr}>
+    <summary class="vpHead">
       ${rankHTML}
       <span class="vpBadge">${item.label}</span>
-      <span${nameAttr}>${esc(p.manufacturer)} · ${esc(p.model)}${fixed ? ' <span class="vpPortHint">포트 ⌄</span>' : ''}</span>
-      ${hasImg ? `<button type="button" class="vpImgBtn" data-procimg="${esc(p.id)}" title="제품 앞/뒤 이미지 보기">이미지</button>` : ''}
-      ${needsVer ? '<span class="vpVer" title="일부 사양이 공식 확인 전입니다">확인 필요 사양 포함</span>' : ''}
+      <span class="vpName">${esc(p.manufacturer)} · ${esc(p.model)}</span>
+      ${needsVer ? '<span class="vpVer" title="일부 사양이 공식 확인 전입니다">확인 필요</span>' : ''}
+      <span class="vpRowCaret" aria-hidden="true">⌄</span>
+    </summary>
+    <div class="vpBody">
+      ${actions}
+      ${plateHTML}
+      ${vpCondNoteHTML(item)}
+      ${bodyMain}
+      ${vpDetailHTML(item)}
     </div>
-    ${plateHTML}
-    ${vpCondNoteHTML(item)}
-    ${bodyMain}
-    ${vpDetailHTML(item)}
-  </div>`;
+  </details>`;
 }
 // 포트별 입출력 수량 팝업. index.html 마크업을 건드리지 않게 동적으로 생성.
 // 프로세서 제품 사진(앞/뒤)이 있는 모델 id. 파일: src/img/processors/<id>-front|back.jpg (이사 제공 이미지).
@@ -2539,9 +2546,9 @@ $('#vpOut4k')?.addEventListener('input', () => { vpOut4kEdited = $('#vpOut4k').v
 ['vpBuildOut4k', 'vpBuildIn4k', 'vpBuildIn2k'].forEach(id => $('#' + id)?.addEventListener('input', renderProcessors));
 $('#vpBuildProc')?.addEventListener('change', renderProcessors);
 // 포트 고정형 프로세서 이름 클릭/엔터 → 포트별 입출력 수량 팝업. Esc로 닫기.
-document.addEventListener('click', e => { const t = e.target.closest('[data-portproc]'); if (t) openPortPopup(t.dataset.portproc); });
-// 프로세서 카드 '이미지' 버튼 → 제품 앞/뒤 이미지 뷰어 팝업.
-document.addEventListener('click', e => { const t = e.target.closest('[data-procimg]'); if (t) openProcImgPopup(t.dataset.procimg); });
+document.addEventListener('click', e => { const t = e.target.closest('[data-portproc]'); if (t) { if (t.closest('summary')) e.preventDefault(); openPortPopup(t.dataset.portproc); } });
+// 프로세서 카드 '이미지' 버튼 → 제품 앞/뒤 이미지 뷰어 팝업. (요약 줄 안에서 눌러도 접힘 토글은 막는다)
+document.addEventListener('click', e => { const t = e.target.closest('[data-procimg]'); if (t) { if (t.closest('summary')) e.preventDefault(); openProcImgPopup(t.dataset.procimg); } });
 // 제조사 필터 칩 → 잠금(숨김)/해제(표시) 토글. '__all__'은 전체 해제.
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-mfrlock]'); if (!t) return;
