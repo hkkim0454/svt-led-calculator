@@ -117,6 +117,41 @@ export function buildGLModel({ space, led, items, show, person }) {
 //   실제로 칠해 둔 벽은 그럴 수 없다. 이 값은 카메라와 무관한 상수다.
 export const ACCENT_WALL_SIDE = 'left';
 
+// ── 방 껍데기(Room Shell) 치수 ───────────────────────────────────────────────
+// 벽 두께는 화면에서 입력받는다(기본 100mm, config.js). 아래는 그에 딸린 부속 치수다.
+//   전부 mm — 실제 건축 치수를 그대로 쓴다. 눈에 띄라고 과장하지 않는다.
+export const BASEBOARD_MM = Object.freeze({
+  h: 70,      // 걸레받이 높이 — 실제 시공값 60~80mm의 가운데
+  thk: 18,    // 벽에서 방 안쪽으로 나온 두께
+});
+export const CEILING_THK_MM = 120;   // 천장 슬래브 두께(보이는 건 아랫면뿐)
+export const GRID_LIFT_MM = 3;       // 바닥 격자를 바닥에서 띄우는 높이(지글거림 방지)
+
+// 방 '안'에서 바라보는 시점 — 천장이 보여야 하는 프리셋.
+//   아이소·평면도는 방을 밖에서 내려다보므로 천장이 있으면 안이 안 보인다.
+export const INTERIOR_PRESETS = Object.freeze(['interior', 'corner-l', 'front', 'corner-r']);
+
+/** 카메라가 방 안(벽 사이·천장 아래)에 있는가. 저장해 둔 커스텀 시점을 판정할 때 쓴다. */
+export function cameraInsideRoom(position, room, margin = 0.3) {
+  if (!position || !room) return false;
+  const [x, y, z] = position;
+  return x > -margin && x < room.W + margin
+      && z > -margin && z < room.D + margin
+      && y > 0 && y < room.H + margin;
+}
+
+/**
+ * 천장을 보여야 하는가.
+ *   · 평면도(정사투영)는 무조건 감춘다 — 위에서 보는데 천장이 있으면 방이 안 보인다.
+ *   · 기본 프리셋은 목록으로 정한다(실내 4종만 보임).
+ *   · 저장해 둔 커스텀 시점은 카메라가 방 안에 있는지로 판단한다.
+ */
+export function showCeiling({ presetId, ortho, position, room } = {}) {
+  if (ortho) return false;
+  if (presetId && presetId !== 'custom') return INTERIOR_PRESETS.includes(presetId);
+  return cameraInsideRoom(position, room);
+}
+
 export const CAMERA_PRESETS = Object.freeze([
   { id: 'interior', label: '실내',      ortho: false },
   { id: 'corner-l', label: '좌측 코너', ortho: false },
