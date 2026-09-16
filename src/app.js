@@ -9,10 +9,11 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=384';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=384';
-import { createViewerGL } from './render3d-gl.js?v=384';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=384';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=385';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=385';
+import { createViewerGL } from './render3d-gl.js?v=385';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=385';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=385';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -266,7 +267,7 @@ let presetId = DEFAULT_PRESET;        // 3D 카메라 시점 프리셋
 let customViews = [];                 // 사용자가 저장한 시점(구성과 함께 저장된다)
 let viewEditMode = false;             // 시점 편집 모드 — 켜면 '+'(저장)와 '×'(삭제)가 보인다
 const pv3dShow = {
-  person: true, dims: true, grid: true, accentWall: true,
+  person: true, dims: true, grid: true, accentWall: true, viewAngle: false,
   // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 2면 —
   //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
   walls: { front: true, back: false, left: true, right: false },
@@ -838,6 +839,21 @@ function renderPreview3D() {
     return;
   }
 
+  // 시야각 시뮬레이션 — 켜져 있으면 좌석마다 'LED가 제대로 보이는지'를 판정해 꼬리표를 단다.
+  //   좌표·개수는 건드리지 않는다(새 배열에 grade만 더한다). 계산은 viewangle.js에 있다.
+  let items = lay.items, viewSummary = null;
+  if (pv3dShow.viewAngle) {
+    const ann = annotateSeatViews(items, {
+      cx: r.marginW + r.actualW / 2, cy: mount + r.actualH / 2,
+      w: r.actualW, h: r.actualH,
+    }, {
+      seatTypes: ['seat', 'chair'],
+      // 최적 시청 거리는 모델이 가진 실제 스펙(ovd_m)만 쓴다 — 없으면 거리 판정을 생략한다.
+      ovdMm: (m && Number(m.ovd_m)) ? m.ovd_m * 1000 : null,
+    });
+    items = ann.items; viewSummary = ann.summary;
+  }
+
   // 계산 결과를 '읽기만' 해서 넘긴다 — 크기·배열·하단 높이 모두 engine / room-presets 값 그대로.
   viewer3d.setModel(buildGLModel({
     space: { W: sW, H: sH, D, wallThk: num($('#wallThk')?.value) },
@@ -845,10 +861,10 @@ function renderPreview3D() {
       w: r.actualW, h: r.actualH, marginW: r.marginW, mount,
       cols: r.cols, rows: r.rows, depth: (m && m.depth) || 60,
     },
-    items: lay.items,
+    items,
     show: { ...pv3dShow },
     roomType: roomTypeId,   // 바닥 마감(카펫/비닐)을 공간 타입에서 고른다
-    person: personFor3D(r, mount, sW, D, lay.items),
+    person: personFor3D(r, mount, sW, D, items),
   }));
 
   // 배치 결과 안내 — 실제 놓인 좌석 수와, 방이 좁아 줄였을 때의 알림.
@@ -859,8 +875,17 @@ function renderPreview3D() {
     const seats = lay.placed.seats ?? lay.placed.chairs ?? lay.placed.consoles ?? 0;
     const rowInfo = (lay.placed.rows && lay.placed.perRow)
       ? `${lay.placed.perRow}석 × ${lay.placed.rows}줄` : '';
+    // 시야각 요약 — 등급별 좌석 수와 실제로 잰 값(거리·이탈각·화면 점유각).
+    let vs = '';
+    if (viewSummary && viewSummary.total) {
+      const S = viewSummary;
+      vs = `시야각 ${GRADE_LABELS.good} ${S.good} · ${GRADE_LABELS.warn} ${S.warn} · ${GRADE_LABELS.poor} ${S.poor}`
+        + ` (거리 ${(S.minDist / 1000).toFixed(1)}~${(S.maxDist / 1000).toFixed(1)}m ·`
+        + ` 최대 이탈 ${Math.round(S.maxOffAxis)}° · 최소 화면 점유 ${S.minSubtend.toFixed(1)}°)`;
+    }
     note.textContent = [
       seats ? `배치 ${seats}석${rowInfo ? ` (${rowInfo})` : ''}` : '',
+      vs,
       ...lay.notes,
       '끌기=회전 · 휠=확대 · ‘맞춤’=시점 복귀',
     ].filter(Boolean).join(' · ');
@@ -996,7 +1021,7 @@ function buildInspector() {
   s3.id = 'pv3dElements';
   s3.body.appendChild(buildWallToggles());
   for (const sel of ['[data-t3d="person"]', '#person3dSel', '[data-t3d="dims"]',
-                     '[data-t3d="grid"]', '[data-t3d="accentWall"]']) {
+                     '[data-t3d="grid"]', '[data-t3d="accentWall"]', '[data-t3d="viewAngle"]']) {
     const el = bar?.querySelector(sel);
     if (el) s3.body.appendChild(el);
   }

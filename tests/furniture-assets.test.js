@@ -13,8 +13,9 @@ import { layoutRoom, ROOM_TYPES, defaultOptions } from '../src/room-presets.js';
 
 // 부품 하나가 차지하는 y 구간 [아래, 위]. 기울기가 있으면 회전 후 높이로 계산한다.
 function yRange(p) {
+  if (p.shape === 'sph') return [p.y - p.r, p.y + p.r];
   const a = Math.abs((p.tiltX || 0) * Math.PI / 180);
-  const h = p.shape === 'cyl' ? p.h : p.h;
+  const h = p.h;
   const d = p.shape === 'cyl' ? p.r * 2 : p.d;
   const half = (h * Math.cos(a) + d * Math.sin(a)) / 2;
   return [p.y - half, p.y + half];
@@ -24,8 +25,8 @@ function assertSaneParts(parts, label) {
   assert.ok(Array.isArray(parts) && parts.length > 0, `${label}: 부품이 있어야 한다`);
   for (const p of parts) {
     assert.ok(FURNITURE_COLORS[p.kind], `${label}: 색이 없는 부품 kind=${p.kind}`);
-    assert.ok(['box', 'cyl'].includes(p.shape), `${label}: 원시 도형은 box/cyl만`);
-    const nums = p.shape === 'cyl' ? [p.r, p.h] : [p.w, p.h, p.d];
+    assert.ok(['box', 'cyl', 'sph'].includes(p.shape), `${label}: 원시 도형은 box/cyl/sph만`);
+    const nums = p.shape === 'cyl' ? [p.r, p.h] : p.shape === 'sph' ? [p.r] : [p.w, p.h, p.d];
     for (const n of [...nums, p.dx, p.y, p.dz]) {
       assert.ok(Number.isFinite(n), `${label}: 숫자가 아닌 치수 (kind=${p.kind})`);
     }

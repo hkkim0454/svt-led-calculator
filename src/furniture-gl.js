@@ -15,13 +15,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=384';
-import { createMaterialLibrary } from './materials-gl.js?v=384';
-import { PART_MATERIAL } from './materials.js?v=384';
+import { u } from './gl-model.js?v=385';
+import { createMaterialLibrary } from './materials-gl.js?v=385';
+import { PART_MATERIAL } from './materials.js?v=385';
+import { GRADE_COLORS } from './viewangle.js?v=385';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=384';
+} from './furniture-assets.js?v=385';
 
 const DEG = Math.PI / 180;
 
@@ -42,6 +43,7 @@ function partMatrix(item, part, out) {
   _m.multiply(_t);
   if (part.tiltX) { _r.makeRotationX(part.tiltX * DEG); _m.multiply(_r); }
   if (part.shape === 'cyl') _s.makeScale(u(part.r) * 2, u(part.h), u(part.r) * 2);
+  else if (part.shape === 'sph') { const d = u(part.r) * 2; _s.makeScale(d, d, d); }
   else _s.makeScale(u(part.w), u(part.h), u(part.d));
   return out.multiplyMatrices(_m, _s);
 }
@@ -175,16 +177,23 @@ export function buildFurnitureGroup(items) {
 
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const cylGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 12);
+  const sphGeo = new THREE.SphereGeometry(0.5, 12, 8);   // 머리 — 저폴리 구 하나를 공유한다
   const m4 = new THREE.Matrix4();
 
   for (const list of buckets.values()) {
     const parts = assetParts(list[0]);
     if (!parts) continue;
     const id = assetFor(list[0]);
+    // 시야각 판정이 붙어 있으면 앉는 면 색을 등급 색으로 바꾼다(양호·주의·불량).
+    //   같은 등급끼리 이미 한 묶음이므로(assetKey에 등급이 들어간다) 재질 하나면 된다.
+    const grade = list[0].grade;   // 바깥 g(Group)를 가리지 않도록 이름을 따로 쓴다
+    const gradeMat = grade && GRADE_COLORS[grade] ? lib.get('fabricChair', GRADE_COLORS[grade]) : null;
+    const FABRIC = new Set(['seatFabric', 'chairSeat', 'chairBack']);
     for (const part of parts) {
-      const geo = part.shape === 'cyl' ? cylGeo : boxGeo;
-      const im = new THREE.InstancedMesh(geo, mat[part.kind] || mat.chairSeat, list.length);
-      im.name = `${id}:${part.kind}`;
+      const geo = part.shape === 'cyl' ? cylGeo : part.shape === 'sph' ? sphGeo : boxGeo;
+      const pm = (gradeMat && FABRIC.has(part.kind)) ? gradeMat : (mat[part.kind] || mat.chairSeat);
+      const im = new THREE.InstancedMesh(geo, pm, list.length);
+      im.name = `${id}:${part.kind}${grade ? ':' + grade : ''}`;
       for (let i = 0; i < list.length; i++) im.setMatrixAt(i, partMatrix(list[i], part, m4));
       im.instanceMatrix.needsUpdate = true;
       im.frustumCulled = false;   // 인스턴스 전체 경계가 부정확해 통째로 사라지는 것을 막는다
@@ -222,7 +231,7 @@ export function buildFurnitureGroup(items) {
   }
 
   // 공용 자원은 Group에 매달아 두었다가 버릴 때 함께 반납한다.
-  g.userData.shared = { boxGeo, cylGeo, materials: Object.values(mat), lib };
+  g.userData.shared = { boxGeo, cylGeo, sphGeo, materials: Object.values(mat), lib };
   return g;
 }
 
@@ -232,7 +241,7 @@ export function disposeFurniture(g) {
   g.traverse(o => { if (o.isInstancedMesh) o.dispose?.(); else o.geometry?.dispose?.(); });
   const sh = g.userData.shared;
   if (sh) {
-    sh.boxGeo.dispose(); sh.cylGeo.dispose();
+    sh.boxGeo.dispose(); sh.cylGeo.dispose(); sh.sphGeo?.dispose();
     for (const m of sh.materials) m.dispose();
     sh.lib?.dispose();   // 재질 라이브러리가 만든 무늬(normal map)까지 반납
   }

@@ -54,6 +54,8 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
+import { isOccupied } from './viewangle.js?v=385';
+
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
   chairClear: 650,        // 테이블 모서리 ~ 의자 중심 거리
@@ -156,6 +158,7 @@ function hallOptions(rows, perRow, twoAisles) {
     { key: 'tiers', label: '객석 단 수', type: 'number', default: 1, min: 1, max: 20 },
     { key: 'riserH', label: '한 단 높이(mm)', type: 'number', default: 200, min: 0, max: 900 },
     { key: 'tierStartRow', label: '단 시작 줄 (0=자동)', type: 'number', default: 0, min: 0, max: 40 },
+    { key: 'occupancy', label: '착석률 (%)', type: 'number', default: 0, min: 0, max: 100 },
     { key: 'plant', label: '화분', type: 'toggle', default: false },
   ];
 }
@@ -505,12 +508,26 @@ function layoutHall(o, W, D) {
     platW: Math.min(W, perRow * F.seatPitchX + aisleTotal + F.seatPitchX),
   });
 
+  // 착석 인원 — 좌석 위에 앉은 사람을 얹는다. 좌석 계산에는 전혀 끼어들지 않는다
+  //   (좌석을 먼저 다 놓고, 그 자리 중에서 고르기만 한다).
+  const occ = clamp(int(o.occupancy, 0), 0, 100);
+  const seated = [];
+  let seatIdx = 0;
   for (let r = 0; r < rows; r++) {
     const z = seatZ(r);
     const y = riserH > 0 ? tierOf(r) * riserH : 0;   // 그 줄이 올라앉은 단 높이
     // 무대·LED(z=0) 쪽을 바라본다. y는 좌석이 놓인 바닥 높이(단차).
-    for (const sx of xs) items.push({ ...chairAt(sx, z, sx, 0, 'seat'), y });
+    for (const sx of xs) {
+      const seat = { ...chairAt(sx, z, sx, 0, 'seat'), y };
+      items.push(seat);
+      if (occ > 0 && isOccupied(seatIdx, occ)) {
+        seated.push({ ...seat, type: 'seated' });
+      }
+      seatIdx++;
+    }
   }
+  items.push(...seated);
+  if (occ > 0) notes.push(`착석 ${seated.length}명 / ${seatIdx}석 (${occ}%)`);
   if (o.plant) addPlant(items, W, D);
   if (riserH > 0 && tiers > 1) {
     notes.push(`객석 ${tiers}단 · 한 단 ${riserH}mm (맨 뒤 +${(tiers - 1) * riserH}mm)`);
@@ -654,7 +671,7 @@ function addPlant(items, W, D) {
 //   · 테이블·의자와 겹치면 사람이 가구를 뚫고 선 것처럼 보이므로 빈 곳을 찾는다.
 // 무대(stage)도 피한다 — 사람은 바닥(y=0)에 세우므로 단상 위에 두면 발이 묻힌다.
 export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage', 'credenza',
-  'highTable', 'stool', 'lounge', 'collabTable', 'mobileStand']));
+  'highTable', 'stool', 'lounge', 'collabTable', 'mobileStand', 'seated']));
 
 export function personSpot(room, led, items = []) {
   const W = Math.max(2000, room.W), D = Math.max(2000, room.D);
