@@ -86,6 +86,7 @@ export const PART_MATERIAL = Object.freeze({
   deskTop: 'woodTable', deskLeg: 'metalFrame', deskPanel: 'paintedWall', deskRail: 'metalFrame',
   consoleTop: 'woodTable', consoleBase: 'metalFrame', monitorBase: 'metalFrame',
   podium: 'paintedWall', podiumTop: 'woodTable',
+  credenzaBody: 'paintedWall', credenzaDoor: 'paintedWall', credenzaTop: 'woodTable', credenzaToe: 'metalFrame',
   rug: 'carpetTile',
   riserTop: 'stageSurface', riserSide: 'stageSurface',
   plantPot: 'paintedWall',

@@ -7,7 +7,7 @@ import {
   FURNITURE_ASSETS, FURNITURE_COLORS, DIMS, V1_ASSET_IDS,
   assetFor, assetParts, assetKey,
   createConferenceChair, createAuditoriumChair, createTrainingChair,
-  createTrainingDesk, createConferenceTable,
+  createTrainingDesk, createConferenceTable, createAvCredenza,
 } from '../src/furniture-assets.js';
 import { layoutRoom, ROOM_TYPES, defaultOptions } from '../src/room-presets.js';
 
@@ -192,4 +192,25 @@ test('그리기 호출 수 — 좌석이 늘어도 부품 종류 수만큼만 �
   assert.equal(assetParts(small.items.find(i => i.type === 'seat')).length,
     assetParts(big.items.find(i => i.type === 'seat')).length);
   assert.ok(createAuditoriumChair().length <= 8, '객석 부품이 8종을 넘으면 그리기 호출이 늘어난다');
+});
+
+
+// ── 회의실 프리셋(STEP 5) ───────────────────────────────────────────────────
+
+test('AV 수납장 — 낮고 단순하며 LED를 가리지 않는 높이(700mm)', () => {
+  const parts = createAvCredenza(1800, 450);
+  assertSaneParts(parts, 'avCredenza');
+  assert.ok(parts.length <= 6, '장식 가구가 아니므로 부품이 적어야 한다');
+  const top = Math.max(...parts.map(p => yRange(p)[1]));
+  assert.equal(Math.round(top), DIMS.avCredenza.h, '전체 높이가 설계값과 같다');
+  assert.ok(top < 900, 'LED 하단(기본 1,000mm)보다 낮아야 한다');
+  // 굽(토킥)은 몸통보다 안쪽으로 들어가 있어야 한다 — 바닥에 붙은 상자로 보이지 않게.
+  const toe = parts.find(p => p.kind === 'credenzaToe');
+  const body = parts.find(p => p.kind === 'credenzaBody');
+  assert.ok(toe.w < body.w && toe.d < body.d, '굽이 몸통보다 작아야 한다');
+  // 문 2짝이 몸통 폭 안에 들어간다.
+  const doors = parts.filter(p => p.kind === 'credenzaDoor');
+  assert.equal(doors.length, 2);
+  for (const d of doors) assert.ok(Math.abs(d.dx) + d.w / 2 <= body.w / 2, '문이 몸통 밖으로 나간다');
+  assert.equal(assetFor({ type: 'credenza' }), 'avCredenza');
 });

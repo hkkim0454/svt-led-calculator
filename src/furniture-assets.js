@@ -28,6 +28,7 @@ export const FURNITURE_COLORS = Object.freeze({
   deskTop: '#efeae1', deskLeg: '#b3bcc8', deskPanel: '#e4e9ef', deskRail: '#a9b3c0',
   consoleTop: '#f3f6f9', consoleBase: '#9ba6b4', monitor: '#1b2532', monitorBase: '#8f99a7',
   podium: '#eef2f7', podiumTop: '#efeae1',
+  credenzaBody: '#e7ecf2', credenzaDoor: '#dfe5ed', credenzaTop: '#ece6db', credenzaToe: '#b9c1cd',
   rug: '#c1c9d5',
   // 객석 단(계단). 윗면은 바닥보다 밝게, **옆면(챌판)은 뚜렷하게 어둡게** —
   //   옆면이 바닥색과 비슷하면 단 경계가 안 보여 그냥 평평한 단 하나로 읽힌다.
@@ -71,6 +72,8 @@ export const DIMS = Object.freeze({
   // 상황실 콘솔 / 교탁 — 이번 단계에서 형상을 바꾸지 않는다(기존 값 유지).
   controlConsole: Object.freeze({ surfaceY: 730, topThk: 50, monW: 760, monH: 440 }),
   podium: Object.freeze({ w: 700, d: 500, h: 1080 }),
+  // AV 수납장 — LED 벽 아래 낮은 수납장. 700 × 450mm(실제 AV 랙 수납장 치수).
+  avCredenza: Object.freeze({ h: 700, d: 450, toeH: 80, topThk: 30, doorGap: 20 }),
   // 부속물
   plant: Object.freeze({ potR: 170, potH: 300, leafH: 520 }),
   rug: Object.freeze({ h: 14 }),
@@ -205,6 +208,27 @@ export function createConferenceTable(item = {}) {
   return spec;
 }
 
+/**
+ * AV 수납장 — 굽(토킥) + 몸통 + 상판 + 여닫이문 2짝. 아주 단순한 형태로 만든다.
+ * 장식용 가구가 아니라 공간 현실감을 위한 보조 요소라 여기서 더 꾸미지 않는다.
+ */
+export function createAvCredenza(w = 1800, d = 450) {
+  const S = DIMS.avCredenza;
+  const bodyH = S.h - S.toeH - S.topThk;        // 590
+  const bodyY = S.toeH + bodyH / 2;
+  const doorW = (w - 40 - S.doorGap) / 2;       // 양쪽 20mm씩 들어간 문 2짝
+  return [
+    // 굽 — 안쪽으로 들여 그림자를 만든다(바닥에 딱 붙은 상자로 보이지 않게).
+    box('credenzaToe', 0, S.toeH / 2, 0, w - 120, S.toeH, d - 80),
+    box('credenzaBody', 0, bodyY, 0, w, bodyH, d),
+    // 문 2짝 — 몸통보다 12mm 앞으로(LED 벽 반대쪽 = -Z가 방 안쪽이다).
+    box('credenzaDoor', -(doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12),
+    box('credenzaDoor', (doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12),
+    // 상판 — 테이블과 같은 옅은 오크. 사방으로 살짝 내민다.
+    box('credenzaTop', 0, S.h - S.topThk / 2, 0, w + 30, S.topThk, d + 20),
+  ];
+}
+
 /** 상황실 콘솔 — 이번 단계에서는 형상 변경 없음(기존 값 그대로). */
 export function createControlConsole(w = 1800, d = 900) {
   const S = DIMS.controlConsole;
@@ -240,6 +264,7 @@ export const FURNITURE_ASSETS = Object.freeze({
   trainingDesk: { id: 'trainingDesk', label: '강의용 책상', instanced: true, sized: true, build: it => createTrainingDesk(it.w, it.d) },
   controlConsole: { id: 'controlConsole', label: '상황실 콘솔', instanced: true, sized: true, build: it => createControlConsole(it.w, it.d) },
   podium: { id: 'podium', label: '교탁', instanced: true, sized: false, build: () => createPodium() },
+  avCredenza: { id: 'avCredenza', label: 'AV 수납장', instanced: true, sized: true, build: it => createAvCredenza(it.w, it.d) },
   conferenceTable: { id: 'conferenceTable', label: '회의 테이블', instanced: false, sized: true, spec: it => createConferenceTable(it) },
 });
 
@@ -262,6 +287,7 @@ export function assetFor(item) {
     case 'desk': return 'trainingDesk';
     case 'console': return 'controlConsole';
     case 'podium': return 'podium';
+    case 'credenza': return 'avCredenza';
     case 'table': return 'conferenceTable';
     default: return null;
   }

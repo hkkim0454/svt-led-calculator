@@ -15,13 +15,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=379';
-import { createMaterialLibrary } from './materials-gl.js?v=379';
-import { PART_MATERIAL } from './materials.js?v=379';
+import { u } from './gl-model.js?v=380';
+import { createMaterialLibrary } from './materials-gl.js?v=380';
+import { PART_MATERIAL } from './materials.js?v=380';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=379';
+} from './furniture-assets.js?v=380';
 
 const DEG = Math.PI / 180;
 
