@@ -39,8 +39,13 @@ export function isPlanned(v) {
   return !!v && typeof v === 'object' && typeof v.planned === 'string';
 }
 
-/** 디자인 완성 상태. ready = 지금 쓸 수 있다 / planned = 구조만 있고 아직 구현 전. */
-export const DESIGN_STATUS = Object.freeze({ READY: 'ready', PLANNED: 'planned' });
+/**
+ * 디자인 완성 상태.
+ *   ready   지금 쓸 수 있다
+ *   planned 구조만 있고 아직 구현 전
+ *   neutral 디자인이 붙지 않은 공간(= 전부 INHERIT). NEUTRAL_DESIGN 전용.
+ */
+export const DESIGN_STATUS = Object.freeze({ READY: 'ready', PLANNED: 'planned', NEUTRAL: 'neutral' });
 
 /** 디자인 한 벌이 반드시 가지는 항목. 빠진 항목이 없는지 테스트가 검사한다. */
 export const DESIGN_FIELDS = Object.freeze([
@@ -190,37 +195,82 @@ export const ROOM_DESIGNS = Object.freeze({
   }),
 });
 
-/** 값이 없거나 모르는 id일 때 쓰는 기본 디자인 — **지금 화면과 같은 것**이어야 한다. */
 export const DESIGN_IDS = Object.freeze(Object.keys(ROOM_DESIGNS));
-export const DEFAULT_DESIGN = 'corporateMeeting';
 
-/** 디자인 id → 정의. 모르는 값·빈 값이면 기본 디자인. */
+/**
+ * **디자인이 붙지 않은 공간** — 모든 항목이 INHERIT다(= 지금 동작 그대로).
+ *
+ * 왜 필요한가: 예전에는 값이 없으면 무조건 `corporateMeeting`으로 떨어졌다.
+ *   지금은 그것이 전부 INHERIT라 티가 나지 않지만, PHASE 2에서 대기업 회의실에
+ *   실제 의자·테이블·카펫·조명이 들어가는 순간 **강당·강의실·아이디에이션 공간에
+ *   회의실 디자인이 잘못 입혀진다.** `corporateMeeting`은 '모든 공간의 기본'이 아니라
+ *   '**meeting 용도의** 기본'이어야 한다(오너 지침 2026-09-16).
+ *   그래서 '아무 디자인도 아님'을 가리키는 자리를 따로 만든다.
+ */
+export const NEUTRAL_DESIGN = Object.freeze({
+  id: null,
+  label: '기본(디자인 없음)',
+  roomType: null,
+  layoutVariant: null,
+  status: DESIGN_STATUS.NEUTRAL,
+  phase: 0,
+  furniture: INHERIT, palette: INHERIT, materials: INHERIT,
+  wallTreatment: INHERIT, lighting: INHERIT, camera: INHERIT, accessories: INHERIT,
+});
+
+/**
+ * **용도별 기본 디자인.** 여기에 없는 용도는 디자인이 없다(NEUTRAL_DESIGN).
+ *   Corporate AV Design System이 아직 다루지 않는 공간(강의실·소/중/대강당·아이디에이션)에
+ *   억지로 회의실 디자인을 붙이지 않는다.
+ * 새 공간을 지원하게 되면 여기에 한 줄을 더한다 — 기본값이 흩어지지 않게 한곳에 모아 둔다.
+ */
+export const DEFAULT_DESIGN_BY_ROOM_TYPE = Object.freeze({
+  meeting: 'corporateMeeting',
+  control: 'controlRoom',
+});
+
+/** 그 용도의 기본 디자인 id. 지원하지 않는 용도면 null(= 디자인 없음). */
+export function defaultDesignFor(roomTypeId) {
+  return DEFAULT_DESIGN_BY_ROOM_TYPE[roomTypeId] || null;
+}
+
+/**
+ * 디자인 id → 정의.
+ * 모르는 값·빈 값이면 **NEUTRAL_DESIGN**(전부 INHERIT)이다 — 특정 공간의 디자인이 아니다.
+ * 용도에 맞는 기본값이 필요하면 `normalizeDesign(id, roomTypeId)`을 먼저 거친다.
+ */
 export function roomDesign(id) {
-  return ROOM_DESIGNS[id] || ROOM_DESIGNS[DEFAULT_DESIGN];
+  return ROOM_DESIGNS[id] || NEUTRAL_DESIGN;
 }
 
 /**
  * 그 용도에서 고를 수 있는 디자인 목록.
- * 아직 디자인이 붙지 않은 용도(강의실·강당·아이디에이션)는 기본 디자인 하나만 돌려준다
- * — 화면에 고를 것이 하나도 없는 상태가 되지 않게.
+ * 아직 디자인이 붙지 않은 용도는 **빈 목록**이다 — 화면은 그때 디자인 선택칸을 아예 그리지 않는다.
+ * (예전처럼 회의실 디자인 하나를 억지로 끼워 넣으면 강당에 '대기업 회의실'이 뜬다.)
  */
 export function designsFor(roomTypeId) {
-  const list = DESIGN_IDS.map(k => ROOM_DESIGNS[k]).filter(d => d.roomType === roomTypeId);
-  return list.length ? Object.freeze(list) : Object.freeze([ROOM_DESIGNS[DEFAULT_DESIGN]]);
+  return Object.freeze(DESIGN_IDS.map(k => ROOM_DESIGNS[k]).filter(d => d.roomType === roomTypeId));
 }
 
 /**
- * 저장해 둔 값을 안전하게 정리한다.
- *   · 값이 없거나(예전 세션) 모르는 id면 → 기본 디자인
- *   · 그 용도의 디자인이 아니면 → 기본 디자인
- * **예전 세션은 design 값이 아예 없다.** 그때 기본 디자인(= 지금 화면 그대로)으로
- * 떨어지는 것이 이 함수의 가장 중요한 역할이다.
+ * 저장해 둔 값을 안전하게 정리한다. **되돌아가는 곳은 언제나 '그 용도의' 기본 디자인이다.**
+ *   · 그 용도의 디자인이면            → 그대로
+ *   · 값이 없거나(예전 세션)·모르거나·용도가 안 맞으면 → defaultDesignFor(용도)
+ *   · 그 용도에 기본 디자인이 없으면  → null (디자인 없음 = 지금 동작 그대로)
+ *
+ * **예전 세션은 design 값이 아예 없다.** 그때
+ *   회의실 → corporateMeeting · 상황실 → controlRoom ·
+ *   강의실/강당/아이디에이션 → null
+ * 로 떨어지는 것이 이 함수의 가장 중요한 역할이다.
+ * 여기서 용도를 무시하고 회의실 디자인으로 떨어뜨리면, PHASE 2에서 회의실에 실제 값이
+ * 들어가는 순간 강당·강의실 화면이 회의실처럼 바뀐다.
+ *
+ * @returns 디자인 id 또는 null(디자인 없음)
  */
 export function normalizeDesign(id, roomTypeId) {
   const d = ROOM_DESIGNS[id];
-  if (!d) return DEFAULT_DESIGN;
-  if (roomTypeId && d.roomType !== roomTypeId) return DEFAULT_DESIGN;
-  return d.id;
+  if (d && d.roomType === roomTypeId) return d.id;
+  return defaultDesignFor(roomTypeId);
 }
 
 /**
