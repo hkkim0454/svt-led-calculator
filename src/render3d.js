@@ -16,10 +16,10 @@
 
 import {
   buildScene, roomShellQuads, visibleWallSides, cabinetQuads, floorGridLines,
-  viewCamera, projectPoint, cullAndSort, fitTransform, toScreen, fitAnchors,
+  viewCamera, projectPoint, cullAndSort, fitTransform, focusGain, toScreen, fitAnchors,
   cubeView, rotateCubeView, DEFAULT_CUBE_VIEW, clampView, VIEW_LIMITS, CUBE_VIEWS,
-} from './scene3d.js?v=352';
-import { furnitureGroups, footprint } from './furniture3d.js?v=352';
+} from './scene3d.js?v=353';
+import { furnitureGroups, footprint } from './furniture3d.js?v=353';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 공간은 '물리 다이어그램'이라 다크모드에서도 항상 밝은 톤으로 그린다(정면 뷰와 같은 원칙).
@@ -212,7 +212,12 @@ export function paint(ctx, width, height, m, view) {
 
   const cam = viewCamera(scene, view.viewId);
   const anchors = focusAnchors(scene, m.items).map(p => projectPoint(cam, p));
-  const t = fitTransform(anchors, { width, height, pad: 34, zoom: view.zoom });
+  // LED를 자르지 않는 선에서 한 단계 더 당겨 들어간다(평면도는 도면이므로 그대로).
+  //   확대 배율은 사용자 줌과 별개로 계산한다 — '맞춤'(줌 1)을 눌러도 같은 framing이 나오고,
+  //   사용자가 줌을 올렸을 때 배율이 덩달아 되돌아가지도 않는다.
+  const gain = cubeView(view.viewId).plan ? 1
+    : focusGain(anchors, ledCornerPoints(cam, scene), { width, height, pad: FIT_PAD });
+  const t = fitTransform(anchors, { width, height, pad: FIT_PAD, zoom: view.zoom * gain });
   t.ox += view.panX || 0; t.oy += view.panY || 0;
   const P = p => toScreen(t, projectPoint(cam, p));
   const paintQuads = list => {
@@ -239,7 +244,10 @@ export function paint(ctx, width, height, m, view) {
   // ⑤ 벽 — 카메라 쪽 벽은 잘라내(컷어웨이) 안이 보이게.
   //    포인트 색은 '방 안쪽을 향한 면'에만 칠한다. 윗면·바깥면까지 칠하면 흰 벽과 만나는
   //    꼭짓점에서 색이 끊겨 모서리가 어긋나 보인다(실제 도장과도 다름).
-  const accent = sides.right ? 'right' : (sides.left ? 'left' : null);
+  //    포인트 벽은 '카메라에서 보이는 벽'이 아니라 '실제로 칠해 둔 벽'이다 — 시점을 돌려도
+  //    반대편으로 옮겨가지 않게 공간 좌표(ACCENT_WALL_SIDE)에 고정한다. 그 벽이 카메라
+  //    뒤에 놓이는 시점(좌측·좌측 코너)에서는 컷어웨이로 잘려 보이지 않는 게 맞다.
+  const accent = ACCENT_WALL_SIDE;
   const wallVis = cullAndSort(cam, shell.filter(q => q.side !== 'floor' && sides[q.side]).map(q => {
     const inner = isInnerWallFace(q);
     let kind = 'wallOuter';
@@ -314,6 +322,22 @@ function focusAnchors(scene, items) {
     // LED 자체
     [led.x, led.y, led.z], [led.x + led.w, led.y + led.h, led.z],
   ];
+}
+
+// 자동 맞춤 여백(px).
+const FIT_PAD = 34;
+
+// 포인트 벽 — 공간 좌표 기준으로 '왼쪽 벽'에 고정한다(기본 시점인 '우측 코너'에서
+// 보이는 옆벽). 카메라를 돌린다고 칠한 벽이 옮겨 다니면 안 된다.
+export const ACCENT_WALL_SIDE = 'left';
+
+// LED 화면 네 모서리(투영 완료) — framing을 당길 때 이 점들이 화면 안에 남아야 한다.
+function ledCornerPoints(cam, scene) {
+  const { led } = scene;
+  return [
+    [led.x, led.y, led.z], [led.x + led.w, led.y, led.z],
+    [led.x, led.y + led.h, led.z], [led.x + led.w, led.y + led.h, led.z],
+  ].map(p => projectPoint(cam, p));
 }
 
 // 그 면이 '방 안쪽'을 향한 벽면인지 — 포인트 색은 이 면에만 칠한다.

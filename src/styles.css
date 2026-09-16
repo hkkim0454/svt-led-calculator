@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v352) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v353) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
@@ -972,7 +972,9 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .stage3d{position:relative;width:100%;border-radius:var(--r-inner);overflow:hidden}
 /* .previewStage가 display:block이라 hidden 속성만으로는 안 숨는다 — 명시적으로 지정. */
 .previewStage[hidden],.stage3d[hidden]{display:none}
-.stage3d>canvas{display:block;width:100%;height:clamp(320px,42vw,560px)}
+/* 데스크톱에서 정면 뷰와 비슷한 존재감을 갖도록 높이를 키운다(1440~1600px 폭에서 약 620~640px).
+   태블릿은 44vw로 자연스럽게 450~520px, 모바일은 기존 높이를 그대로 유지한다. */
+.stage3d>canvas{display:block;width:100%;height:clamp(360px,44vw,640px)}
 @media(max-width:680px){ .stage3d>canvas{height:clamp(260px,64vw,420px)} }
 /* 인쇄 시에도 캔버스가 그대로 나오도록(비트맵이라 별도 처리 불필요). */
 body.printing .stage3d>canvas{height:420px}

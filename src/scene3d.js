@@ -64,8 +64,11 @@ export function clampView(v = {}) {
 export const EYE_MM = 2350;     // 카메라 눈높이(바닥에서 mm). 서 있는 눈높이보다 살짝 위.
 export const LOOK_MM = 1100;    // 바라보는 높이 — 눈높이보다 낮아 자연스럽게 내려다본다.
 export const FOV_DEG = 33;      // 화각. 건축 투시도에 쓰는 약망원(왜곡이 적다).
-export const MIN_PITCH_DEG = 9; // 최소한 이만큼은 내려다본다. 강당처럼 깊은 공간에서
-                                // 눈높이 그대로 두면 좌석이 지평선에 납작하게 뭉친다.
+export const MIN_PITCH_DEG = 5.5; // 최소한 이만큼은 내려다본다. 강당처럼 깊은 공간에서
+                                  // 눈높이 그대로 두면 좌석이 지평선에 납작하게 뭉친다.
+                                  // 다만 이 값이 크면 카메라가 EYE_MM보다 훨씬 높이 떠서
+                                  // '미니어처를 위에서 보는' 그림이 된다(깊이 10m 기준
+                                  // 9° = 약 3.4m, 5.5° = 약 2.5m). 사람 시점을 유지한다.
 
 export const CUBE_VIEWS = Object.freeze([
   { id: 'side-l',   label: '좌측',      yaw: -40 },
@@ -395,6 +398,33 @@ export function fitTransform(pts, { width, height, pad = 18, zoom = 1 } = {}) {
 // 정규화 좌표 → 화면 픽셀.
 export function toScreen(t, p) {
   return { x: t.ox + p.x * t.scale, y: t.oy + p.y * t.scale };
+}
+
+// ── LED 중심 framing ────────────────────────────────────────────────────────
+// 자동 맞춤은 '기준점이 전부 들어오는' 가장 안전한 크기를 고른다. 그러면 카메라가 필요
+// 이상으로 뒤로 빠져 LED가 작아진다. 3D 뷰의 목적은 방을 넓게 보여주는 게 아니라
+// 'LED 설치 결과를 공간 안에서 보여주는 것'이므로, LED가 화면 밖으로 나가지 않는 선에서
+// 한 단계 더 당겨 들어간다. (위에서부터 시도해 통과하는 첫 값을 쓴다)
+export const FRAMING_STEPS = Object.freeze([1.14, 1.10, 1.06, 1.03, 1]);
+
+/**
+ * LED를 자르지 않고 쓸 수 있는 가장 큰 확대 배율을 고른다.
+ * @param anchors  자동 맞춤 기준점(투영 완료)
+ * @param ledPts   LED 네 모서리(투영 완료) — 이 점들이 화면 안에 남아야 한다
+ * @returns FRAMING_STEPS 중 하나
+ */
+export function focusGain(anchors, ledPts, { width, height, pad = 18, margin = 8, steps = FRAMING_STEPS } = {}) {
+  const led = (ledPts || []).filter(p => p && p.ok !== false);
+  if (!led.length) return steps[steps.length - 1];
+  for (const g of steps) {
+    const t = fitTransform(anchors, { width, height, pad, zoom: g });
+    const inside = led.every(p => {
+      const s = toScreen(t, p);
+      return s.x >= margin && s.x <= width - margin && s.y >= margin && s.y <= height - margin;
+    });
+    if (inside) return g;
+  }
+  return steps[steps.length - 1];
 }
 
 // 자동 맞춤의 기준이 되는 점들(방 8모서리 + LED 4모서리). 캐비닛·격자선은 이 안에 들어오므로 제외.
