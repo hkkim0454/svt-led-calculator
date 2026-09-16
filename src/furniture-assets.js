@@ -19,7 +19,7 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=402';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=404';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -332,6 +332,90 @@ export function createConferenceTable(item = {}) {
 }
 
 /**
+ * 대기업 회의 테이블 (PHASE 2-b).
+ * ─────────────────────────────────────────────────────────────────────────
+ * 기존 회의 테이블(createConferenceTable)은 **그대로 둔다.** 별도 자산이다.
+ *
+ * 중역 테이블이 아니다 — 두껍고 무거운 일체형 몸통을 만들지 않는다.
+ *   얇은 상판(25mm) + 날씬한 T형 받침 + 거의 안 보이는 보강대.
+ *
+ * **다리 위치가 이 자산의 숨은 핵심이다.**
+ *   회의실 좌석은 테이블 중심에서 **700mm 간격**으로 놓인다(FURNITURE.chairPitch).
+ *   받침을 700의 배수 자리에 두면 앉은 사람 무릎이 정확히 기둥에 부딪힌다.
+ *   그래서 받침은 언제나 **350의 홀수 배수**(350·1050·1750…) — 좌석과 좌석 **사이**다.
+ *   같은 이유로 받침 수는 짝수만 쓴다(홀수면 한 개가 정중앙 = 좌석 자리에 온다).
+ *
+ * 치수는 전부 계약(FURNITURE_CONTRACTS.corporateTable)에서 온다.
+ * 실제 가로·세로는 **배치 계산이 준 값**을 쓴다 — 여기서 방 크기를 다시 재지 않는다.
+ */
+const SUPPORT_HALF_PITCH = 350;   // 좌석 간격 700의 절반
+
+// 목표 위치에 가장 가까운 '350의 홀수 배수'. 상판 밖으로 나가지 않게 줄여 가며 맞춘다.
+function oddSupportX(target, maxAbs) {
+  let k = Math.max(1, Math.round((target / SUPPORT_HALF_PITCH - 1) / 2) * 2 + 1);
+  while (k > 1 && k * SUPPORT_HALF_PITCH > maxAbs) k -= 2;
+  return k * SUPPORT_HALF_PITCH;
+}
+
+/** 상판 폭 → 받침 x 위치들. 긴 테이블은 4개, 그 외는 2개(언제나 짝수·좌우 대칭). */
+export function corporateSupportXs(w) {
+  const maxAbs = Math.max(SUPPORT_HALF_PITCH, w / 2 - 200);   // 끝에서 최소 200mm 안쪽
+  if (w > 4200) {
+    const outer = oddSupportX(w * 0.36, maxAbs);
+    let inner = oddSupportX(w * 0.12, maxAbs);
+    if (inner >= outer) inner = Math.max(SUPPORT_HALF_PITCH, outer - SUPPORT_HALF_PITCH * 2);
+    return [-outer, -inner, inner, outer];
+  }
+  const x = oddSupportX(w * 0.28, maxAbs);
+  return [-x, x];
+}
+
+/**
+ * 구성 명세를 돌려준다(도형은 furniture-gl이 만든다 — 보트형 상판이 상자가 아니기 때문).
+ * @param item 배치 계산이 준 항목 { shape, w, d }
+ */
+/**
+ * 이 배치 항목이 **대기업 테이블이 맡을 수 있는 것인가.**
+ *   모양: 사각·보트만(원형·U자 등은 이 자산의 몫이 아니다).
+ *   크기: 계약이 정한 최소 치수 이상. 그보다 작은 조각(U자형의 옆날개 등)은 맡지 않는다 —
+ *     **작다고 키우면 배치가 바뀐다.** 배치는 이 단계에서 절대 건드리지 않기로 한 것이다.
+ */
+export function fitsCorporateTable(item = {}) {
+  const C = FURNITURE_CONTRACTS.corporateTable.dimensions;
+  if (item.shape && item.shape !== 'rect' && item.shape !== 'boat') return false;
+  return Math.round(item.w || 0) >= C.minWidth && Math.round(item.d || 0) >= C.minDepth;
+}
+
+export function createCorporateTable(item = {}) {
+  const C = FURNITURE_CONTRACTS.corporateTable.dimensions;
+  // 계약이 다루는 모양은 사각·보트 둘뿐이다. 그 밖(원형 등)은 이 자산의 몫이 아니다.
+  const shape = item.shape === 'boat' ? 'boat' : 'rect';
+  // **배치가 준 값을 그대로 쓴다.** 최소 치수는 값이 아예 없을 때의 기본값일 뿐,
+  //   배치가 준 크기를 키우는 데 쓰지 않는다(키우면 테이블이 배치 밖으로 삐져나간다).
+  const w = Math.round(item.w) || C.minWidth;
+  const d = Math.round(item.d) || C.minDepth;
+  const topBottom = C.surfaceY - C.topThk;
+
+  // T형 받침 — 바닥 발(가로로 눕힌 판) + 가는 기둥. 식탁 다리 넷과 확실히 다른 실루엣이다.
+  const footH = 28;
+  const supports = corporateSupportXs(w).map(dx => ({
+    dx,
+    post: { w: 90, d: Math.max(320, Math.round(d * 0.30)), y0: footH, y1: topBottom - 30 },
+    foot: { w: 120, d: Math.max(500, Math.round(d * 0.52)), h: footH },
+  }));
+  // 보강대 — 받침 사이를 잇는다. 상판이 공중에 뜬 느낌만 없애면 되므로 아주 얇게.
+  const span = Math.max(...supports.map(s => s.dx)) * 2;
+  return {
+    shape, w, d,
+    surfaceY: C.surfaceY, topThk: C.topThk, topBottom,
+    topRadius: 26,                                   // 상판 모서리 — 아주 약하게만
+    bulge: shape === 'boat' ? Math.round(d * 0.06) : 0,   // 보트형: 가운데가 깊이의 6%만 부푼다
+    supports,
+    beam: span > 0 ? { w: span, h: 48, d: 70, y: topBottom - 54 } : null,
+  };
+}
+
+/**
  * AV 수납장 — 굽(토킥) + 몸통 + 상판 + 여닫이문 2짝. 아주 단순한 형태로 만든다.
  * 장식용 가구가 아니라 공간 현실감을 위한 보조 요소라 여기서 더 꾸미지 않는다.
  */
@@ -491,6 +575,8 @@ export const FURNITURE_ASSETS = Object.freeze({
   seatedPerson: { id: 'seatedPerson', label: '착석 인원', instanced: true, sized: false, build: () => createSeatedPerson(DIMS.auditoriumChair.seatTop) },
   mobileStand: { id: 'mobileStand', label: '이동식 디스플레이', instanced: true, sized: false, build: () => createMobileStand() },
   conferenceTable: { id: 'conferenceTable', label: '회의 테이블', instanced: false, sized: true, spec: it => createConferenceTable(it) },
+  // PHASE 2-b — 대기업 회의실 전용 테이블. 기존 회의 테이블은 그대로 남는다.
+  corporateTable: { id: 'corporateTable', label: '대기업 회의 테이블', instanced: false, sized: true, spec: it => createCorporateTable(it) },
 });
 
 /** V1에서 준비한 가구 자산 4종 — 보고·테스트용 목록. */

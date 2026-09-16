@@ -110,8 +110,18 @@ test('나머지 의자 3종 — 아직 도형이 없다(기존 의자로 대신 
   }
 });
 
-test('테이블·콘솔 — 갈래에 맞는 기존 자산으로만 대신한다', () => {
-  for (const want of ['corporateTable', 'boardroomTable', 'largeUTable']) {
+test('대기업 회의 테이블 — PHASE 2-b 에서 실제로 만들어져 대체 없이 쓰인다', () => {
+  assert.equal(hasRuntimeFurnitureAsset('corporateTable'), true);
+  const r = resolveFurnitureForDesign({ type: 'table' }, 'corporateMeeting');
+  assert.equal(r.requestedAsset, 'corporateTable');
+  assert.equal(r.runtimeAsset, 'corporateTable');
+  assert.equal(r.implemented, true);
+  assert.equal(r.fallbackUsed, false);
+  assert.equal(r.contractStatus, CONTRACT_STATUS.IMPLEMENTED);
+});
+
+test('나머지 테이블·콘솔 — 갈래에 맞는 기존 자산으로만 대신한다', () => {
+  for (const want of ['boardroomTable', 'largeUTable']) {
     const r = resolveFurnitureForDesign({ type: 'table', asset: want }, 'executiveBoardroom');
     assert.equal(r.category, 'table', want);
     assert.equal(r.implemented, false, want);
@@ -208,7 +218,7 @@ test('avCredenza — 계약과 런타임에 모두 있어 대체 없이 그대�
 
 test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한다', () => {
   assert.deepEqual({ ...requestedFurnitureForDesign('corporateMeeting') },
-    { chair: 'corporateChair', table: null, console: null, av: [] });
+    { chair: 'corporateChair', table: 'corporateTable', console: null, av: [] });
   assert.deepEqual({ ...requestedFurnitureForDesign('executiveBoardroom') },
     { chair: 'executiveChair', table: 'boardroomTable', console: null, av: ['avCredenza'] });
   assert.deepEqual({ ...requestedFurnitureForDesign('largeConference') },
@@ -228,27 +238,25 @@ test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한�
   // 지금 구현된 것 — PHASE 2-a 에서 대기업 회의 의자가 하나 늘었다.
   const done = DESIGN_IDS.flatMap(d => furnitureStatusForDesign(d))
     .filter(s => s.implemented).map(s => s.requested);
-  assert.deepEqual([...new Set(done)].sort(), ['avCredenza', 'corporateChair']);
+  assert.deepEqual([...new Set(done)].sort(), ['avCredenza', 'corporateChair', 'corporateTable']);
 });
 
-test('대기업 회의실 — 바뀌는 것은 의자뿐이다(테이블·수납장·러그는 그대로)', () => {
+test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수납장·러그·화분은 그대로)', () => {
   const res = layoutRoom('meeting', defaultOptions('meeting'), { W: 8000, D: 7000 });
   const changed = [], same = [];
   for (const it of res.items) {
     const r = resolveFurnitureForDesign(it, 'corporateMeeting');
     (r.runtimeAsset !== assetFor(it) ? changed : same).push(it.type);
   }
-  // 의자만 달라진다. 그 외 물건은 기존 선택 그대로여야 한다.
-  assert.deepEqual([...new Set(changed)], ['chair'], '의자 말고 다른 것도 바뀌었다');
-  assert.ok(same.includes('table') && same.includes('credenza'), '테이블·수납장은 그대로여야 한다');
-  for (const it of res.items.filter(i => i.type !== 'chair')) {
+  assert.deepEqual([...new Set(changed)].sort(), ['chair', 'table'], '의자·테이블 말고 다른 것도 바뀌었다');
+  assert.ok(same.includes('credenza'), 'AV 수납장은 그대로여야 한다');
+  for (const it of res.items.filter(i => i.type !== 'chair' && i.type !== 'table')) {
     assert.equal(resolveFurnitureForDesign(it, 'corporateMeeting').runtimeAsset, assetFor(it), it.type);
   }
-  // 테이블은 아직 PHASE 2-b — 계약만 있고 도형은 없다.
-  assert.ok(FURNITURE_CONTRACTS.corporateTable);
-  assert.equal(hasRuntimeFurnitureAsset('corporateTable'), false);
-  assert.equal(resolveFurnitureForDesign({ type: 'table' }, 'corporateMeeting').runtimeAsset,
-    'conferenceTable');
+  // 임원·대회의실 테이블은 아직 계약만 있다.
+  for (const id of ['boardroomTable', 'largeUTable', 'curvedConsole']) {
+    assert.equal(hasRuntimeFurnitureAsset(id), false, id);
+  }
 });
 
 // ── N·O. 순수성과 불변성 ────────────────────────────────────────────────────

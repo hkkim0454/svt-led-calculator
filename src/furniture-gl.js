@@ -15,16 +15,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=402';
-import { createMaterialLibrary } from './materials-gl.js?v=402';
-import { PART_MATERIAL, PART_FINISH, finishForPart } from './materials.js?v=402';
-import { GRADE_COLORS } from './viewangle.js?v=402';
-import { createGeometryCache } from './geometry-gl.js?v=402';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=402';
+import { u } from './gl-model.js?v=404';
+import { createMaterialLibrary } from './materials-gl.js?v=404';
+import { PART_MATERIAL, PART_FINISH, finishForPart } from './materials.js?v=404';
+import { GRADE_COLORS } from './viewangle.js?v=404';
+import { createGeometryCache } from './geometry-gl.js?v=404';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=404';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
-  assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=402';
+  assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
+} from './furniture-assets.js?v=404';
 
 const DEG = Math.PI / 180;
 
@@ -150,6 +150,49 @@ function tableMesh(item, mat, geoCache) {
   return g;
 }
 
+/**
+ * 대기업 회의 테이블 (PHASE 2-b) — 얇은 상판 + T형 받침 + 얇은 보강대.
+ * 치수·받침 위치는 전부 순수 명세(createCorporateTable)가 정한다. 여기서는 세우기만 한다.
+ * 상판 마감만 새 마감 표(corporateTop)를 쓰고, 받침·보강대는 기존 재질 경로 그대로다.
+ */
+function corporateTableMesh(item, mat, geoCache) {
+  const S = createCorporateTable(item);
+  const g = new THREE.Group();
+
+  // 상판 — 윗면이 정확히 surfaceY 에 오도록 놓는다. 두께는 계약대로 25mm.
+  const top = S.shape === 'boat'
+    ? new THREE.Mesh(geoCache.boatTop(u(S.w), u(S.d), u(S.topThk), { bulge: u(S.bulge) }), mat.corporateTop)
+    : new THREE.Mesh(
+      geoCache.slab(u(S.w), u(S.topThk), u(S.d), { mode: 'plan', r: u(S.topRadius) }), mat.corporateTop);
+  top.position.y = u(S.topBottom + S.topThk / 2);   // 윗면 = surfaceY
+  top.name = 'corporateTop';
+  g.add(top);
+
+  // T형 받침 — 가는 기둥 + 눕힌 바닥 발. 식탁 다리 넷과 다른 실루엣이고 무릎 공간이 넓다.
+  for (const sp of S.supports) {
+    const h = sp.post.y1 - sp.post.y0;
+    const post = new THREE.Mesh(
+      geoCache.slab(u(sp.post.w), u(h), u(sp.post.d), { mode: 'face', r: u(14) }), mat.tableBase);
+    post.position.set(u(sp.dx), u(sp.post.y0 + h / 2), 0);
+    post.name = 'tableBase';
+    const foot = new THREE.Mesh(
+      geoCache.slab(u(sp.foot.w), u(sp.foot.h), u(sp.foot.d), { mode: 'plan', r: u(12) }), mat.tableBase);
+    foot.position.set(u(sp.dx), u(sp.foot.h / 2), 0);
+    foot.name = 'tableBase';
+    g.add(post, foot);
+  }
+
+  // 보강대 — 상판이 공중에 떠 보이지 않게만. 실내 시점에서는 거의 안 보이는 두께다.
+  if (S.beam) {
+    const beam = new THREE.Mesh(
+      geoCache.slab(u(S.beam.w), u(S.beam.h), u(S.beam.d), { mode: 'face', r: u(14) }), mat.tableBeam);
+    beam.position.y = u(S.beam.y);
+    beam.name = 'tableBeam';
+    g.add(beam);
+  }
+  return g;
+}
+
 function plantMesh(mat, geoCache) {
   const S = DIMS.plant;
   const g = new THREE.Group();
@@ -225,6 +268,8 @@ export function buildFurnitureGroup(items, opts = {}) {
   const buckets = new Map();
   const singles = [];
   const designId = opts.designId || null;
+  // 이 배치에 테이블이 몇 조각인가. 한 조각이면 '가운데 회의 테이블', 여러 조각이면 U자형 등이다.
+  const oneTable = items.filter(x => x.type === 'table').length === 1;
   for (const raw of items) {
     if (raw.type === 'stage') continue;         // 무대는 방 구조와 함께 그린다
     const it = routeItem(raw, designId);        // 디자인이 있으면 가구를 갈아 끼운다
@@ -265,7 +310,14 @@ export function buildFurnitureGroup(items, opts = {}) {
   // ── 하나씩 놓는 가구 ──
   for (const it of singles) {
     let obj = null;
-    if (it.type === 'table') obj = tableMesh(it, mat, geoCache);
+    // 어떤 테이블 자산을 세울지는 **라우터가 이미 정했다**(routeItem). 여기서는 고르기만 한다.
+    //   다만 대기업 테이블이 맡는 것은 **가운데 한 덩어리로 놓인 회의 테이블**뿐이다.
+    //   U자형처럼 여러 조각으로 나뉜 배치에서는 조각마다 마감이 달라져 이음매가 드러난다 —
+    //   그런 배치는 전용 변형(executive-u)이 생길 때까지 기존 테이블이 통째로 맡는다.
+    if (it.type === 'table') {
+      const useCorporate = assetFor(it) === 'corporateTable' && oneTable && fitsCorporateTable(it);
+      obj = useCorporate ? corporateTableMesh(it, mat, geoCache) : tableMesh(it, mat, geoCache);
+    }
     else if (it.type === 'plant') obj = plantMesh(mat, geoCache);
     else if (it.type === 'riser') {
       // 객석 단 — 윗면과 옆면 색을 나눠 낮고 얇은 단으로 읽히게 한다.

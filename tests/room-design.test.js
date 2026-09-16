@@ -168,12 +168,12 @@ test('아직 구현하지 않은 3개 공간 — 적용해도 화면이 바뀌�
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
 });
 
-test('corporateMeeting — PHASE 2-a 에서 의자만 정한다(그 외는 전부 INHERIT)', () => {
+test('corporateMeeting — PHASE 2-b 에서 가구(의자·테이블)를 정한다(그 외는 전부 INHERIT)', () => {
   const d = ROOM_DESIGNS.corporateMeeting;
   assert.equal(d.status, DESIGN_STATUS.READY, '지금 쓸 수 있는 유일한 디자인이다');
   assert.equal(d.phase, 2);
-  // 가구는 **의자 하나만** 정한다. 테이블을 여기에 적으면 PHASE 2-b 를 앞당겨 버린다.
-  assert.deepEqual({ ...d.furniture }, { chair: 'corporateChair' });
+  // 가구는 의자·테이블 둘. 재질·조명·화각을 여기에 적으면 PHASE 2-c 를 앞당겨 버린다.
+  assert.deepEqual({ ...d.furniture }, { chair: 'corporateChair', table: 'corporateTable' });
   // 나머지 항목은 여전히 비어 있어야 한다 — 누가 값을 채우면 테스트가 잡는다.
   for (const f of VALUE_FIELDS.filter(x => x !== 'furniture')) {
     assert.equal(d[f], INHERIT, `corporateMeeting.${f} 에 값을 넣으면 현재 화면이 더 바뀐다`);
@@ -198,10 +198,10 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     // **적용되는 값은 반드시 실재해야 한다.** 이것이 '가짜 스펙 금지'의 핵심이다.
     for (const x of ids) assert.ok(known.has(x), `${id}: 없는 자산·재질 ${x}`);
   }
-  // PHASE 2-a 에서 실제로 적용되는 것은 대기업 회의실 의자 하나뿐이다.
+  // PHASE 2-b 에서 실제로 적용되는 것은 대기업 회의실 의자·테이블뿐이다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
-  assert.deepEqual(applied, ['corporateChair'], `적용값이 늘었다: ${applied.join(', ')}`);
-  assert.ok(FURNITURE_ASSETS.corporateChair, 'corporateChair 도형이 실제로 있어야 한다');
+  assert.deepEqual(applied, ['corporateChair', 'corporateTable'], `적용값이 늘었다: ${applied.join(', ')}`);
+  for (const id of applied) assert.ok(FURNITURE_ASSETS[id], `${id} 도형이 실제로 있어야 한다`);
   // 아직 구현 전인 3종은 planned 표시를 달고 있어야 한다(빈 껍데기가 아니라 '계획'이라는 뜻).
   for (const id of ['executiveBoardroom', 'largeConference', 'controlRoom']) {
     assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.PLANNED, id);

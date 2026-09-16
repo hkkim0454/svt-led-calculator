@@ -3,6 +3,7 @@
 // 여기서 지키는 것은 **어떤 부품을 둥글릴지, 얼마나 둥글릴지**라는 판단이다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   FURNITURE_ASSETS, DIMS,
   createConferenceChair, createAuditoriumChair, createTrainingChair, createAvCredenza,
@@ -104,4 +105,32 @@ test('AV 수납장 — 몸통·문·상판이 둥글고 치수는 그대로다',
   assert.ok(top.r > 0 && top.mode === 'plan');
   // 둥글려도 전체 높이는 설계값 그대로여야 한다(치수는 계산값이다).
   assert.equal(Math.round(Math.max(...parts.map(p => p.y + p.h / 2))), DIMS.avCredenza.h);
+});
+
+// ── PHASE 2-b — 보트형 상판 도형 캐시 ────────────────────────────────────────
+// 도형 자체는 Three.js가 있어야 만들 수 있어 여기서 굽지 못한다.
+// 대신 **깨지면 화면이 조용히 틀려지는 한 가지**를 소스에서 지킨다:
+//   사각 상판(slab)과 보트 상판(boatTop)이 같은 캐시 열쇠를 쓰면,
+//   한 화면에서 먼저 그린 모양이 다른 테이블 상판까지 덮어쓴다(오류 없이, 그림만 틀린다).
+const geometrySrc = readFileSync(new URL('../src/geometry-gl.js', import.meta.url), 'utf8');
+
+test('보트 상판 — 도형 캐시가 있고, 폭·깊이·두께·부푼 양이 모두 열쇠에 들어간다', () => {
+  assert.match(geometrySrc, /boatTop\s*\(/, 'boatTop 도형 캐시가 없다');
+  const key = geometrySrc.match(/boatTop\([^)]*\)\s*\{[\s\S]*?const key = `([^`]+)`/);
+  assert.ok(key, 'boatTop의 캐시 열쇠를 찾지 못했다');
+  for (const v of ['w', 'd', 'thk', 'bulge']) {
+    assert.ok(key[1].includes('${' + v + '}'), `보트 상판 캐시 열쇠에 ${v}가 빠졌다: ${key[1]}`);
+  }
+});
+
+test('보트 상판 — 사각 상판(slab)과 캐시 열쇠 머리글자가 다르다', () => {
+  const head = re => {
+    const m = geometrySrc.match(re);
+    assert.ok(m, `캐시 열쇠를 찾지 못했다: ${re}`);
+    return m[1].split('|')[0];
+  };
+  const slabHead = head(/slab\([^)]*\)\s*\{[\s\S]*?const key = `([^`]+)`/);
+  const boatHead = head(/boatTop\([^)]*\)\s*\{[\s\S]*?const key = `([^`]+)`/);
+  assert.notEqual(boatHead, slabHead,
+    `사각과 보트가 같은 열쇠 머리글자('${slabHead}')를 쓴다 — 서로의 상판을 덮어쓴다`);
 });

@@ -104,10 +104,10 @@ export const ROOM_DESIGNS = Object.freeze({
     layoutVariant: 'corporate-standard',
     status: DESIGN_STATUS.READY,
     phase: 2,
-    // PHASE 2-a — **여기서 처음으로 화면이 바뀐다.** 의자만 새 자산으로 올린다.
-    //   `table`은 일부러 적지 않는다 = INHERIT = 기존 회의 테이블 그대로(PHASE 2-b에서 다룬다).
+    // PHASE 2-a·2-b — 의자와 테이블을 새 자산으로 올렸다.
     //   `planned(...)`가 아니라 **맨 문자열**이라는 점이 중요하다 — 실제로 만들었다는 뜻이다.
-    furniture: Object.freeze({ chair: 'corporateChair' }),
+    //   재질·조명·화각은 여전히 INHERIT다(PHASE 2-c).
+    furniture: Object.freeze({ chair: 'corporateChair', table: 'corporateTable' }),
     palette: INHERIT,
     materials: INHERIT,
     wallTreatment: INHERIT,
