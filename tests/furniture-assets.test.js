@@ -214,3 +214,55 @@ test('AV 수납장 — 낮고 단순하며 LED를 가리지 않는 높이(700mm)
   for (const d of doors) assert.ok(Math.abs(d.dx) + d.w / 2 <= body.w / 2, '문이 몸통 밖으로 나간다');
   assert.equal(assetFor({ type: 'credenza' }), 'avCredenza');
 });
+
+// ── 최종 품질 점검(FINAL) — 자산 사이의 비례 일관성 ─────────────────────────
+// 자산을 하나씩 볼 때는 맞아도, 한 화면에 같이 놓았을 때 어긋나면 공간이 가짜로 보인다.
+
+test('비례 일관성 — 앉는 가구의 좌석 높이가 용도별로 맞다', () => {
+  const D = DIMS;
+  // 일반 좌석(회의·강의·객석)은 전부 실제 범위 안이고 서로 크게 다르지 않다.
+  const normal = [D.conferenceChair, D.auditoriumChair, D.trainingChair].map(s => s.seatTop);
+  for (const h of normal) assert.ok(h >= 420 && h <= 480, `좌석고 ${h}`);
+  assert.ok(Math.max(...normal) - Math.min(...normal) <= 30, '일반 좌석끼리 좌석고 차이가 30mm를 넘으면 안 된다');
+  // 라운지는 더 낮고, 스툴은 훨씬 높다 — 용도가 다르므로 실루엣이 달라야 한다.
+  assert.ok(D.loungeChair.seatTop < Math.min(...normal) - 20, '라운지는 확실히 낮아야 한다');
+  assert.ok(D.stool.seatTop > Math.max(...normal) + 200, '스툴은 확실히 높아야 한다');
+});
+
+test('비례 일관성 — 작업면 높이가 그 앞에 앉는 좌석과 맞물린다', () => {
+  const D = DIMS;
+  const gap = (surface, seatTop) => surface - seatTop;   // 좌석 윗면 ~ 작업면(무릎 여유)
+  // 앉아서 쓰는 면은 좌석보다 250~330mm 위 — 실제 가구 규격의 범위다.
+  assert.ok(gap(D.conferenceTable.surfaceY, D.conferenceChair.seatTop) >= 250, '회의 테이블이 낮다');
+  assert.ok(gap(D.conferenceTable.surfaceY, D.conferenceChair.seatTop) <= 330, '회의 테이블이 높다');
+  assert.ok(gap(D.trainingDesk.surfaceY, D.trainingChair.seatTop) >= 250, '강의 책상이 낮다');
+  assert.ok(gap(D.trainingDesk.surfaceY, D.trainingChair.seatTop) <= 330, '강의 책상이 높다');
+  // 하이 테이블 ↔ 스툴도 같은 관계를 지켜야 한다.
+  assert.ok(gap(D.highTable.surfaceY, D.stool.seatTop) >= 250, '하이 테이블이 낮다');
+  assert.ok(gap(D.highTable.surfaceY, D.stool.seatTop) <= 330, '하이 테이블이 높다');
+  // 협업 테이블은 라운지 체어에 맞춘 낮은 테이블이다.
+  assert.ok(D.collabTable.surfaceY < D.conferenceTable.surfaceY, '협업 테이블은 회의 테이블보다 낮다');
+});
+
+test('비례 일관성 — 상판 두께가 모두 얇다(도마처럼 두꺼운 상판 금지)', () => {
+  const D = DIMS;
+  for (const [name, thk] of [
+    ['회의 테이블', D.conferenceTable.topThk], ['강의 책상', D.trainingDesk.topThk],
+    ['하이 테이블', D.highTable.topThk], ['협업 테이블', D.collabTable.topThk],
+    ['AV 수납장', D.avCredenza.topThk],
+  ]) assert.ok(thk <= 45, `${name} 상판 ${thk}mm`);
+});
+
+test('비례 일관성 — 모든 자산이 사람 키(1,700mm)를 넘지 않는다', () => {
+  const tall = [];
+  for (const id of Object.keys(FURNITURE_ASSETS)) {
+    const a = FURNITURE_ASSETS[id];
+    if (!a.instanced) continue;
+    const parts = a.build({ w: 1800, d: 900 });
+    const top = Math.max(...parts.map(p => yRange(p)[1]));
+    if (top > 1700) tall.push(`${id} ${Math.round(top)}mm`);
+    assertSaneParts(parts, id);
+  }
+  // 교탁(1,080)·이동식 디스플레이(약 1,820)만 예외적으로 높다 — 화면은 서서 보는 물건이다.
+  assert.deepEqual(tall.map(s => s.split(' ')[0]), ['mobileStand'], tall.join(', '));
+});
