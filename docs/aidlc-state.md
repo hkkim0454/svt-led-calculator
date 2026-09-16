@@ -150,7 +150,7 @@
 ## Current Verification Status
 
 - **Build**: N/A (빌드리스 단일 HTML)
-- **Automated Tests**: `node:test` 자동화 **392/392 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`, `tests/room-design.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
+- **Automated Tests**: `node:test` 자동화 **393/393 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`, `tests/room-design.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
 - **Integration Tests**: N/A
 - **Security Checks**: 외부 의존성 0, 개인정보 미수집 → 저위험. 정식 점검 미수행
 - **Acceptance Review**: 프로토타입 v0.1 오너 리뷰 대기
@@ -180,6 +180,7 @@
 | P5-5 | 05 화면 제조사별 의미·판정 이유 표시(자료문서 §24·§25) — 노바 "카드당 4×4K", X100 "독립4K 8/8·윈도우 16/64", AW "믹싱/분할" 등. DEC-021 2차 | AI | 진행 예정 | 이사 확인 |
 | P5-6 | **프로세서 코드 3분할** — `processor-data.js`(데이터)·`processor-limits.js`(용량·한계)·`processor-validator.js`(판정)로 분리, engine.js는 LED 코어 전용. DEC-030 | AI | **완료(2026-09-12, v183)** | 무동작-변경 리팩터, 115/115 통과·헤드리스 로드 무오류 |
 | P8-1 | **Corporate AV Space Visualizer PHASE 1-a — 디자인 프리셋 골격** — 신규 `src/room-design.js`에 디자인 4종 + `layoutVariant` 선언. 화면 무변경, 기존 파일 무수정. DEC-087 | AI | **완료(2026-09-16)** | 392/392 통과(기존 계산 무변경·불변 데이터 테스트 포함), 브라우저에서 파일 미로드·장면 동일 확인 |
+| P8-1.1 | **PHASE 1-a.1 — 디자인 fallback 격리** — 용도별 기본 디자인 표(`DEFAULT_DESIGN_BY_ROOM_TYPE`) 도입, 비지원 용도는 '디자인 없음'(`NEUTRAL_DESIGN`), 전역 `DEFAULT_DESIGN` 삭제. DEC-088 | AI | **완료(2026-09-16)** | 393/393 통과, 회귀 테스트 역검증(옛 동작 복원 시 3건 실패), 화면 무변경 |
 | P8-2 | PHASE 1-b — 팔레트 통합 + 재질 7종 → 12종 확장(CarpetTileDark·NeutralLaminate·DarkGraphite·BlackEquipment·GlassPartition·AcousticPanel) + 부품별 마감 예외표 | AI | **오너 승인 대기** | 기존 7종 수치 불변, 화면 무변경 |
 | P8-3 | PHASE 1-c — `assetFor(item, design)` 경로 + 디자인 선택 UI. 예전 세션은 corporateMeeting으로 복원 | AI | 대기 | 디자인 선택 칸 외 화면 무변경 |
 | P8-4 | PHASE 1-d — 카메라 `rear`(대표 좌석 뒤 제안 렌더 시점) 추가 + 디자인별 화각(회의실 40~46°, 임원 34~40°) | AI | 대기 | 기존 시점 6종 무회귀 |
