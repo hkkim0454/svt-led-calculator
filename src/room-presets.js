@@ -57,7 +57,8 @@ export function distributeSeats(total, caps) {
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
   chairClear: 650,        // 테이블 모서리 ~ 의자 중심 거리
-  deskW: 1400, deskD: 600, deskPitchX: 1700, deskPitchZ: 1550,   // 강의실 책상
+  deskW: 1400, deskD: 600, deskPitchX: 1700, deskPitchZ: 1550,   // 강의실 책상(1인용)
+  deskW2: 1800, deskPitchX2: 2150, deskSeatDx: 440,              // 2인용 교육 테이블(한 대에 2명)
   seatPitchX: 550, seatPitchZ: 950,                              // 강당 관람석
   consoleW: 1800, consoleD: 900, consolePitchX: 2000, consolePitchZ: 2500,  // 상황실 콘솔
   aisleW: 1200,           // 통로 폭
@@ -90,10 +91,15 @@ export const ROOM_TYPES = Object.freeze([
   {
     id: 'classroom', label: '강의실', depthFactor: 1.1, minDepth: 6000,
     options: [
+      { key: 'deskType', label: '책상 형태', type: 'select', default: 'single',
+        choices: [
+          { value: 'single', label: '1인용 (1,400mm)' },
+          { value: 'double', label: '2인용 테이블 (1,800mm)' },
+        ] },
       { key: 'rows', label: '책상 줄 수', type: 'number', default: 4, min: 1, max: 20 },
       { key: 'cols', label: '줄당 책상 수', type: 'number', default: 4, min: 1, max: 20 },
       { key: 'aisle', label: '가운데 통로', type: 'toggle', default: true },
-      { key: 'podium', label: '교탁', type: 'toggle', default: true },
+      { key: 'podium', label: '강사 영역(교탁·강사석)', type: 'toggle', default: true },
       { key: 'plant', label: '화분', type: 'toggle', default: false },
     ],
   },
@@ -337,26 +343,45 @@ function layoutClassroom(o, W, D) {
   const F = FURNITURE;
   const items = [], notes = [];
   const aisle = o.aisle ? F.aisleW : 0;
-  const maxCols = Math.max(1, fitCount(W - F.wallClear * 2 - aisle, F.deskPitchX));
+  // 2인용 테이블은 책상 한 대에 두 명이 앉는다 — 폭과 간격만 달라지고 셈법은 같다.
+  const twin = o.deskType === 'double';
+  const deskW = twin ? F.deskW2 : F.deskW;
+  const pitchX = twin ? F.deskPitchX2 : F.deskPitchX;
+  const perDesk = twin ? 2 : 1;
+
+  const maxCols = Math.max(1, fitCount(W - F.wallClear * 2 - aisle, pitchX));
   const maxRows = Math.max(1, fitCount(D - F.frontClear - F.wallClear, F.deskPitchZ));
   const cols = clamp(o.cols, 1, maxCols), rows = clamp(o.rows, 1, maxRows);
   if (cols < o.cols || rows < o.rows) notes.push(`방 크기에 맞춰 ${cols}열 × ${rows}줄로 줄였습니다.`);
 
-  const blockW = cols * F.deskPitchX + aisle;
-  const x0 = W / 2 - blockW / 2 + F.deskPitchX / 2;
+  const blockW = cols * pitchX + aisle;
+  const x0 = W / 2 - blockW / 2 + pitchX / 2;
   const half = Math.ceil(cols / 2);
   for (let r = 0; r < rows; r++) {
     const z = F.frontClear + F.deskPitchZ / 2 + r * F.deskPitchZ;
     for (let c = 0; c < cols; c++) {
-      const x = x0 + c * F.deskPitchX + (o.aisle && c >= half ? aisle : 0);
-      items.push({ type: 'desk', x, z, rotY: 0, w: F.deskW, d: F.deskD });
+      const x = x0 + c * pitchX + (o.aisle && c >= half ? aisle : 0);
+      items.push({ type: 'desk', x, z, rotY: 0, w: deskW, d: F.deskD });
       // 강의용 의자 — 가구 자산만 지정한다(좌표·개수 계산은 그대로).
-      items.push({ ...chairAt(x, z + 750, x, z), asset: 'trainingChair' });
+      //   2인용이면 책상 한 대 뒤에 두 자리를 좌우로 벌려 앉힌다.
+      const seats = twin ? [-F.deskSeatDx, F.deskSeatDx] : [0];
+      for (const dx of seats) items.push({ ...chairAt(x + dx, z + 750, x + dx, z), asset: 'trainingChair' });
     }
   }
-  if (o.podium) items.push({ type: 'podium', x: clamp(W * 0.22, 900, W - 900), z: F.frontClear * 0.6, rotY: 180 });
+  // 강사 영역 — 교탁 + 강사석. 둘 다 수강생을 바라본다(rotY 180).
+  if (o.podium) {
+    items.push({ type: 'podium', x: clamp(W * 0.22, 900, W - 900), z: F.frontClear * 0.6, rotY: 180 });
+    const ix = clamp(W * 0.74, 1600, W - 1600);
+    items.push({ type: 'desk', x: ix, z: F.frontClear * 0.55, rotY: 180, w: 1500, d: 700 });
+    items.push({ ...chairAt(ix, F.frontClear * 0.55 - 750, ix, F.frontClear * 0.55), asset: 'trainingChair' });
+  }
   if (o.plant) addPlant(items, W, D);
-  return { items, placed: { desks: cols * rows, chairs: cols * rows, cols, rows }, capacity: maxCols * maxRows, notes };
+  return {
+    items,
+    placed: { desks: cols * rows, chairs: cols * rows * perDesk, cols, rows, perDesk },
+    capacity: maxCols * maxRows * perDesk,
+    notes,
+  };
 }
 
 // ── 강당(소·중·대) ──────────────────────────────────────────────────────────
