@@ -1758,22 +1758,20 @@ function vpItemHTML(item, rank) {
   // 제품 사진 플레이트(전면). 오른쪽에는 후면 썸네일 + 한 줄 요약(형태·최대 입출력)을 채운다(이사 요청 2026-09-16).
   const hasImg = PROC_IMG_IDS.has(p.id);
   const summaryHTML = vpPlateSummaryHTML(item, isSlot);
-  // 사진 있으면 전면(큰 판)+후면(작은 썸네일) 둘 다 클릭 확대. 없으면 '사진 미등록' 판.
+  // 앞·뒤 이미지를 같은 크기로 나란히. 각 판을 누르면 해당 면이 확대 팝업으로 뜬다. 요약은 사진 아래.
+  const picItem = (side, label) => `<div class="vpPlateItem">
+        <div class="vpPlateBox" data-procimg="${esc(p.id)}" data-piside="${side}" role="button" tabindex="0" title="${label} 크게 보기"><img src="${procImgSrc(p.id, side)}" alt="${esc(p.manufacturer)} ${esc(p.model)} ${label}" draggable="false"/></div>
+        <div class="vpPicCap">${label}<span class="s"> · 누르면 확대</span></div>
+      </div>`;
   const plateHTML = hasImg ? `<div class="vpPlate">
-      <div class="vpPlateBox" data-procimg="${esc(p.id)}" data-piside="front" role="button" tabindex="0" title="전면 크게 보기"><img src="${procImgSrc(p.id, 'front')}" alt="${esc(p.manufacturer)} ${esc(p.model)} 전면" draggable="false"/></div>
-      <div class="vpPlateSide">
-        <div class="vpBackThumb" data-procimg="${esc(p.id)}" data-piside="back" role="button" tabindex="0" title="후면 크게 보기">
-          <div class="vpPlateBox vpBackBox"><img src="${procImgSrc(p.id, 'back')}" alt="${esc(p.manufacturer)} ${esc(p.model)} 후면" draggable="false"/></div>
-          <div class="vpBackCap"><span class="t">후면</span><span class="s">누르면 확대</span></div>
-        </div>
-        ${summaryHTML}
-      </div>
+      <div class="vpPlatePics">${picItem('front', '전면')}${picItem('back', '후면')}</div>
+      ${summaryHTML}
     </div>` : `<div class="vpPlate">
-      <div class="vpPlateBox vpPlateEmpty" aria-hidden="true"><span class="vpNoImg">사진 미등록</span></div>
-      <div class="vpPlateSide">
-        <div class="vpBackCap"><span class="t">전면 패널</span><span class="s">제품 사진 미등록</span></div>
-        ${summaryHTML}
-      </div>
+      <div class="vpPlatePics"><div class="vpPlateItem">
+        <div class="vpPlateBox vpPlateEmpty" aria-hidden="true"><span class="vpNoImg">사진 미등록</span></div>
+        <div class="vpPicCap">전면 패널<span class="s"> · 제품 사진 미등록</span></div>
+      </div></div>
+      ${summaryHTML}
     </div>`;
   // 펼친 본문 상단의 빠른 버튼: 포트별 입출력(고정형만). 이미지는 아래 사진 판을 눌러 확대.
   const portBtn = fixed ? `<button type="button" class="vpActBtn" data-portproc="${esc(p.id)}" title="포트별 입출력 수량 보기">포트별 입출력 ⌄</button>` : '';
