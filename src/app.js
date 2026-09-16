@@ -1639,11 +1639,14 @@ function slotVizHTML(reqCards, slots) {
 function slotSideHTML(side, p, need, reqCards, slots, perCard) {
   const kLabel = side === 'in' ? '입력' : '출력';
   const ch4k = cardChan4k(p, perCard);                       // 카드당 4K 채널(숫자) 또는 null
+  // FHD 채널(4K 1채널 = FHD 4채널)은 노바스타·컬러라이트 등에는 표시하고, 아날로그 웨이는 표시 안 함(이사 지침 2026-09-16).
+  const showFhd = p.manufacturer !== 'Analog Way';
   const chanLine = ch4k != null
-    ? `카드당 <b>4K ${ch4k}채널</b>`
+    ? `카드당 <b>4K ${ch4k}채널</b>${showFhd ? ` · <b>FHD ${ch4k * 4}채널</b>` : ''}`
     : '카드당 채널 <span class="muted-note">미상</span>';
+  const cap4k = (ch4k != null && slots != null) ? ch4k * slots : null;
   const capLine = (slots != null)
-    ? `<div class="vpColCap">최대 <b>${slots}</b>장 장착${ch4k != null ? ` · 4K <b>${ch4k * slots}</b>채널` : ''}</div>`
+    ? `<div class="vpColCap">최대 <b>${slots}</b>장 장착${cap4k != null ? ` · 4K <b>${cap4k}</b>채널${showFhd ? ` · FHD <b>${cap4k * 4}</b>채널` : ''}` : ''}</div>`
     : '<div class="vpColCap">장착 슬롯 <span class="muted-note">미상</span></div>';
   return `<div class="vpCardCol">
     <h5 class="vpColHd">${kLabel} 카드</h5>
