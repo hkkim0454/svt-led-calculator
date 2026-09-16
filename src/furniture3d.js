@@ -9,7 +9,7 @@
 // kind 값은 render3d.js의 색 팔레트 키와 1:1로 맞춘다(예: chairSeat, tableTop).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { boxQuads, prismQuads, polyPrismQuads, rotateQuadsY } from './scene3d.js?v=350';
+import { boxQuads, prismQuads, polyPrismQuads, rotateQuadsY } from './scene3d.js?v=351';
 
 // 가구 기준 치수(mm). 실제 사무가구 표준에 맞춘 값.
 export const SIZES = Object.freeze({
@@ -36,6 +36,7 @@ export function footprint(item) {
     case 'console': return { w: (item.w || 1800) * 0.95, d: (item.d || 900) * 0.95 };
     case 'podium': return { w: SIZES.podium.w, d: SIZES.podium.d };
     case 'plant': return { w: SIZES.plant.potR * 2.2, d: SIZES.plant.potR * 2.2 };
+    case 'person': return { w: 520, d: 380 };   // 서 있는 사람 발밑
     default: return null;   // 러그·무대는 바닥에 붙어 있어 그림자 없음
   }
 }

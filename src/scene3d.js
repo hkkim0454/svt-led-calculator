@@ -111,8 +111,9 @@ export function makeCamera({ target, yaw = 0, pitch = 0, distance, fovDeg = 40, 
   ];
   const fwd = unit(sub(target, pos));            // 카메라가 보는 방향
   // 바로 위에서 내려다보면(pitch 90°) 보는 방향과 '위'가 겹쳐 좌우축을 정할 수 없다.
-  //   이때는 '위' 대신 방의 앞뒤(Z)를 기준으로 삼아 축이 무너지지 않게 한다.
-  const ref = Math.abs(fwd[1]) > 0.999 ? [0, 0, 1] : [0, 1, 0];
+  //   이때는 '위' 대신 방의 앞뒤(Z)를 기준으로 삼는다. -Z를 쓰면 평면도가 도면처럼
+  //   '오른쪽 = +X, 위쪽 = LED 벽(z=0)'으로 나온다(+Z를 쓰면 좌우가 뒤집힌다).
+  const ref = Math.abs(fwd[1]) > 0.999 ? [0, 0, -1] : [0, 1, 0];
   const right = unit(cross(fwd, ref));           // 화면 오른쪽
   const up = cross(right, fwd);                  // 화면 위
   const focal = 1 / Math.tan((fovDeg * DEG) / 2); // 정규화 투영(±1 = 화각 가장자리)
