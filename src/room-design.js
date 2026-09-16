@@ -120,7 +120,8 @@ export const ROOM_DESIGNS = Object.freeze({
       credenza: 'blackEquipment',
     }),
     wallTreatment: INHERIT,
-    lighting: INHERIT,
+    // PHASE 2-d.1 — 조명만 켠다. 화각(camera)은 여전히 INHERIT다(PHASE 2-d.2).
+    lighting: 'corporateSoft',
     camera: INHERIT,
     accessories: INHERIT,
   }),
