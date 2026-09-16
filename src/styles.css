@@ -574,11 +574,10 @@ body.printing .previewStage{width:640px!important;height:auto!important}
 /* 섹션 헤더 — 인덱스 칩 · 제목 · 부제 · 우측 자동추천 pill (05 전용 스코프, 공통 h2 미영향) */
 .vpSection>summary.vpSectionHead{align-items:flex-start;gap:10px}
 .vpHeadMain{display:flex;flex-direction:column;gap:3px;min-width:0}
+/* 05·08 섹션 타이틀을 01~08 다른 섹션(.card h2)과 동일한 크기·스타일로 통일(이사 요청 2026-09-16) */
 .vpSectionHead h2{display:flex;align-items:center;gap:9px;margin:0;
-  font-size:20px;font-weight:800;letter-spacing:-.015em;text-transform:none;color:var(--ink)}
-.vpSectionHead h2 .idx{display:inline-flex;align-items:center;justify-content:center;
-  min-width:34px;height:26px;padding:0 9px;border-radius:9px;background:var(--accent);
-  color:#fff;font-family:var(--sans);font-size:13px;font-weight:800}
+  font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.vpSectionHead h2 .idx{font-family:var(--mono);color:var(--accent);font-size:14px;font-weight:700}
 .vpSubT{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
 .vpAutoPill{align-self:center;flex:none;padding:6px 12px;border-radius:999px;
   background:var(--accent-tint);color:var(--accent-2);font-size:12px;font-weight:700;white-space:nowrap}
