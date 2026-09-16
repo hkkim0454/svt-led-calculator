@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>Seoul AV LED Configurator</title>
-<link rel="stylesheet" href="./styles.css?v=344"/>
+<link rel="stylesheet" href="./styles.css?v=347"/>
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"></div>
@@ -60,8 +60,8 @@
         </div>
         <div class="lab" id="ledSizeLabel" style="margin:10px 0 4px">② LED 설치 크기 — 가로 × 세로 (mm)</div>
         <div class="two" id="ledBox">
-          <label class="field"><span class="lab">LED 가로 (mm)</span><input type="number" id="ledW" value="4000" min="0" step="100"/></label>
-          <label class="field"><span class="lab">LED 세로 (mm)</span><input type="number" id="ledH" value="2300" min="0" step="100"/></label>
+          <label class="field"><span class="lab">LED 가로 (mm)</span><input type="number" id="ledW" value="4000" min="0" step="200"/></label>
+          <label class="field"><span class="lab">LED 세로 (mm)</span><input type="number" id="ledH" value="2300" min="0" step="200"/></label>
         </div>
         <label class="field">
           <span class="lab">디스플레이 하단 높이 (mm) — 바닥에서 디스플레이 아래까지</span>
@@ -286,7 +286,7 @@
         Gbic(광 컨버터, QSFP-LR4) — CS4B 계열 컨트롤러(MMF 기본 CS4BPGS는 자동, 그 외 라인은 'CS4B(광전송)' 선택) 시 1920×2160 영역마다 1 SET(SBOX측 1 + LED측 1 = 2 EA) = ⌈가로/1920⌉ × ⌈세로/2160⌉ SET. 표기 수량은 총 EA(=SET×2), 포워드/백워드 이중화 시 ×2.
         중량·전력이 <code>—</code>인 모델은 데이터시트 실측값 입력이 필요합니다.<br>
         <strong>⚠ 사내 견적 보조용</strong> — 공식 견적은 삼성/설치 파트너 확인이 필요합니다.
-        <span class="verTag">화면 버전 v344</span>
+        <span class="verTag">화면 버전 v347</span>
       </div>
     </div>
   </div>
@@ -381,6 +381,6 @@
 
 <!-- 자산 변경 시 v= 숫자를 올려 캐시 무효화(브라우저가 옛 파일을 쓰지 않도록).
      app.js가 import하는 모든 모듈의 v=, 그리고 모듈끼리의 내부 import(processor-validator.js → processor-limits.js)의 v=도 함께 올릴 것. -->
-<script type="module" src="./app.js?v=344"></script>
+<script type="module" src="./app.js?v=347"></script>
 </body>
 </html>

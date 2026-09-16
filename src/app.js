@@ -488,7 +488,9 @@ function renderPreview() {
   const dWall = P + ZW - P / fWall;
   // 사람을 '벽 공간 치수선(dWall)'보다 30cm 안쪽(뒤)에 세워 앞으로 튀어나오지 않게(이사 요청: 눈높이가 어색).
   //   → 벽과 치수선 사이에 위치. 눈높이선·라벨·사람 모두 이 깊이(personDeff)를 공유해 정렬 유지.
-  const personDeff = px(100);   // 사람을 LED(벽)에서 100mm 앞에 세움(이사 요청 2026-09-13: 기존엔 너무 앞).
+  // 사람을 LED(벽)에서 100mm 앞에 세우되, 화면 픽셀 기준 최소 48px 앞을 보장(작은 공간에서 px(100)이
+  //   LED translateZ(10px)에 근접해 사람이 LED에 가려 잘리던 문제 해결 — 이사 요청 2026-09-15. 항상 최전면).
+  const personDeff = Math.max(px(100), 48);
   const personFoot = proj(personX, SHp, personDeff);
 
   let cells = ''; for (let i = 0; i < Math.min(r.total, 2000); i++) cells += '<i></i>';
@@ -1596,8 +1598,10 @@ function renderCompare() {
   if (svCode) { renderCompareSignage(head); return; }
   if (head) head.innerHTML = LED_CMP_HEAD;
   const sW = spaceWmm(), sH = spaceHmm();
-  const cs4b = $('#useCS4B')?.checked ?? false;
-  const rows = visibleModels().map(m => ({ m, r: computeConfig(m, sW, sH, { mode: 'fill', cs4b }) }));
+  // 메인 산출과 동일한 opts() 사용(이사 요청 2026-09-15): 배열 직접 지정 시 그 배열을, 자동 채움 시 ② LED
+  //   설치 크기(비우면 벽면)를 대상으로 각 모델을 계산한다. 기존엔 항상 벽공간(fill)이라 지정 크기·중량이 어긋났음.
+  const o = opts();
+  const rows = visibleModels().map(m => ({ m, r: computeConfig(m, sW, sH, o) }));
   const body = $('#cmpBody'); body.innerHTML = '';
   for (const { m, r } of rows) {
     const tr = document.createElement('tr');
