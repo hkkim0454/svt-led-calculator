@@ -15,15 +15,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=399';
-import { createMaterialLibrary } from './materials-gl.js?v=399';
-import { PART_MATERIAL } from './materials.js?v=399';
-import { GRADE_COLORS } from './viewangle.js?v=399';
-import { createGeometryCache } from './geometry-gl.js?v=399';
+import { u } from './gl-model.js?v=402';
+import { createMaterialLibrary } from './materials-gl.js?v=402';
+import { PART_MATERIAL, PART_FINISH, finishForPart } from './materials.js?v=402';
+import { GRADE_COLORS } from './viewangle.js?v=402';
+import { createGeometryCache } from './geometry-gl.js?v=402';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=402';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=399';
+} from './furniture-assets.js?v=402';
 
 const DEG = Math.PI / 180;
 
@@ -53,6 +54,13 @@ function partMatrix(item, part, out) {
  * @param detail 'high' 가까이서 보는 가구 / 'low' 수백 개가 깔리는 객석(삼각형 절약)
  */
 function partGeometry(geoCache, part, detail) {
+  // 5발 받침 — 조각 11개를 한 덩어리로 구워 온다(그리기 호출 1개).
+  if (part.shape === 'star') {
+    return geoCache.star({
+      legs: part.legs, reach: u(part.reach), hubR: u(part.hubR), hubH: u(part.hubH),
+      legW: u(part.legW), legH: u(part.legH), casterR: u(part.casterR), casterH: u(part.casterH),
+    }, { detail });
+  }
   if (part.shape === 'cyl') return geoCache.cyl(u(part.r), u(part.r), u(part.h), { detail });
   if (part.shape === 'sph') return geoCache.sph(u(part.r), { detail });
   const w = u(part.w), h = u(part.h), d = u(part.d);
@@ -165,6 +173,21 @@ function plantMesh(mat, geoCache) {
  * @param items room-presets.layoutRoom()의 items (무대는 방 구조 쪽에서 그리므로 제외)
  * @returns THREE.Group  (호출한 쪽이 scene에 넣고, 버릴 때 disposeFurniture로 정리한다)
  */
+/**
+ * 배치 항목 하나를 **그 공간 디자인의 눈으로** 다시 본다(PHASE 2-a).
+ *   디자인이 없으면 손대지 않는다 → 기존 화면이 그대로다.
+ *   디자인이 요청한 가구가 실제로 있으면 그 이름을 자산 힌트로 갈아 끼운다.
+ *   판단은 전부 furniture-routing.js가 한다 — 여기서 규칙을 다시 쓰지 않는다.
+ */
+function routeItem(item, designId) {
+  if (!designId) return item;
+  const r = resolveFurnitureForDesign(item, designId);
+  // 그릴 것이 없다고 나오면 **기존 선택을 그대로 쓴다** — 화면에서 가구가 사라지는 편이
+  //   잘못 그리는 것보다 나은 상황은 아직 없다(미구현 AV 장비는 배치에 등장하지 않는다).
+  if (!r.runtimeAsset || r.runtimeAsset === assetFor(item)) return item;
+  return { ...item, asset: r.runtimeAsset };
+}
+
 export function buildFurnitureGroup(items, opts = {}) {
   const g = new THREE.Group();
   g.name = 'furniture';
@@ -185,12 +208,26 @@ export function buildFurnitureGroup(items, opts = {}) {
       color: c, roughness: screen ? 0.35 : 0.9, metalness: screen ? 0.1 : 0,
     });
   }
+  // ── 새 마감 표(PART_FINISH)를 타는 부품 ──
+  //   기업 AV 디자인 시스템 가구(대기업 회의 의자 등)는 색·거칠기·금속성을 마감 표가 정한다.
+  //   **기존 가구는 영향을 받지 않는다** — 마감 표의 부품 이름은 기존 부품 이름과 겹치지 않는다
+  //   (materials.js에서 그렇게 지었고 테스트가 지킨다).
+  for (const kind of Object.keys(PART_FINISH)) {
+    const fin = finishForPart(kind);
+    if (!fin || !fin.color) continue;          // 색이 없는 항목은 아직 쓰이지 않는다
+    const extra = {};
+    if (typeof fin.roughness === 'number') extra.roughness = fin.roughness;
+    if (typeof fin.metalness === 'number') extra.metalness = fin.metalness;
+    mat[kind] = lib.get(fin.material, fin.color, Object.keys(extra).length ? extra : undefined);
+  }
 
   // ── 반복 가구는 InstancedMesh 로 묶는다 ──
   const buckets = new Map();
   const singles = [];
-  for (const it of items) {
-    if (it.type === 'stage') continue;          // 무대는 방 구조와 함께 그린다
+  const designId = opts.designId || null;
+  for (const raw of items) {
+    if (raw.type === 'stage') continue;         // 무대는 방 구조와 함께 그린다
+    const it = routeItem(raw, designId);        // 디자인이 있으면 가구를 갈아 끼운다
     const key = assetKey(it);
     if (key) {
       if (!buckets.has(key)) buckets.set(key, []);

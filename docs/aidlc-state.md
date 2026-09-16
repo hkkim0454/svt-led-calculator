@@ -150,7 +150,7 @@
 ## Current Verification Status
 
 - **Build**: N/A (빌드리스 단일 HTML)
-- **Automated Tests**: `node:test` 자동화 **439/439 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`, `tests/room-design.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
+- **Automated Tests**: `node:test` 자동화 **447/447 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`, `tests/room-design.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
 - **Integration Tests**: N/A
 - **Security Checks**: 외부 의존성 0, 개인정보 미수집 → 저위험. 정식 점검 미수행
 - **Acceptance Review**: 프로토타입 v0.1 오너 리뷰 대기
@@ -187,7 +187,9 @@
 | P8-3.1 | **PHASE 1-d — 디자인 인지 가구 라우팅** — 신규 `src/furniture-routing.js`. 요청 ↔ 실제를 분리, 갈래 안전 대체, 구현 여부는 런타임만 판정. 렌더러 미연결. DEC-092 | AI | **완료(2026-09-16)** | 439/439 통과, 5개 공간 픽셀 차이 0, 역검증 4종 |
 | P8-3.2 | 디자인 선택 UI + 렌더러 라우터 연결 | AI | 대기 | 디자인 선택 칸 외 화면 무변경 |
 | P8-4 | PHASE 1-d — 카메라 `rear`(대표 좌석 뒤 제안 렌더 시점) 추가 + 디자인별 화각(회의실 40~46°, 임원 34~40°) | AI | 대기 | 기존 시점 6종 무회귀 |
-| P8-5 | PHASE 2 — Corporate Meeting Room 완성(Aeron 계열 메시 회전의자·얇은 상판 테이블·팔레트·조명·Interior/Rear 카메라). 중단된 의자 작업이 여기로 흡수됨 | AI | 대기 | 치수 범위 단위 테스트 + 3시점 브라우저 검증 |
+| P8-5 | **PHASE 2-a — 대기업 회의용 인체공학 의자** — 5발 캐스터 받침·휜 메시 등받이·어깨 가로대. 런타임 자산 등록 + 라우터 실연결(라우터 코드 수정 0). DEC-093 | AI | **완료(2026-09-16, v402)** | 447/447 통과, 회의실만 픽셀 변경·나머지 4개 공간 0, 그리기 호출 36→39 |
+| P8-5.1 | PHASE 2-b — Corporate Table(얇은 상판 + 실제 pedestal). 계약 `corporateTable` 준비됨 | AI | **오너 승인 대기** | 회의실 테이블만 변경 |
+| P8-5.2 | PHASE 2 마무리 — 회의실 팔레트·조명·Interior/Rear 카메라 | AI | 대기 | 단계별 오너 승인 |
 | P8-6 | PHASE 3~5 — Executive Boardroom → Large Conference Room → Operation/Control Room | AI | 대기 | 단계별 오너 승인 |
 | P7-3 | **3D 오너 요청 기능 6건** — 객석 착석 인원 + LED 시야각 시뮬 · 3D LED 화면 이미지 · 단차 시작 줄 + 상황실 단차 · 평면도 원근 + 화각 조절 · LED 옆 보조 모니터 · 표현 방식(심플/실사). DEC-079~084 | AI | **완료(2026-09-16, v389)** | 371/371 통과, 기능별 브라우저 검증 |
 | P7-2 | **3D Interior Realism STEP 2~8 + 최종 점검** — 방 껍데기(걸레받이·천장·바닥/격자 분리) · 재질 7종 · 조명/접촉 그림자 · 회의실(AV 수납장) · 강당(무대 디테일) · 강의실(2인용 테이블·강사 영역) · 아이디에이션 공간 신설. DEC-071~078 | AI | **완료(2026-09-16, v383)** | 338/338 통과, 브라우저 27항목 전수 통과, 계산·정면 뷰 무회귀 |

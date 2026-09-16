@@ -318,12 +318,15 @@ export const ROLE_CANDIDATES = Object.freeze({
 //   · 모르는 부품이 들어오면 null을 돌려준다 = 지금 하던 대로 하라는 뜻.
 export const PART_FINISH = Object.freeze({
   // 오피스 체어 — 프레임 계열은 금속이 아니라 그라파이트 폴리머다.
-  chairFrame: Object.freeze({ material: 'darkGraphite' }),
-  chairArmPad: Object.freeze({ material: 'darkGraphite', roughness: 0.74 }),
-  chairCaster: Object.freeze({ material: 'darkGraphite', roughness: 0.60 }),
-  chairColumn: Object.freeze({ material: 'darkGraphite', metalness: 0.14 }),
-  chairMesh: Object.freeze({ material: 'fabricChair' }),
-  chairCushion: Object.freeze({ material: 'fabricChair' }),
+  //   색은 전부 그라파이트·차콜 계열이되 **완전한 검정 하나로 칠하지 않는다** —
+  //   새까맣게 칠하면 곡면과 부품 경계가 죽어 덩어리 하나로 보인다.
+  //   프레임 · 메시 · 방석 사이에 아주 미세한 명도 차만 준다(오너 지침 §14).
+  chairFrame: Object.freeze({ material: 'darkGraphite', color: '#3a3e44' }),
+  chairArmPad: Object.freeze({ material: 'darkGraphite', color: '#33373d', roughness: 0.74 }),
+  chairCaster: Object.freeze({ material: 'darkGraphite', color: '#2e3238', roughness: 0.60 }),
+  chairColumn: Object.freeze({ material: 'darkGraphite', color: '#41464d', metalness: 0.14 }),
+  chairMesh: Object.freeze({ material: 'fabricChair', color: '#454a51' }),
+  chairCushion: Object.freeze({ material: 'fabricChair', color: '#3d4147' }),
   // AV 장비 — 전부 near-black. 스탠드만 살짝 금속성을 준다.
   monitorBody: Object.freeze({ material: 'blackEquipment' }),
   monitorStand: Object.freeze({ material: 'blackEquipment', metalness: 0.24 }),

@@ -25,11 +25,15 @@
 
 /**
  * 계약의 상태. **없는 도형을 있는 것처럼 적지 않는다**(CLAUDE.md 규칙 2).
- *   EXISTING        이미 만들어져 런타임 카탈로그에 있다. 그것을 그대로 쓴다.
- *   CONTRACT_READY  명세는 확정됐고 도형은 아직 없다. PHASE 2 이후에 만든다.
+ *   EXISTING        계약보다 **먼저 있던** 자산을 그대로 재사용한다(치수도 그쪽이 기준).
+ *   IMPLEMENTED     이 계약대로 도형을 **만들었다.** 런타임 카탈로그에 있다.
+ *   CONTRACT_READY  명세는 확정됐고 도형은 아직 없다.
+ * 셋 다 '설명'일 뿐이고, **실제 구현 여부의 진실은 언제나 FURNITURE_ASSETS**다
+ * (furniture-routing.js의 hasRuntimeFurnitureAsset). 두 값이 어긋나면 테스트가 잡는다.
  */
 export const CONTRACT_STATUS = Object.freeze({
   EXISTING: 'existing',
+  IMPLEMENTED: 'implemented',
   CONTRACT_READY: 'contract_ready',
 });
 
@@ -74,7 +78,7 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '대기업 회의용 인체공학 의자',
     category: 'chair',
     family: 'ergonomicMesh',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    status: CONTRACT_STATUS.IMPLEMENTED,   // PHASE 2-a — 이 계약대로 도형을 만들었다
     phase: 2,
     rooms: Object.freeze(['corporateMeeting']),
     instancing: 'instanced',
