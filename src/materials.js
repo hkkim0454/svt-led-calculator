@@ -178,6 +178,10 @@ export function tileRepeat(preset, widthUnits, depthUnits, mmPerUnit = 1000) {
 export const MATERIAL_ALIASES = Object.freeze({
   carpetTileLight: 'carpetTile',    // 밝은 회색 카펫 = 지금 쓰는 카펫
   lightOak: 'woodTable',            // 라이트 오크 = 지금 쓰는 목재 상판
+  // 흰 도장 벽 — **새 물성이 아니다.** 도장 벽의 질감을 그대로 쓰고,
+  //   흰색/오프화이트라는 것은 색이므로 앞으로 팔레트·디자인 층이 정한다.
+  //   재질을 하나 더 만들면 같은 질감이 두 벌이 되어 재질 캐시가 갈라진다.
+  paintedWallWhite: 'paintedWall',
 });
 
 /**
@@ -213,6 +217,67 @@ export function isTransparentMaterial(name) {
  */
 export function realWorldTileMm(name) {
   return materialPreset(name)?.tileMm || 0;
+}
+
+// ── 어댑터 계약 ─────────────────────────────────────────────────────────────
+// Three.js 재질을 만드는 일은 materials-gl.js(어댑터)가 한다. 다만 **무엇을 넘겨야 하는지**는
+// 여기서 정한다 — 그래야 Node에서 검사할 수 있고, 어댑터가 프리셋을 제멋대로 해석하지 못한다.
+//
+// **재질 값과 메시 의미를 섞지 않는다.**
+//   재질 값   roughness·metalness·transparent·opacity·doubleSided
+//             → Three.js 재질(Material) 객체의 속성이다.
+//   메시 의미  castsShadow·receivesShadow·renderClass·renderOrderHint
+//             → **재질이 아니라 그 재질을 입은 물체(Mesh)** 의 성질이다.
+//             Material 객체에 억지로 넣으면 Three.js가 무시하는 유령 속성만 생기고,
+//             나중에 "왜 그림자가 안 꺼지지"를 엉뚱한 곳에서 찾게 된다.
+
+/** Three.js 재질 객체에 그대로 넘겨도 되는 값. */
+export const MATERIAL_PARAM_KEYS = Object.freeze([
+  'roughness', 'metalness', 'transparent', 'opacity', 'doubleSided',
+]);
+
+/** 재질이 아니라 **물체**의 성질. 절대 Material 객체에 넣지 않는다. */
+export const MESH_SEMANTIC_KEYS = Object.freeze([
+  'castsShadow', 'receivesShadow', 'renderClass', 'renderOrderHint',
+]);
+
+/** 아무 표시가 없는 재질의 기본 물체 성질 — 지금 렌더러가 하던 그대로. */
+export const DEFAULT_RENDER_SEMANTICS = Object.freeze({
+  castsShadow: true, receivesShadow: true, renderClass: 'opaque', renderOrderHint: 0,
+});
+
+/**
+ * 재질 값만 뽑는다(이름은 정식 id든 별칭이든 된다). 모르는 이름이면 null.
+ * `transparent`·`opacity`·`doubleSided`는 **그렇게 표시된 재질에만** 실린다 —
+ * 표시가 없으면 아예 넣지 않아 Three.js 기본값(불투명·앞면)이 그대로 쓰인다.
+ * 덕분에 기존 재질의 결과가 한 톨도 달라지지 않는다.
+ */
+export function materialParams(name) {
+  const p = materialPreset(name);
+  if (!p) return null;
+  const out = { roughness: p.roughness, metalness: p.metalness };
+  if (p.transparent === true) {
+    out.transparent = true;
+    out.opacity = (typeof p.opacity === 'number') ? p.opacity : 1;
+  }
+  if (p.doubleSided === true) out.doubleSided = true;
+  return Object.freeze(out);
+}
+
+/**
+ * 이 재질을 입은 **물체**를 어떻게 다뤄야 하는가. 표시가 없으면 지금 하던 대로.
+ * 어댑터는 이 값을 Mesh(그림자 플래그·renderOrder)에 쓴다 — Material에 넣지 않는다.
+ */
+export function renderSemantics(name) {
+  const p = materialPreset(name);
+  const d = DEFAULT_RENDER_SEMANTICS;
+  if (!p) return d;
+  return Object.freeze({
+    castsShadow: typeof p.castsShadow === 'boolean' ? p.castsShadow : d.castsShadow,
+    receivesShadow: typeof p.receivesShadow === 'boolean' ? p.receivesShadow : d.receivesShadow,
+    renderClass: p.renderClass || d.renderClass,
+    renderOrderHint: typeof p.renderOrderHint === 'number' ? p.renderOrderHint : d.renderOrderHint,
+  });
 }
 
 // ── 재질 역할(role) ─────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import {
   MATERIAL_PRESETS, MATERIAL_IDS, LEGACY_MATERIAL_IDS, DESIGN_MATERIAL_IDS,
   MATERIAL_ALIASES, MATERIAL_ROLES, ROLE_CANDIDATES, PART_FINISH,
   resolveMaterialId, materialPreset, isTransparentMaterial, realWorldTileMm, finishForPart,
+  materialParams, renderSemantics, MATERIAL_PARAM_KEYS, MESH_SEMANTIC_KEYS, DEFAULT_RENDER_SEMANTICS,
   PART_MATERIAL, floorFinishFor, tileRepeat, MOODS, moodFor,
 } from '../src/materials.js';
 import { FURNITURE_COLORS } from '../src/furniture-assets.js';
@@ -257,6 +258,7 @@ test('순수 유지 — materials.js 는 Three.js 를 불러오지 않는다', (
 test('별칭 — 이름만 이어 준다. 재질을 복제하지 않고 개수에도 세지 않는다', () => {
   assert.equal(resolveMaterialId('carpetTileLight'), 'carpetTile');
   assert.equal(resolveMaterialId('lightOak'), 'woodTable');
+  assert.equal(resolveMaterialId('paintedWallWhite'), 'paintedWall');
   // 정식 id는 그대로 통과한다.
   for (const id of MATERIAL_IDS) assert.equal(resolveMaterialId(id), id, id);
   // 모르는 이름·잘못된 값은 null (없는 재질을 지어내지 않는다).
@@ -266,6 +268,7 @@ test('별칭 — 이름만 이어 준다. 재질을 복제하지 않고 개수�
   // **복제 금지** — 별칭을 따라가면 원본 프리셋 객체 그 자체가 나온다.
   assert.equal(materialPreset('lightOak'), MATERIAL_PRESETS.woodTable);
   assert.equal(materialPreset('carpetTileLight'), MATERIAL_PRESETS.carpetTile);
+  assert.equal(materialPreset('paintedWallWhite'), MATERIAL_PRESETS.paintedWall);
   assert.equal(materialPreset('없는재질'), null);
   // 별칭은 정식 재질이 아니다 — 13종에 섞이면 안 된다.
   for (const alias of Object.keys(MATERIAL_ALIASES)) {
@@ -344,4 +347,78 @@ test('불변 데이터 — 재질·별칭·역할·부품 마감 표를 밖에�
   frozen(MOODS, 'MOODS');
   assert.ok(Object.isFrozen(MATERIAL_IDS) && Object.isFrozen(MATERIAL_ROLES));
   assert.ok(Object.isFrozen(finishForPart('chairFrame')), 'finishForPart 결과도 얼려 돌려준다');
+});
+
+// ── PHASE 1-b.1 · 어댑터 계약 ───────────────────────────────────────────────
+// 순수 명세가 "어댑터에 무엇을 넘겨야 하는지"까지 정한다. 그래야 Node에서 검사할 수 있고,
+// 어댑터가 프리셋을 제멋대로 해석하지 못한다.
+
+test('어댑터 계약 — 재질 값에는 물체(Mesh) 성질이 섞이지 않는다', () => {
+  // 두 목록이 겹치면 안 된다 — 겹치는 순간 어느 쪽 책임인지 모호해진다.
+  for (const k of MESH_SEMANTIC_KEYS) {
+    assert.ok(!MATERIAL_PARAM_KEYS.includes(k), `${k} 가 양쪽에 다 있다`);
+  }
+  for (const name of [...MATERIAL_IDS, 'lightOak', 'carpetTileLight', 'paintedWallWhite']) {
+    const prm = materialParams(name);
+    assert.ok(prm, `${name}: 값이 나오지 않는다`);
+    for (const k of Object.keys(prm)) {
+      assert.ok(MATERIAL_PARAM_KEYS.includes(k), `${name}: 재질 값이 아닌 ${k}`);
+    }
+    // **여기가 핵심** — 그림자·그리기 순서는 재질 값에 절대 들어가지 않는다.
+    for (const k of MESH_SEMANTIC_KEYS) {
+      assert.ok(!(k in prm), `${name}: 물체 성질 ${k} 가 재질 값에 섞였다`);
+    }
+  }
+  assert.equal(materialParams('없는재질'), null);
+});
+
+test('어댑터 계약 — 투명·양면 표시는 그렇게 적힌 재질에만 실린다', () => {
+  const g = materialParams('glassPartition');
+  assert.equal(g.transparent, true);
+  assert.equal(g.opacity, 0.16);
+  assert.equal(g.doubleSided, true);
+  // 나머지 12종은 이 셋이 **아예 없어야** 한다. 있으면 Three.js 기본값을 덮어써
+  //   기존 재질의 결과가 달라진다.
+  for (const id of MATERIAL_IDS.filter(x => x !== 'glassPartition')) {
+    const prm = materialParams(id);
+    for (const k of ['transparent', 'opacity', 'doubleSided']) {
+      assert.ok(!(k in prm), `${id}: ${k} 가 실렸다 — 기존 결과가 바뀐다`);
+    }
+    assert.deepEqual(Object.keys(prm), ['roughness', 'metalness'], `${id}: 넘기는 값이 늘었다`);
+  }
+  // 별칭으로 물어도 원본과 똑같은 값이 나온다.
+  assert.deepEqual(materialParams('lightOak'), materialParams('woodTable'));
+  assert.deepEqual(materialParams('paintedWallWhite'), materialParams('paintedWall'));
+});
+
+test('어댑터 계약 — 물체 성질은 따로 꺼낸다(유리만 예외값)', () => {
+  const g = renderSemantics('glassPartition');
+  assert.equal(g.castsShadow, false, '유리가 바닥에 그늘을 드리우면 안 된다');
+  assert.equal(g.receivesShadow, false);
+  assert.equal(g.renderClass, 'transparent');
+  assert.equal(g.renderOrderHint, 2);
+  // 나머지는 전부 기본값 = 지금 렌더러가 하던 그대로.
+  for (const id of MATERIAL_IDS.filter(x => x !== 'glassPartition')) {
+    assert.deepEqual(renderSemantics(id), DEFAULT_RENDER_SEMANTICS, id);
+  }
+  assert.deepEqual(renderSemantics('없는재질'), DEFAULT_RENDER_SEMANTICS, '모르면 지금 하던 대로');
+  assert.deepEqual(renderSemantics('lightOak'), renderSemantics('woodTable'));
+  // 돌려주는 값은 얼려 둔다(호출한 쪽이 고쳐 캐시를 오염시키지 않게).
+  assert.ok(Object.isFrozen(g) && Object.isFrozen(materialParams('glassPartition')));
+});
+
+test('어댑터가 정식 id로만 조회하는지 — materials-gl.js 소스 확인', () => {
+  const src = readFileSync(new URL('../src/materials-gl.js', import.meta.url), 'utf8');
+  // 해석기를 통과하지 않는 직접 조회(MATERIAL_PRESETS[...])가 남아 있으면 별칭이 깨진다.
+  assert.equal(/MATERIAL_PRESETS\s*\[/.test(src), false,
+    'materials-gl.js 가 프리셋 표를 직접 조회한다 — 별칭이 해석되지 않는다');
+  assert.ok(/resolveMaterialId/.test(src), 'materials-gl.js 가 해석기를 쓰지 않는다');
+  // 물체 성질을 재질에 넣는 코드가 없어야 한다.
+  //   주석에는 설명을 위해 이름이 나오므로, **주석을 걷어낸 실제 코드**만 본다.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  for (const k of MESH_SEMANTIC_KEYS) {
+    assert.equal(code.includes(k), false, `materials-gl.js 코드에 물체 성질 ${k} 가 있다`);
+  }
+  // 재질을 만들 때 넘기는 값은 순수 명세(materialParams)가 정한 것만이어야 한다.
+  assert.ok(/materialParams/.test(code), 'materials-gl.js 가 순수 명세를 쓰지 않는다');
 });
