@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>Seoul AV LED Configurator</title>
-<link rel="stylesheet" href="./styles.css?v=353"/>
+<link rel="stylesheet" href="./styles.css?v=367"/>
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"></div>
@@ -204,7 +204,17 @@
           <span class="pv3dNote" id="room3dNote"></span>
         </div>
         <div class="previewStage" id="stage"><div class="previewEmpty">모델을 선택하세요</div></div>
-        <div class="stage3d" id="stage3d" hidden><canvas id="cv3d"></canvas></div>
+        <!-- 3D 작업 영역: 왼쪽 설정 패널 + 오른쪽 캔버스.
+             패널 안의 컨트롤은 위 pv3dBar 의 것을 '옮겨 담는다'(app.js layoutInspector).
+             새로 만들지 않으므로 상태·이벤트가 그대로 유지된다. -->
+        <div class="stage3d" id="stage3d" hidden>
+          <aside class="pv3dInspector" id="pv3dInspector"></aside>
+          <div class="pv3dCanvasWrap" id="pv3dCanvasWrap">
+            <canvas id="cv3d"></canvas>
+            <div class="pv3dPresetBar" id="pv3dPresetBar"></div>
+            <div class="pv3dTools" id="pv3dTools"></div>
+          </div>
+        </div>
       </div>
 
       <div class="card">
@@ -317,7 +327,7 @@
         Gbic(광 컨버터, QSFP-LR4) — CS4B 계열 컨트롤러(MMF 기본 CS4BPGS는 자동, 그 외 라인은 'CS4B(광전송)' 선택) 시 1920×2160 영역마다 1 SET(SBOX측 1 + LED측 1 = 2 EA) = ⌈가로/1920⌉ × ⌈세로/2160⌉ SET. 표기 수량은 총 EA(=SET×2), 포워드/백워드 이중화 시 ×2.
         중량·전력이 <code>—</code>인 모델은 데이터시트 실측값 입력이 필요합니다.<br>
         <strong>⚠ 사내 견적 보조용</strong> — 공식 견적은 삼성/설치 파트너 확인이 필요합니다.
-        <span class="verTag">화면 버전 v353</span>
+        <span class="verTag">화면 버전 v367</span>
       </div>
     </div>
   </div>
@@ -412,6 +422,6 @@
 
 <!-- 자산 변경 시 v= 숫자를 올려 캐시 무효화(브라우저가 옛 파일을 쓰지 않도록).
      app.js가 import하는 모든 모듈의 v=, 그리고 모듈끼리의 내부 import(processor-validator.js → processor-limits.js)의 v=도 함께 올릴 것. -->
-<script type="module" src="./app.js?v=353"></script>
+<script type="module" src="./app.js?v=367"></script>
 </body>
 </html>

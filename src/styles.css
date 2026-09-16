@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v353) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v367) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
@@ -968,13 +968,116 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .pv3dNote{flex:1 1 100%;color:var(--muted);font-size:11px}
 .pv3dNote:empty{display:none}
 
-/* 캔버스는 카드 폭을 꽉 채우고, 높이는 화면 폭에 따라 적당히(16:9 근처). */
-.stage3d{position:relative;width:100%;border-radius:var(--r-inner);overflow:hidden}
+/* ── 3D 작업 영역 — 왼쪽 설정 패널 + 오른쪽 캔버스 ─────────────────────────
+   Yealink 계열 workspace의 '구조'만 참고하고, 색·모서리·그림자는 이 사이트의
+   기존 디자인(흰 패널 · 파란 강조 · 둥근 모서리 · 옅은 그림자)을 그대로 쓴다.
+   정면 뷰(.previewStage)는 이 규칙과 무관하다 — 한 줄도 건드리지 않는다. */
+.stage3d{position:relative;display:flex;gap:10px;width:100%;
+  border-radius:var(--r-inner);overflow:hidden;align-items:stretch}
+
+/* 3D 뷰가 열려 있는 동안에는 03 카드가 페이지 폭을 다 쓰도록 한 열로 편다.
+   패널(250px)을 빼고 남는 폭이 전부 캔버스가 된다. 정면 뷰로 돌아가면 원래 2열로.
+   (1200px 이하에서는 원래부터 한 열이라 달라지는 게 없다) */
+body.pv3dOpen .cols{grid-template-columns:1fr}
+
+.pv3dInspector{flex:0 0 250px;max-width:250px;display:flex;flex-direction:column;gap:2px;
+  padding:12px;overflow-y:auto;
+  background:var(--panel-solid);border:1px solid var(--line);border-radius:var(--r-inner);
+  box-shadow:0 1px 3px rgba(30,40,55,.05)}
+.pv3dSec{padding:8px 0}
+.pv3dSec + .pv3dSec{border-top:1px solid var(--line)}
+.pv3dSecTitle{font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--muted);
+  text-transform:none;margin:0 0 8px;display:block}
+.pv3dRow{display:flex;flex-direction:column;gap:6px}
+.pv3dRow .pv3dField{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}
+.pv3dRow .pv3dField>span{flex:0 0 auto;font-size:12px}
+.pv3dRow .pv3dField select{flex:1 1 auto;min-width:0}
+.pv3dRow .pv3dField input[type=number]{flex:0 0 78px;width:78px;text-align:right}
+/* 토글은 패널에서 한 줄씩 — 가로로 흐르지 않게 */
+.pv3dInspector .pvTog{width:100%;justify-content:flex-start}
+/* 공간 크기 W × H × D */
+.pv3dSize{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pv3dSize label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);font-weight:600}
+.pv3dSize input{font:inherit;font-size:12px;font-weight:600;color:var(--ink);width:100%;
+  padding:6px 7px;border:1px solid var(--line);border-radius:8px;background:var(--panel-solid);text-align:right}
+.pv3dSize input:hover,.pv3dSize input:focus{border-color:rgba(47,127,246,.5);outline:none}
+
+/* 캔버스 자리 — 남는 폭을 전부 쓴다 */
+.pv3dCanvasWrap{position:relative;flex:1 1 auto;min-width:0;
+  border-radius:var(--r-inner);overflow:hidden}
+
+/* 시점 프리셋 — 캔버스 아래 가운데 */
+.pv3dPresetBar{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+  display:flex;gap:2px;padding:3px;z-index:2;
+  background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:999px;
+  box-shadow:0 2px 10px rgba(30,40,55,.10);backdrop-filter:blur(6px)}
+.pv3dPresetBar button{font:inherit;font-size:12px;font-weight:600;color:var(--ink-2);
+  padding:6px 13px;border:0;border-radius:999px;background:transparent;cursor:pointer;white-space:nowrap}
+.pv3dPresetBar button:hover{background:rgba(47,127,246,.08);color:var(--ink)}
+.pv3dPresetBar button.on{background:var(--accent,#1250E0);color:#fff}
+
+/* 보조 도구(맞춤·초기화·PNG) — 캔버스 오른쪽 위 */
+.pv3dTools{position:absolute;right:12px;top:12px;display:flex;gap:6px;z-index:2}
+.pv3dTools .tiny{background:rgba(255,255,255,.92);border:1px solid var(--line);
+  box-shadow:0 2px 8px rgba(30,40,55,.08);backdrop-filter:blur(6px)}
+.pv3dTools .tiny[hidden]{display:none}
+
+/* 미니맵 — 지금 어디서 보고 있는지. 캔버스 오른쪽 아래에 작게. */
+.pv3dMini{position:absolute;right:12px;bottom:12px;width:112px;height:112px;z-index:2;
+  border:1px solid var(--line);border-radius:12px;
+  background:rgba(255,255,255,.88);box-shadow:0 2px 10px rgba(30,40,55,.10);
+  backdrop-filter:blur(6px);pointer-events:none}
+@media(max-width:680px){ .pv3dMini{width:84px;height:84px;right:8px;bottom:8px} }
 /* .previewStage가 display:block이라 hidden 속성만으로는 안 숨는다 — 명시적으로 지정. */
 .previewStage[hidden],.stage3d[hidden]{display:none}
 /* 데스크톱에서 정면 뷰와 비슷한 존재감을 갖도록 높이를 키운다(1440~1600px 폭에서 약 620~640px).
    태블릿은 44vw로 자연스럽게 450~520px, 모바일은 기존 높이를 그대로 유지한다. */
-.stage3d>canvas{display:block;width:100%;height:clamp(360px,44vw,640px)}
-@media(max-width:680px){ .stage3d>canvas{height:clamp(260px,64vw,420px)} }
+/* 3D 뷰포트 캔버스만 지정한다 — 미니맵(.pv3dMini)도 canvas라 후손 선택자를 쓰면 함께 잡힌다. */
+#cv3d{display:block;width:100%;height:clamp(360px,44vw,640px)}
+
+/* 태블릿 — 패널을 줄여 캔버스를 지킨다 */
+@media(max-width:1100px){
+  .pv3dInspector{flex-basis:212px;max-width:212px;padding:10px}
+  .pv3dRow .pv3dField input[type=number]{flex-basis:64px;width:64px}
+}
+/* 좁은 화면 — 패널을 캔버스 위로 접어 올린다(서랍처럼 열고 닫는다).
+   패널이 옆에 남아 있으면 캔버스가 손바닥만 해진다. */
+@media(max-width:820px){
+  .stage3d{flex-direction:column;gap:8px}
+  .pv3dInspector{flex:0 0 auto;max-width:none;width:100%;max-height:none;overflow:visible}
+  .pv3dInspector .pv3dSec{display:none}
+  .stage3d.pv3dOpenPanel .pv3dInspector .pv3dSec{display:block}
+  /* 여는 버튼 — 패널 맨 위에 항상 보인다 */
+  .pv3dPanelToggle{display:flex;align-items:center;justify-content:space-between;width:100%;
+    font:inherit;font-size:12px;font-weight:700;color:var(--ink);
+    padding:8px 10px;border:1px solid var(--line);border-radius:10px;
+    background:var(--field-fill);cursor:pointer}
+  .pv3dPanelToggle::after{content:'▾';color:var(--muted);transition:transform .15s}
+  .stage3d.pv3dOpenPanel .pv3dPanelToggle::after{transform:rotate(180deg)}
+  /* 좁은 화면에서는 방 설정 안내가 길어지므로 줄바꿈 허용 */
+  .pv3dRow .pv3dField{flex-wrap:wrap}
+}
+/* 넓은 화면에서는 여는 버튼이 필요 없다 */
+@media(min-width:821px){ .pv3dPanelToggle{display:none} }
+
+@media(max-width:680px){
+  #cv3d{height:clamp(260px,64vw,420px)}
+  .pv3dPresetBar{bottom:8px;padding:2px}
+  .pv3dPresetBar button{font-size:11px;padding:5px 9px}
+  .pv3dTools{right:8px;top:8px}
+}
 /* 인쇄 시에도 캔버스가 그대로 나오도록(비트맵이라 별도 처리 불필요). */
-body.printing .stage3d>canvas{height:420px}
+body.printing #cv3d{height:420px}
+
+/* ── 3D 치수 라벨(캔버스 위 HTML 오버레이) ────────────────────────────────
+   3D 문자는 각도마다 읽기 어렵고 무겁다. 알약을 캔버스 위에 띄우고 좌표만
+   매 프레임 따라가게 한다 — 글자는 늘 정면이고 정면 뷰와 같은 디자인이 된다. */
+.gl3dLabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.gl3dDim{position:absolute;left:0;top:0;white-space:nowrap;
+  font:600 12px/1 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;
+  letter-spacing:-.01em;padding:6px 9px;border-radius:999px;
+  background:rgba(255,255,255,.94);color:var(--ink);
+  border:1px solid rgba(120,130,145,.20);
+  box-shadow:0 2px 8px rgba(30,40,55,.10)}
+/* 핵심 치수(LED 가로·세로)는 어두운 알약 — 정면 뷰와 같은 규칙. */
+.gl3dDim.key{background:rgba(17,21,27,.92);color:#fff;border-color:transparent}
