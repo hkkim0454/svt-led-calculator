@@ -13,7 +13,9 @@ import {
   roomDesign, designsFor, normalizeDesign, resolveDesign, isNeutralDesign,
   planned, isPlanned,
 } from '../src/room-design.js';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE } from '../src/room-presets.js';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, layoutRoom, defaultOptions } from '../src/room-presets.js';
+import { computeConfig } from '../src/engine.js';
+import { MODELS } from '../src/models.js';
 import { MATERIAL_PRESETS, floorFinishFor, moodFor } from '../src/materials.js';
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
@@ -180,4 +182,59 @@ test('연결 없음 — 이 단계에서는 화면·계산 어디에도 물려 �
   //   기존 계산에 끼어들 통로 자체가 없다는 뜻이다.
   const src = readFileSync(new URL('../src/room-design.js', import.meta.url), 'utf8');
   assert.equal(/^\s*import\s/m.test(src), false, 'room-design.js 는 아무것도 import 하지 않아야 한다');
+});
+
+// ── 오너 지정 최소 테스트 7번 — 기존 계산 무변경 ────────────────────────────
+// 디자인 층이 생겼다고 해서 **산출값이 한 건도 달라지면 안 된다.**
+// 지금은 연결되어 있지 않아 당연히 같지만, 이 테스트는 **앞으로를 위한 잠금장치**다 —
+// PHASE 1-c에서 디자인을 화면에 물릴 때 배치나 LED 계산에 손이 닿으면 여기서 걸린다.
+
+test('기존 계산 무변경 ① 배치 — 어떤 디자인을 끼워도 room-presets 결과가 똑같다', () => {
+  for (const t of ROOM_TYPE_IDS) {
+    for (const room of [{ W: 8000, D: 7000 }, { W: 12000, D: 14000 }, { W: 30000, D: 34000 }]) {
+      const opts = defaultOptions(t);
+      const base = JSON.stringify(layoutRoom(t, opts, room));
+      for (const id of [...DESIGN_IDS, undefined, '없는디자인']) {
+        // 화면이 앞으로 쓸 경로 그대로: 디자인 → 배치 계획 → 배치 계산.
+        const plan = layoutPlan(id, t);
+        const after = JSON.stringify(layoutRoom(plan.roomType, defaultOptions(plan.roomType), room));
+        assert.equal(after, base, `${t}/${id}/${room.W}×${room.D}: 배치가 달라졌다`);
+      }
+    }
+  }
+});
+
+test('기존 계산 무변경 ② LED — 삼성 검증 기준값(MP012F 6×3.4m)이 그대로다', () => {
+  // CLAUDE.md §검증된 기준 데이터 — 삼성 공식 configurator 실측값. 절대 바뀌면 안 된다.
+  const MP012F = MODELS.find(m => m.id === 'MP012F');
+  const r = computeConfig(MP012F, 6000, 3400, { mode: 'manual', cols: 7, rows: 6 });
+  assert.equal(r.total, 42);
+  assert.equal(r.resW, 4480);
+  assert.equal(r.resH, 2160);
+  assert.equal(r.maxW, 6132);
+  assert.ok(Math.abs(r.heatMaxBTU - 20916) < 20, `btu=${r.heatMaxBTU}`);
+  // 디자인 모듈은 이 값에 닿을 수 없다 — 계산에 넘기는 인자가 하나도 없다.
+  for (const id of [...DESIGN_IDS, undefined]) {
+    const d = resolveDesign(id);
+    assert.equal(d.furniture, INHERIT);
+    assert.equal(d.materials, INHERIT);
+  }
+});
+
+test('불변 데이터 — 디자인·변형 표를 밖에서 고칠 수 없다', () => {
+  // 전역 상수를 누가 실수로 바꾸면 방마다 다른 결과가 나온다. 깊은 곳까지 얼려 둔다.
+  const frozen = (v, path) => {
+    if (!v || typeof v !== 'object') return;
+    assert.ok(Object.isFrozen(v), `${path} 가 얼어 있지 않다`);
+    for (const [k, x] of Object.entries(v)) frozen(x, `${path}.${k}`);
+  };
+  frozen(ROOM_DESIGNS, 'ROOM_DESIGNS');
+  frozen(LAYOUT_VARIANTS, 'LAYOUT_VARIANTS');
+  frozen(DESIGN_FIELDS, 'DESIGN_FIELDS');
+  frozen(DESIGN_STATUS, 'DESIGN_STATUS');
+  frozen(planned('x'), 'planned()');
+  // 해석 결과와 배치 계획도 호출한 쪽이 고칠 수 없어야 한다(캐시된 값을 오염시키지 않게).
+  for (const id of DESIGN_IDS) assert.ok(Object.isFrozen(resolveDesign(id)), `resolveDesign(${id})`);
+  assert.ok(Object.isFrozen(layoutPlan('corporateMeeting', 'meeting')));
+  assert.ok(Object.isFrozen(designsFor('meeting')));
 });
