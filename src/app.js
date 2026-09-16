@@ -1675,8 +1675,15 @@ function vpSlotCardHTML(item) {
   return `<div class="vpCards">
     <div class="vpCardGrid">${inS}${outS}</div>
     <div class="vpChips">${statusChip}${remChip('입력', inRem)}${remChip('출력', outRem)}</div>
+    ${aquilonCardNote(p)}
     ${note}
   </div>`;
+}
+// Aquilon(아날로그 웨이) 안내 — 입출력 카드가 4K 4채널이고 커넥터(HDMI/DP/SDI)를 선택해 꽂는 방식(이사 확인 2026-09-16).
+function aquilonCardNote(p) {
+  return (p.manufacturer === 'Analog Way' && p.family === 'Aquilon')
+    ? '<div class="ioNote">입출력 카드는 <b>4K 4채널</b>이며, 커넥터(HDMI · DP · SDI)를 선택해 구성합니다.</div>'
+    : '';
 }
 // 고정형(preconfigured) 제품 카드 본문 — 입력 커넥터 구성 + 입출력 수량.
 function vpFixedCardHTML(item) {
@@ -1697,9 +1704,12 @@ function vpFixedCardHTML(item) {
     ? `<div class="ioGroup"><div class="ioHd">멀티뷰어 <span class="ioSub">Dedicated</span></div>
       <div class="connRow"><span class="connChip mv"><span class="cLbl">${esc(o.activeConnector || 'HDMI 2.0')}</span><span class="cCnt">×${mv}</span></span></div></div>`
     : '';
-  const note = p.fieldSwappableCards
-    ? '<div class="ioNote">프리컨피규어드 기본 장착 카드 기준이며, 실제 구성은 I/O 카드 교체에 따라 달라질 수 있습니다.</div>'
-    : '';
+  // Aquilon(RS 등)은 4K 4채널 카드·커넥터 선택형 안내를 우선 표기. 그 외 스왑형은 기존 일반 안내.
+  const note = (p.manufacturer === 'Analog Way' && p.family === 'Aquilon')
+    ? aquilonCardNote(p) + '<div class="ioNote">아래 커넥터 수량은 예시 구성입니다.</div>'
+    : (p.fieldSwappableCards
+      ? '<div class="ioNote">프리컨피규어드 기본 장착 카드 기준이며, 실제 구성은 I/O 카드 교체에 따라 달라질 수 있습니다.</div>'
+      : '');
   return `<div class="vpFixed">${inGroup}${outGroup}${mvGroup}${note}</div>`;
 }
 // Edge-Blending(와이드 캔버스) 지원 표시값. 판단 불가(전부 null)면 null → 행 미표시.
