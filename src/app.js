@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=359';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=359';
-import { createViewerGL } from './render3d-gl.js?v=359';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=359';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=361';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=361';
+import { createViewerGL } from './render3d-gl.js?v=361';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=361';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -844,6 +844,7 @@ function renderPreview3D() {
 
   // 배치 결과 안내 — 실제 놓인 좌석 수와, 방이 좁아 줄였을 때의 알림.
   //   좌석 수는 room-presets가 낸 값을 그대로 보여준다(여기서 새로 세지 않는다).
+  syncSizeProxy();
   const note = $('#room3dNote');
   if (note) {
     const seats = lay.placed.seats ?? lay.placed.chairs ?? lay.placed.consoles ?? 0;
@@ -867,19 +868,135 @@ function syncPresetSel() {
   }
   if (viewer3d) presetId = viewer3d.getPreset();
   sel.value = presetId;
+  syncPresetButtons();
 }
 
 // 아직 동작하지 않는 3D 조작 버튼은 숨긴다.
 //   (마크업은 그대로 두고 표시만 끈다 — 기능이 붙으면 이 함수에서 한 줄씩 지우면 된다.)
 //   STEP 2에서 시점 선택칸과 ◀ ▶ 는 되살렸다. 남은 것은 사람·치수·격자·포인트 벽·PNG.
+// ── 3D 작업 영역 — 왼쪽 설정 패널 ───────────────────────────────────────────
+// 패널 안의 컨트롤은 **새로 만들지 않고 pv3dBar 의 것을 옮겨 담는다**(appendChild는
+// 노드를 '이동'시킨다). 그래서 상태도, 이벤트 연결도 그대로 유지된다 — 중복 상태가 없다.
+// 3D 뷰를 떠날 때 원래 자리로 되돌린다.
+let inspectorBuilt = false;
+
+function inspectorSection(title) {
+  const sec = document.createElement('div');
+  sec.className = 'pv3dSec';
+  const h = document.createElement('span');
+  h.className = 'pv3dSecTitle';
+  h.textContent = title;
+  sec.appendChild(h);
+  const row = document.createElement('div');
+  row.className = 'pv3dRow';
+  sec.appendChild(row);
+  sec.body = row;
+  return sec;
+}
+
+// 공간 크기 W × H × D — 01 카드의 입력칸을 그대로 쓰되, 패널에서도 고칠 수 있게
+//   '대리 입력칸'을 둔다. 값은 언제나 01 카드가 원본이다(여기 따로 저장하지 않는다).
+function buildSizeProxy() {
+  const box = document.createElement('div');
+  box.className = 'pv3dSize';
+  for (const [id, label] of [['spaceW', 'W (m)'], ['spaceH', 'H (m)'], ['spaceD', 'D (m)']]) {
+    const lab = document.createElement('label');
+    const t = document.createElement('span'); t.textContent = label;
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = '0.1'; inp.min = '0';
+    inp.dataset.proxy = id;
+    if (id === 'spaceD') inp.placeholder = '자동';
+    inp.addEventListener('input', () => {
+      const src = $('#' + id); if (!src) return;
+      src.value = inp.value;                                   // 원본에 그대로 옮긴다
+      src.dispatchEvent(new Event('input', { bubbles: true })); // 원래 핸들러가 계산을 돌린다
+    });
+    lab.append(t, inp);
+    box.appendChild(lab);
+  }
+  return box;
+}
+
+// 대리 입력칸을 원본 값에 맞춘다(01 카드에서 바꿨을 때 따라오도록).
+function syncSizeProxy() {
+  for (const inp of document.querySelectorAll('.pv3dSize input[data-proxy]')) {
+    const src = $('#' + inp.dataset.proxy);
+    if (src && document.activeElement !== inp) inp.value = src.value;
+  }
+}
+
+function buildInspector() {
+  const box = $('#pv3dInspector'); if (!box || inspectorBuilt) return;
+  const bar = $('#pv3dBar');
+  const presetBar = $('#pv3dPresetBar'), tools = $('#pv3dTools');
+
+  // [공간 설정] 공간 타입 + 공간 크기
+  const s1 = inspectorSection('공간 설정');
+  const typeField = $('#roomType')?.closest('.pv3dField');
+  if (typeField) s1.body.appendChild(typeField);     // 이동(복제 아님)
+  s1.body.appendChild(buildSizeProxy());
+
+  // [좌석 설정] 타입별 옵션(줄 수·줄당 좌석·통로 등) — renderRoomOptions가 채우는 그릇
+  const s2 = inspectorSection('좌석 설정');
+  const opts = $('#roomOpts');
+  if (opts) s2.body.appendChild(opts);
+
+  // [설치 요소] 무대는 좌석 옵션 안에 있으므로 renderRoomOptions가 옮겨 준다.
+  const s3 = inspectorSection('설치 요소');
+  s3.id = 'pv3dElements';
+  for (const sel of ['[data-t3d="person"]', '#person3dSel', '[data-t3d="dims"]',
+                     '[data-t3d="grid"]', '[data-t3d="accentWall"]']) {
+    const el = bar?.querySelector(sel);
+    if (el) s3.body.appendChild(el);
+  }
+
+  box.append(s1, s2, s3);
+
+  // 시점 프리셋 — 캔버스 아래 가운데. 기존 선택칸(#cubeView)은 숨기고 값만 공유한다.
+  if (presetBar) {
+    presetBar.innerHTML = '';
+    for (const p of CAMERA_PRESETS) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.dataset.preset = p.id; btn.textContent = p.label;
+      presetBar.appendChild(btn);
+    }
+    presetBar.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-preset]'); if (!btn) return;
+      presetId = cameraPreset(btn.dataset.preset).id;
+      viewer3d?.setPreset(presetId);
+      syncPresetSel();
+    });
+  }
+  // 보조 도구 — 캔버스 오른쪽 위
+  if (tools) for (const id of ['#btn3dReset', '#btn3dPng']) {
+    const el = bar?.querySelector(id);
+    if (el) tools.appendChild(el);
+  }
+  // 배치 안내(좌석 수·자동 축소)는 패널 맨 아래에
+  const note = $('#room3dNote');
+  if (note) box.appendChild(note);
+
+  inspectorBuilt = true;
+}
+
+// 프리셋 버튼의 선택 표시를 현재 시점에 맞춘다.
+function syncPresetButtons() {
+  for (const b of document.querySelectorAll('#pv3dPresetBar button[data-preset]')) {
+    b.classList.toggle('on', b.dataset.preset === presetId);
+  }
+}
+
 function applyStagedUi() {
   const show = (el, on) => { if (el) el.hidden = !on; };
-  show($('#person3dSel')?.closest('.pv3dGroup'), true);    // 치수·바닥 격자·포인트 벽 — STEP 4에서 사용
-  show($('[data-t3d="person"]'), false);                   // 사람은 다음 단계
+  buildInspector();
+  // 3D에서는 위쪽 가로 막대를 쓰지 않는다 — 컨트롤은 전부 왼쪽 패널·캔버스 위로 옮겨 갔다.
+  //   안내 문구(#room3dNote)만 막대에 남겨 보여 준다.
+  show($('#pv3dBar'), false);
+  show($('[data-t3d="person"]'), false);   // 사람은 다음 단계
   show($('#person3dSel'), false);
-  show($('#cubeView')?.closest('.pv3dField'), true);       // 시점 프리셋 — STEP 2
-  show($('#btn3dRotL'), true); show($('#btn3dRotR'), true);
-  show($('#btn3dPng'), false);                             // PNG 저장은 다음 단계
+  show($('#btn3dPng'), false);             // PNG 저장은 다음 단계
+  syncSizeProxy();
+  syncPresetButtons();
 }
 
 // 공간 타입 선택 + 그 타입의 옵션 입력칸을 그린다(타입마다 옵션이 다르므로 매번 새로 만든다).
@@ -918,6 +1035,8 @@ function setPreviewView(v) {
   pvView = (v === '3d') ? '3d' : '2d';
   $('#pvViewMode')?.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.view === pvView));
   const is3d = pvView === '3d';
+  // 3D에서는 03 카드가 페이지 폭을 다 쓰게 한다(캔버스가 가장 넓은 영역이 되도록).
+  document.body.classList.toggle('pv3dOpen', is3d);
   if ($('#pv3dBar')) $('#pv3dBar').hidden = !is3d;
   if ($('#pvToggles')) $('#pvToggles').hidden = is3d;
   if ($('#signalMode')) $('#signalMode').hidden = is3d;

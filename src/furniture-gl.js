@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=359';
+import { u } from './gl-model.js?v=361';
 
 const DEG = Math.PI / 180;
 
