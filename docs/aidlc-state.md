@@ -23,6 +23,7 @@
 - 모델별 비교 테이블(같은 공간에 대해 전 모델 동시 비교)
 - 캐비닛 배열 시각 미리보기 (정면 뷰 + 3D 투시 뷰)
 - 3D 공간 렌더 — 공간 타입 프리셋(회의실·강의실·소/중/대강당·상황실)과 가구 옵션으로 설치 이미지 생성, PNG 내보내기 (DEC-056 → DEC-059 비주얼 개선 → DEC-060 미세 보정, 2026-09-16)
+- 3D = **Corporate AV Space Visualizer** — 고객 제안서에 쓸 수 있는 기업 AV 공간 시각화. 용도(roomType, 계산)와 **디자인 프리셋(design, 표현)을 분리**해 대기업 회의실 · 임원 회의실 · 대회의실 · 상황실을 서로 다른 공간으로 만든다 (DEC-087, 2026-09-16). 사진 수준 렌더링이 아니라 Semi-realistic 건축 시각화가 목표
 - 모델 스펙 라이브러리 편집(CRUD) 및 JSON import/export
 - BOM 산출(캐비닛 + 스페어, S-Box, Jig 등 부자재)
 - 인쇄/PDF·엑셀 내보내기
@@ -149,7 +150,7 @@
 ## Current Verification Status
 
 - **Build**: N/A (빌드리스 단일 HTML)
-- **Automated Tests**: `node:test` 자동화 **379/379 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
+- **Automated Tests**: `node:test` 자동화 **389/389 통과(2026-09-16)** — 가구 에셋 카탈로그·재질 라이브러리·방 껍데기·조명 회귀 포함(`tests/furniture-assets.test.js`, `tests/materials.test.js`, `tests/gl-model.test.js`, `tests/room-design.test.js`). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
 - **Integration Tests**: N/A
 - **Security Checks**: 외부 의존성 0, 개인정보 미수집 → 저위험. 정식 점검 미수행
 - **Acceptance Review**: 프로토타입 v0.1 오너 리뷰 대기
@@ -178,6 +179,12 @@
 | P5-4 | 05 화면에 레이어 배치(카드별) 입력 추가 — NovaStar/Universe 카드 예산·cross-output 정밀 판정용. **엔진 지원 완료(DEC-021, `perOutputCardDemand` 배열)**, UI 미노출 | 김현규 / AI | 검토 | 이사 요청 시 |
 | P5-5 | 05 화면 제조사별 의미·판정 이유 표시(자료문서 §24·§25) — 노바 "카드당 4×4K", X100 "독립4K 8/8·윈도우 16/64", AW "믹싱/분할" 등. DEC-021 2차 | AI | 진행 예정 | 이사 확인 |
 | P5-6 | **프로세서 코드 3분할** — `processor-data.js`(데이터)·`processor-limits.js`(용량·한계)·`processor-validator.js`(판정)로 분리, engine.js는 LED 코어 전용. DEC-030 | AI | **완료(2026-09-12, v183)** | 무동작-변경 리팩터, 115/115 통과·헤드리스 로드 무오류 |
+| P8-1 | **Corporate AV Space Visualizer PHASE 1-a — 디자인 프리셋 골격** — 신규 `src/room-design.js`에 디자인 4종 + `layoutVariant` 선언. 화면 무변경, 기존 파일 무수정. DEC-087 | AI | **완료(2026-09-16)** | 389/389 통과, 브라우저에서 파일 미로드·장면 동일 확인 |
+| P8-2 | PHASE 1-b — 팔레트 통합 + 재질 7종 → 12종 확장(CarpetTileDark·NeutralLaminate·DarkGraphite·BlackEquipment·GlassPartition·AcousticPanel) + 부품별 마감 예외표 | AI | **오너 승인 대기** | 기존 7종 수치 불변, 화면 무변경 |
+| P8-3 | PHASE 1-c — `assetFor(item, design)` 경로 + 디자인 선택 UI. 예전 세션은 corporateMeeting으로 복원 | AI | 대기 | 디자인 선택 칸 외 화면 무변경 |
+| P8-4 | PHASE 1-d — 카메라 `rear`(대표 좌석 뒤 제안 렌더 시점) 추가 + 디자인별 화각(회의실 40~46°, 임원 34~40°) | AI | 대기 | 기존 시점 6종 무회귀 |
+| P8-5 | PHASE 2 — Corporate Meeting Room 완성(Aeron 계열 메시 회전의자·얇은 상판 테이블·팔레트·조명·Interior/Rear 카메라). 중단된 의자 작업이 여기로 흡수됨 | AI | 대기 | 치수 범위 단위 테스트 + 3시점 브라우저 검증 |
+| P8-6 | PHASE 3~5 — Executive Boardroom → Large Conference Room → Operation/Control Room | AI | 대기 | 단계별 오너 승인 |
 | P7-3 | **3D 오너 요청 기능 6건** — 객석 착석 인원 + LED 시야각 시뮬 · 3D LED 화면 이미지 · 단차 시작 줄 + 상황실 단차 · 평면도 원근 + 화각 조절 · LED 옆 보조 모니터 · 표현 방식(심플/실사). DEC-079~084 | AI | **완료(2026-09-16, v389)** | 371/371 통과, 기능별 브라우저 검증 |
 | P7-2 | **3D Interior Realism STEP 2~8 + 최종 점검** — 방 껍데기(걸레받이·천장·바닥/격자 분리) · 재질 7종 · 조명/접촉 그림자 · 회의실(AV 수납장) · 강당(무대 디테일) · 강의실(2인용 테이블·강사 영역) · 아이디에이션 공간 신설. DEC-071~078 | AI | **완료(2026-09-16, v383)** | 338/338 통과, 브라우저 27항목 전수 통과, 계산·정면 뷰 무회귀 |
 | P7-1 | **3D Interior Realism STEP 1 — 가구 에셋 시스템** — 형상 정의를 순수 모듈 `src/furniture-assets.js`로 분리, V1 자산 5종(강당 객석·회의 회전의자·회의 테이블·강의 책상·강의 의자) 실제 비율 적용. DEC-070 | AI | **완료(2026-09-16, v376)** | 308/308 통과. 384석에서 그리기 호출 28개 고정, 배치 계산 무변경 |
