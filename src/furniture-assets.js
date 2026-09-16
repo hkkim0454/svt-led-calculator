@@ -22,12 +22,12 @@
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
 export const FURNITURE_COLORS = Object.freeze({
-  tableTop: '#f5f7fa', tableBase: '#a9b3c0', tableBeam: '#9ba6b4',
+  tableTop: '#ece6db', tableBase: '#a9b3c0', tableBeam: '#9ba6b4',
   chairSeat: '#cbdad7', chairBack: '#cbdad7', chairBase: '#aeb8c4', chairArm: '#9ea9b6',
   seatFabric: '#cbdad7', seatFrame: '#aeb8c4', seatArm: '#a3aebb',
-  deskTop: '#f3f6f9', deskLeg: '#b3bcc8', deskPanel: '#e4e9ef', deskRail: '#a9b3c0',
+  deskTop: '#efeae1', deskLeg: '#b3bcc8', deskPanel: '#e4e9ef', deskRail: '#a9b3c0',
   consoleTop: '#f3f6f9', consoleBase: '#9ba6b4', monitor: '#1b2532', monitorBase: '#8f99a7',
-  podium: '#eef2f7', podiumTop: '#f7f9fc',
+  podium: '#eef2f7', podiumTop: '#efeae1',
   rug: '#c1c9d5',
   // 객석 단(계단). 윗면은 바닥보다 밝게, **옆면(챌판)은 뚜렷하게 어둡게** —
   //   옆면이 바닥색과 비슷하면 단 경계가 안 보여 그냥 평평한 단 하나로 읽힌다.

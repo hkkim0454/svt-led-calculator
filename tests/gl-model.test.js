@@ -6,6 +6,8 @@ import {
   MM_PER_UNIT, u, toMm, buildGLModel, viewDistance,
   FOV_DEG, EYE_MM, LOOK_MM, START_YAW_DEG, LED_FIT,
   TOP_PITCH_DEG, orthoFitHeight,
+  BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, INTERIOR_PRESETS,
+  showCeiling, cameraInsideRoom, LIGHTS, keyShare, shadowMapSize,
 } from '../src/gl-model.js';
 import { computeConfig } from '../src/engine.js';
 import { MODELS } from '../src/models.js';
@@ -372,4 +374,87 @@ test('벽면 — 4면을 각각 켜고 끌 수 있다', () => {
   assert.deepEqual(make({ right: true }), { front: true, back: false, left: true, right: true });
   // show 자체가 없어도 안전하다
   assert.deepEqual(make(undefined), { front: true, back: false, left: true, right: false });
+});
+
+
+// ── 방 껍데기(Room Shell) ────────────────────────────────────────────────────
+
+test('방 껍데기 치수 — 걸레받이 60~80mm, 천장 슬래브, 격자 띄움은 눈에 안 띌 만큼만', () => {
+  assert.ok(BASEBOARD_MM.h >= 60 && BASEBOARD_MM.h <= 80, `걸레받이 높이 ${BASEBOARD_MM.h}`);
+  assert.ok(BASEBOARD_MM.thk > 0 && BASEBOARD_MM.thk <= 30, `걸레받이 두께 ${BASEBOARD_MM.thk}`);
+  assert.ok(CEILING_THK_MM > 0 && CEILING_THK_MM <= 300, `천장 두께 ${CEILING_THK_MM}`);
+  // 격자를 너무 높이 띄우면 위에서 볼 때 바닥과 분리돼 보인다.
+  assert.ok(GRID_LIFT_MM > 0 && GRID_LIFT_MM <= 10, `격자 띄움 ${GRID_LIFT_MM}`);
+  assert.ok(GRID_LIFT_MM < BASEBOARD_MM.h, '격자가 걸레받이를 덮으면 안 된다');
+});
+
+test('천장 — 실내 4종만 보이고 아이소·평면도에서는 숨는다', () => {
+  const ids = CAMERA_PRESETS.map(p => p.id);
+  // 프리셋 6종 전부를 빠짐없이 판정한다(새 프리셋이 생기면 여기서 걸린다).
+  const visible = ids.filter(id => showCeiling({ presetId: id, ortho: id === 'top' }));
+  assert.deepEqual(visible, ['interior', 'corner-l', 'front', 'corner-r']);
+  assert.deepEqual([...INTERIOR_PRESETS], visible);
+  assert.equal(showCeiling({ presetId: 'iso' }), false);
+  assert.equal(showCeiling({ presetId: 'top', ortho: true }), false);
+  // 정사투영이면 프리셋 이름과 무관하게 무조건 숨긴다(위에서 보는데 천장이 있으면 안이 안 보인다).
+  assert.equal(showCeiling({ presetId: 'interior', ortho: true }), false);
+});
+
+test('천장 — 저장해 둔 커스텀 시점은 카메라가 방 안에 있는지로 판단한다', () => {
+  const room = { W: 10, H: 3.5, D: 12 };
+  assert.equal(showCeiling({ presetId: 'custom', position: [5, 1.8, 9], room }), true);
+  assert.equal(showCeiling({ presetId: 'custom', position: [22, 9, 24], room }), false);   // 방 밖 위
+  assert.equal(showCeiling({ presetId: 'custom', position: [5, 6, 6], room }), false);     // 천장 위
+  assert.equal(showCeiling({ presetId: 'custom', position: [-3, 1.8, 6], room }), false);  // 벽 바깥
+  assert.equal(showCeiling({ presetId: 'custom', ortho: true, position: [5, 1.8, 9], room }), false);
+  // 모델이 없으면 숨긴다(빈 화면에 천장만 뜨지 않게).
+  assert.equal(showCeiling({ presetId: 'custom' }), false);
+  assert.equal(showCeiling(), false);
+});
+
+test('방 안 판정 — 경계에서 여유(margin)만큼만 봐준다', () => {
+  const room = { W: 10, H: 3.5, D: 10 };
+  assert.equal(cameraInsideRoom([0.1, 1.7, 0.1], room), true);
+  assert.equal(cameraInsideRoom([10.2, 1.7, 5], room), true, '0.3 여유 안');
+  assert.equal(cameraInsideRoom([10.8, 1.7, 5], room), false, '0.3 여유 밖');
+  assert.equal(cameraInsideRoom([5, -0.1, 5], room), false, '바닥 아래');
+  assert.equal(cameraInsideRoom(null, room), false);
+  assert.equal(cameraInsideRoom([5, 1.7, 5], null), false);
+});
+
+test('바닥 격자 토글 — 격자를 꺼도 방 크기·벽 설정은 그대로다(바닥과 분리)', () => {
+  const space = { W: 10000, H: 3500, D: 12000, wallThk: 100 };
+  const led = { w: 4000, h: 2300, marginW: 500, mount: 1000 };
+  const on = buildGLModel({ space, led, show: { grid: true } });
+  const off = buildGLModel({ space, led, show: { grid: false } });
+  assert.equal(on.show.grid, true);
+  assert.equal(off.show.grid, false);
+  // 격자는 '표시 여부'일 뿐 — 방 치수·벽 두께·벽 구성에 영향을 주지 않는다.
+  assert.deepEqual(off.room, on.room);
+  assert.deepEqual(off.show.walls, on.show.walls);
+  assert.equal(off.show.accentWall, on.show.accentWall);
+});
+
+
+// ── 조명 ────────────────────────────────────────────────────────────────────
+
+test('조명 — 그림자가 게임처럼 진해지지 않는 비중(주광 20~30%)', () => {
+  const share = keyShare();
+  assert.ok(share >= 0.20 && share <= 0.30, `주광 비중 ${(share * 100).toFixed(1)}%`);
+  // 모든 세기가 양수여야 한다 — 0이면 그 조명이 아예 없는 것과 같다.
+  for (const [k, v] of Object.entries(LIGHTS)) assert.ok(v > 0, `${k} = ${v}`);
+  // LED 스필광은 '아주 약하게'. 주광보다 세면 네온사인이 된다.
+  assert.ok(LIGHTS.ledSpill < LIGHTS.key, 'LED 스필광이 주광보다 세면 안 된다');
+  // 환경광이 가장 커야 부드러운 실내가 된다(주광이 가장 크면 야외 햇빛처럼 보인다).
+  assert.ok(LIGHTS.hemi > LIGHTS.key, '환경광이 주광보다 커야 한다');
+  assert.equal(keyShare({ hemi: 0, ceiling: 0, key: 0, fill: 0 }), 0, '0으로 나누지 않는다');
+});
+
+test('그림자 해상도 — 무작정 키우지 않는다(화면 배율이 높으면 오히려 낮춘다)', () => {
+  assert.equal(shadowMapSize(1), 2048);
+  assert.equal(shadowMapSize(1.5), 2048);
+  assert.equal(shadowMapSize(2), 1024);
+  assert.equal(shadowMapSize(3), 1024);
+  assert.equal(shadowMapSize(), 2048, '기본값');
+  assert.ok(shadowMapSize(1) <= 2048, '4096은 메모리 낭비다');
 });

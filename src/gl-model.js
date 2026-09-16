@@ -9,6 +9,8 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
+import { floorFinishFor } from './materials.js?v=379';
+
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
 export const toMm = units => (Number(units) || 0) * MM_PER_UNIT;   // unit → mm (되돌리기용)
@@ -60,7 +62,7 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @param items room-presets의 배치 결과(STEP 1에서는 무대만 읽는다)
  * @returns { room, led, stage }  전부 unit
  */
-export function buildGLModel({ space, led, items, show, person }) {
+export function buildGLModel({ space, led, items, show, person, roomType }) {
   // 벽 두께는 '방 바깥쪽'으로 붙인다 — 안쪽 치수(W×H×D)는 계산값 그대로여야 한다.
   const room = {
     W: u(space.W), H: u(space.H), D: u(space.D),
@@ -85,6 +87,9 @@ export function buildGLModel({ space, led, items, show, person }) {
         right: !!show?.walls?.right,
       },
     },
+    // 바닥 마감 — 공간 타입이 정한다(강의실만 비닐, 나머지는 카펫).
+    //   재질 수치는 materials.js에 있고 여기서는 '어떤 마감인지'만 고른다.
+    finish: { floor: floorFinishFor(roomType) },
     // 배치 목록은 mm 그대로 들고 간다 — 가구를 세우는 쪽(furniture-gl.js)에서 환산한다.
     //   여기서 미리 바꾸면 room-presets 결과와 대조하기 어려워진다.
     items: items || [],
@@ -116,6 +121,68 @@ export function buildGLModel({ space, led, items, show, person }) {
 //   '카메라에서 보이는 옆벽'에 칠하면 시점을 돌릴 때 벽이 좌↔우로 옮겨 다닌다.
 //   실제로 칠해 둔 벽은 그럴 수 없다. 이 값은 카메라와 무관한 상수다.
 export const ACCENT_WALL_SIDE = 'left';
+
+// ── 방 껍데기(Room Shell) 치수 ───────────────────────────────────────────────
+// 벽 두께는 화면에서 입력받는다(기본 100mm, config.js). 아래는 그에 딸린 부속 치수다.
+//   전부 mm — 실제 건축 치수를 그대로 쓴다. 눈에 띄라고 과장하지 않는다.
+export const BASEBOARD_MM = Object.freeze({
+  h: 70,      // 걸레받이 높이 — 실제 시공값 60~80mm의 가운데
+  thk: 18,    // 벽에서 방 안쪽으로 나온 두께
+});
+// ── 조명 ────────────────────────────────────────────────────────────────────
+// 합이 너무 크면 벽이 하얗게 날아가고, 주광 비중이 크면 그림자가 게임처럼 진해진다.
+//   주광 비중 = key / 전체 ≈ 25% — '있는 듯 없는 듯한' 접촉 그림자가 나오는 지점이다.
+//   그림자를 만드는 조명은 주광 하나뿐이다(둘 이상이면 그림자가 겹쳐 지저분해지고 비용도 배가 된다).
+export const LIGHTS = Object.freeze({
+  hemi: 1.85,      // 부드러운 환경광(하늘/바닥)
+  ceiling: 1.15,   // 천장등 — 바로 아래를 고르게 비춘다
+  key: 1.15,       // 주광 — 그림자를 만드는 유일한 조명
+  fill: 0.40,      // 보조광 — 그림자 속이 새까매지지 않게
+  ledSpill: 0.55,  // LED가 벽에 번지는 푸른 빛(네온이 되면 안 된다)
+});
+
+/** 주광이 전체 빛에서 차지하는 비중 = 그림자의 진하기. */
+export function keyShare(lights = LIGHTS) {
+  const total = lights.hemi + lights.ceiling + lights.key + lights.fill;
+  return total > 0 ? lights.key / total : 0;
+}
+
+/**
+ * 그림자 지도 한 변(픽셀). 무작정 키우면 메모리만 먹는다.
+ *   장면이 정적이라 매 프레임 다시 굽지 않으므로 2048이면 충분하고,
+ *   화면 배율이 높은(=픽셀이 이미 많은) 기기에서는 1024로 낮춘다.
+ */
+export function shadowMapSize(dpr = 1) {
+  return dpr > 1.5 ? 1024 : 2048;
+}
+
+export const CEILING_THK_MM = 120;   // 천장 슬래브 두께(보이는 건 아랫면뿐)
+export const GRID_LIFT_MM = 3;       // 바닥 격자를 바닥에서 띄우는 높이(지글거림 방지)
+
+// 방 '안'에서 바라보는 시점 — 천장이 보여야 하는 프리셋.
+//   아이소·평면도는 방을 밖에서 내려다보므로 천장이 있으면 안이 안 보인다.
+export const INTERIOR_PRESETS = Object.freeze(['interior', 'corner-l', 'front', 'corner-r']);
+
+/** 카메라가 방 안(벽 사이·천장 아래)에 있는가. 저장해 둔 커스텀 시점을 판정할 때 쓴다. */
+export function cameraInsideRoom(position, room, margin = 0.3) {
+  if (!position || !room) return false;
+  const [x, y, z] = position;
+  return x > -margin && x < room.W + margin
+      && z > -margin && z < room.D + margin
+      && y > 0 && y < room.H + margin;
+}
+
+/**
+ * 천장을 보여야 하는가.
+ *   · 평면도(정사투영)는 무조건 감춘다 — 위에서 보는데 천장이 있으면 방이 안 보인다.
+ *   · 기본 프리셋은 목록으로 정한다(실내 4종만 보임).
+ *   · 저장해 둔 커스텀 시점은 카메라가 방 안에 있는지로 판단한다.
+ */
+export function showCeiling({ presetId, ortho, position, room } = {}) {
+  if (ortho) return false;
+  if (presetId && presetId !== 'custom') return INTERIOR_PRESETS.includes(presetId);
+  return cameraInsideRoom(position, room);
+}
 
 export const CAMERA_PRESETS = Object.freeze([
   { id: 'interior', label: '실내',      ortho: false },

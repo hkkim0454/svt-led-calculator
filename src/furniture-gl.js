@@ -15,11 +15,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=376';
+import { u } from './gl-model.js?v=379';
+import { createMaterialLibrary } from './materials-gl.js?v=379';
+import { PART_MATERIAL } from './materials.js?v=379';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=376';
+} from './furniture-assets.js?v=379';
 
 const DEG = Math.PI / 180;
 
@@ -143,10 +145,18 @@ export function buildFurnitureGroup(items) {
   g.name = 'furniture';
   if (!items || !items.length) return g;
 
-  // 색마다 재질 하나. 같은 색을 쓰는 부품은 재질을 공유한다.
+  // 색은 팔레트에서, 질감(거칠기·금속성·요철)은 재질 라이브러리에서 가져온다.
+  //   부품 종류 → 재질 프리셋 대응표는 materials.js(PART_MATERIAL)에 있다.
+  //   같은 프리셋 + 같은 색이면 재질 하나를 돌려 쓰므로 그리기 호출이 늘지 않는다.
+  const lib = createMaterialLibrary();
   const mat = {};
   for (const [k, c] of Object.entries(FURNITURE_COLORS)) {
-    mat[k] = new THREE.MeshStandardMaterial({ color: c, roughness: k === 'monitor' ? 0.4 : 0.9, metalness: 0 });
+    const token = PART_MATERIAL[k];
+    if (token) { mat[k] = lib.get(token, c); continue; }
+    // 7종 프리셋에 없는 둘 — 모니터 화면(살짝 반들)과 잎(무광)은 여기서 직접 만든다.
+    mat[k] = new THREE.MeshStandardMaterial({
+      color: c, roughness: k === 'monitor' ? 0.35 : 0.9, metalness: k === 'monitor' ? 0.1 : 0,
+    });
   }
 
   // ── 반복 가구는 InstancedMesh 로 묶는다 ──
@@ -210,7 +220,7 @@ export function buildFurnitureGroup(items) {
   }
 
   // 공용 자원은 Group에 매달아 두었다가 버릴 때 함께 반납한다.
-  g.userData.shared = { boxGeo, cylGeo, materials: Object.values(mat) };
+  g.userData.shared = { boxGeo, cylGeo, materials: Object.values(mat), lib };
   return g;
 }
 
@@ -222,5 +232,6 @@ export function disposeFurniture(g) {
   if (sh) {
     sh.boxGeo.dispose(); sh.cylGeo.dispose();
     for (const m of sh.materials) m.dispose();
+    sh.lib?.dispose();   // 재질 라이브러리가 만든 무늬(normal map)까지 반납
   }
 }
