@@ -109,6 +109,7 @@ export const PART_MATERIAL = Object.freeze({
   loungeSeat: 'fabricChair', loungeBack: 'fabricChair', loungeLeg: 'metalFrame',
   collabTop: 'woodTable', collabLeg: 'metalFrame',
   standBase: 'metalFrame', standPole: 'metalFrame',
+  bodySkin: 'paintedWall', bodyTop: 'fabricChair', bodyLeg: 'fabricChair',
   rug: 'carpetTile',
   riserTop: 'stageSurface', riserSide: 'stageSurface',
   plantPot: 'paintedWall',

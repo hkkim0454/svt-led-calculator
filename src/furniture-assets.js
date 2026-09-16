@@ -35,6 +35,8 @@ export const FURNITURE_COLORS = Object.freeze({
   loungeSeat: '#d5dfe6', loungeBack: '#d5dfe6', loungeLeg: '#b3bcc8',
   collabTop: '#efe9df', collabLeg: '#aeb8c4',
   standBase: '#9ba6b4', standPole: '#aeb8c4', standPanel: '#1b2532',
+  // 객석 착석 인원 — 실루엣만 읽히면 되므로 채도를 낮춘다(좌석·LED보다 튀면 안 된다).
+  bodySkin: '#d9c3b0', bodyTop: '#8fa0b5', bodyLeg: '#5f6b7d',
   rug: '#c1c9d5',
   // 객석 단(계단). 윗면은 바닥보다 밝게, **옆면(챌판)은 뚜렷하게 어둡게** —
   //   옆면이 바닥색과 비슷하면 단 경계가 안 보여 그냥 평평한 단 하나로 읽힌다.
@@ -92,6 +94,11 @@ export const DIMS = Object.freeze({
   // 이동식 디스플레이 스탠드 — 바퀴 달린 이동형 화면.
   mobileStand: Object.freeze({ baseW: 760, baseD: 560, baseH: 70, poleW: 110, panelY: 1280,
     panelW: 1150, panelH: 660, panelThk: 65 }),
+  // 앉은 사람 — 축척 비교가 아니라 '객석이 찼을 때의 시야'를 보기 위한 것이라 아주 단순하게.
+  //   좌판 윗면 기준 앉은키 약 880mm(머리 끝). 눈높이는 viewangle.js의 SEATED_EYE_MM(700)과 맞춘다.
+  seatedPerson: Object.freeze({ hip: 60, torsoH: 500, torsoW: 360, torsoD: 240,
+    shoulderW: 450, shoulderH: 110, neckR: 55, neckH: 70, headR: 100,
+    thighL: 380, legW: 130 }),
   // 부속물
   plant: Object.freeze({ potR: 170, potH: 300, leafH: 520 }),
   rug: Object.freeze({ h: 14 }),
@@ -103,6 +110,8 @@ const box = (kind, dx, y, dz, w, h, d, tiltX) => {
   return p;
 };
 const cyl = (kind, dx, y, dz, r, h) => ({ kind, shape: 'cyl', dx, y, dz, r, h });
+// 구 — 머리처럼 둥근 것에만 쓴다(저폴리 12×8 분할 하나를 공유한다).
+const sph = (kind, dx, y, dz, r) => ({ kind, shape: 'sph', dx, y, dz, r });
 
 // ── FurnitureFactory ────────────────────────────────────────────────────────
 // 각 create*()는 '부품 목록'을 돌려준다. 같은 자산의 부품 목록은 항상 같으므로
@@ -312,6 +321,30 @@ export function createMobileStand() {
   ];
 }
 
+/**
+ * 앉은 사람 — 허벅지 + 몸통 + 머리 + 정강이. 4~5부품짜리 실루엣이다.
+ * 좌석 위(좌판 윗면 = seatTop)에 얹히므로 좌판 높이를 받는다.
+ */
+export function createSeatedPerson(seatTop = 440) {
+  const S = DIMS.seatedPerson;
+  const base = seatTop + S.hip;                  // 엉덩이 윗면
+  const torsoTop = base + S.torsoH;
+  return [
+    // 허벅지 — 앞(-Z)으로 뻗는다. 좌석은 rotY=0일 때 -Z(LED)를 바라본다.
+    box('bodyLeg', 0, base - 40, -S.thighL / 2 + 60, S.torsoW - 40, 150, S.thighL),
+    // 정강이 — 무릎에서 바닥까지. 발이 바닥에 닿아야 떠 보이지 않는다.
+    box('bodyLeg', 0, (seatTop + 40) / 2, -S.thighL + 80, S.legW * 2.1, seatTop + 40, S.legW),
+    // 몸통 — 등받이에 기대 살짝 젖혀 앉는다.
+    box('bodyTop', 0, base + S.torsoH / 2, 40, S.torsoW, S.torsoH, S.torsoD, 8),
+    // 어깨 — 몸통보다 넓고 납작하게. 이것이 있어야 '통'이 아니라 사람으로 읽힌다.
+    box('bodyTop', 0, torsoTop - S.shoulderH / 2 + 20, 55, S.shoulderW, S.shoulderH, S.torsoD - 20, 8),
+    // 목
+    cyl('bodySkin', 0, torsoTop + S.neckH / 2, 70, S.neckR, S.neckH),
+    // 머리 — 구. 원기둥으로 만들면 드럼통처럼 보인다.
+    sph('bodySkin', 0, torsoTop + S.neckH + S.headR * 0.92, 78, S.headR),
+  ];
+}
+
 /** 상황실 콘솔 — 이번 단계에서는 형상 변경 없음(기존 값 그대로). */
 export function createControlConsole(w = 1800, d = 900) {
   const S = DIMS.controlConsole;
@@ -352,6 +385,7 @@ export const FURNITURE_ASSETS = Object.freeze({
   stool: { id: 'stool', label: '스툴', instanced: true, sized: false, build: () => createStool() },
   loungeChair: { id: 'loungeChair', label: '라운지 체어', instanced: true, sized: false, build: () => createLoungeChair() },
   collabTable: { id: 'collabTable', label: '협업 테이블', instanced: true, sized: true, build: it => createCollabTable(it.w) },
+  seatedPerson: { id: 'seatedPerson', label: '착석 인원', instanced: true, sized: false, build: () => createSeatedPerson(DIMS.auditoriumChair.seatTop) },
   mobileStand: { id: 'mobileStand', label: '이동식 디스플레이', instanced: true, sized: false, build: () => createMobileStand() },
   conferenceTable: { id: 'conferenceTable', label: '회의 테이블', instanced: false, sized: true, spec: it => createConferenceTable(it) },
 });
@@ -381,6 +415,7 @@ export function assetFor(item) {
     case 'lounge': return 'loungeChair';
     case 'collabTable': return 'collabTable';
     case 'mobileStand': return 'mobileStand';
+    case 'seated': return 'seatedPerson';
     case 'table': return 'conferenceTable';
     default: return null;
   }
@@ -400,5 +435,7 @@ export function assetKey(item) {
   const id = assetFor(item);
   const a = FURNITURE_ASSETS[id];
   if (!a || !a.instanced) return null;
-  return a.sized ? `${id}:${Math.round(item.w || 0)}x${Math.round(item.d || 0)}` : id;
+  const base = a.sized ? `${id}:${Math.round(item.w || 0)}x${Math.round(item.d || 0)}` : id;
+  // 시야각 등급이 붙어 있으면 등급별로 나눈다 — 색이 다르면 같은 덩어리로 못 그리기 때문이다.
+  return item.grade ? `${base}#${item.grade}` : base;
 }
