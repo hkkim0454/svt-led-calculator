@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v361) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v363) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
@@ -1021,6 +1021,13 @@ body.pv3dOpen .cols{grid-template-columns:1fr}
 .pv3dTools .tiny{background:rgba(255,255,255,.92);border:1px solid var(--line);
   box-shadow:0 2px 8px rgba(30,40,55,.08);backdrop-filter:blur(6px)}
 .pv3dTools .tiny[hidden]{display:none}
+
+/* 미니맵 — 지금 어디서 보고 있는지. 캔버스 오른쪽 아래에 작게. */
+.pv3dMini{position:absolute;right:12px;bottom:12px;width:112px;height:112px;z-index:2;
+  border:1px solid var(--line);border-radius:12px;
+  background:rgba(255,255,255,.88);box-shadow:0 2px 10px rgba(30,40,55,.10);
+  backdrop-filter:blur(6px);pointer-events:none}
+@media(max-width:680px){ .pv3dMini{width:84px;height:84px;right:8px;bottom:8px} }
 /* .previewStage가 display:block이라 hidden 속성만으로는 안 숨는다 — 명시적으로 지정. */
 .previewStage[hidden],.stage3d[hidden]{display:none}
 /* 데스크톱에서 정면 뷰와 비슷한 존재감을 갖도록 높이를 키운다(1440~1600px 폭에서 약 620~640px).

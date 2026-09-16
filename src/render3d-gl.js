@@ -18,13 +18,13 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=361';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=363';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
-} from './gl-model.js?v=361';
+} from './gl-model.js?v=363';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -254,7 +254,11 @@ function buildRoomGroup(model, shared) {
 
   g.add(furniture);
 
-  // ⑦ 치수 보조선 — 글자는 HTML 오버레이가 그리고, 선만 씬에 둔다.
+  // ⑦ 사람 — 실제 키로. 있으면 세운다.
+  const person = buildPerson(model.person);
+  if (person) g.add(person);
+
+  // ⑧ 치수 보조선 — 글자는 HTML 오버레이가 그리고, 선만 씬에 둔다.
   //    (3D 문자를 만들면 각도마다 읽기 어렵고 무거워진다)
   if (model.show?.dims !== false) g.add(buildDimLines(model));
 
@@ -271,6 +275,26 @@ function isFlatView(m, cam, h) {
   _f1.set(led.x, led.y, led.depth).project(cam);
   _f2.set(led.x, led.y + 1, led.depth).project(cam);   // 1 m 위
   return Math.abs(_f2.y - _f1.y) * h * 0.5 < 8;        // 화면에서 8px 미만이면 '납작'
+}
+
+// ── 사람(축척 비교) ─────────────────────────────────────────────────────────
+// 실제 키(mm)로 세워 LED 크기를 한눈에 가늠하게 한다. 화면의 주인공이 아니므로
+// 그림자·윤곽 같은 장식은 붙이지 않는다. Sprite 는 항상 카메라를 향해 서므로
+// 어느 시점에서도 사람이 옆으로 눕지 않는다.
+function buildPerson(person) {
+  if (!person || !person.img || !person.img.complete || !person.img.naturalWidth) return null;
+  const tex = new THREE.Texture(person.img);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sp = new THREE.Sprite(mat);
+  const h = u(person.heightMm);
+  const w = h * (person.img.naturalWidth / person.img.naturalHeight);
+  sp.scale.set(w, h, 1);
+  sp.position.set(u(person.x), h / 2, u(person.z));   // 발이 바닥에 닿게
+  sp.name = 'person';
+  sp.userData.tex = tex;
+  return sp;
 }
 
 // ── 치수 ────────────────────────────────────────────────────────────────────
@@ -372,10 +396,29 @@ export function createViewerGL(canvas, { onError } = {}) {
     // 벽은 방 안쪽을 향한 한쪽 면만 그린다. 옆으로 크게 돌아 방 밖으로 나가면 벽이
     //   사라져 그림이 깨지므로, 실내 시점에서는 LED를 바라보는 범위 안에서만 돌게 막는다.
     //   (아이소·평면도는 원래 방 밖에서 보는 시점이라 이 제한을 풀어 준다)
+    // 조작 규칙 — 왼쪽 끌기=회전, 휠=확대, 오른쪽 끌기=이동.
+    //   Shift+왼쪽 끌기도 이동이 되도록 아래에서 버튼 배정을 바꿔 준다.
+    c.mouseButtons = {
+      LEFT: THREE.MOUSE.ROTATE,
+      MIDDLE: THREE.MOUSE.DOLLY,
+      RIGHT: THREE.MOUSE.PAN,
+    };
+    c.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     c.addEventListener('change', () => { needsRender = true; });
     c.addEventListener('start', () => { userMoved = true; });
     return c;
   }
+
+  // Shift 를 누르고 있는 동안에는 왼쪽 끌기를 '이동'으로 바꾼다.
+  //   (OrbitControls 자체에는 이 기능이 없어 버튼 배정을 갈아 끼운다)
+  const setLeftButton = mode => { if (controls) controls.mouseButtons.LEFT = mode; };
+  const onKeyDown = e => { if (e.key === 'Shift') setLeftButton(THREE.MOUSE.PAN); };
+  const onKeyUp = e => { if (e.key === 'Shift') setLeftButton(THREE.MOUSE.ROTATE); };
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  // 캔버스 위에서는 오른쪽 버튼 메뉴가 뜨지 않게(오른쪽 끌기 = 이동이므로)
+  const onCtx = e => e.preventDefault();
+  canvas.addEventListener('contextmenu', onCtx);
 
   // 프리셋 성격에 맞춰 회전 범위를 조정한다.
   function applyControlLimits(presetId) {
@@ -422,6 +465,65 @@ export function createViewerGL(canvas, { onError } = {}) {
     w: Math.max(1, canvas.clientWidth || canvas.parentElement?.clientWidth || 800),
     h: Math.max(1, canvas.clientHeight || 460),
   });
+
+  // ── 미니맵 ────────────────────────────────────────────────────────────────
+  // 지금 어디서 보고 있는지만 알면 된다 — 방·LED·좌석 영역·카메라 방향까지.
+  // 자세한 도면은 '평면도' 프리셋이 담당하므로 여기서는 더 그리지 않는다.
+  const mini = (() => {
+    const host = canvas.parentElement;
+    if (!host) return { update() {}, dispose() {} };
+    const el = document.createElement('canvas');
+    el.className = 'pv3dMini';
+    el.width = 128; el.height = 128;
+    host.appendChild(el);
+    const _p = new THREE.Vector3(), _t = new THREE.Vector3();
+    return {
+      update(m, cam, ctrls) {
+        if (!m) { el.style.display = 'none'; return; }
+        el.style.display = '';
+        const { room, led, items } = m;
+        const c = el.getContext('2d');
+        const W = el.width, H = el.height, PAD = 10;
+        const k = Math.min((W - PAD * 2) / room.W, (H - PAD * 2) / room.D);
+        const ox = (W - room.W * k) / 2, oy = (H - room.D * k) / 2;
+        const X = x => ox + x * k, Z = z => oy + z * k;   // 방 좌표 → 미니맵 px (위 = LED 벽)
+        c.clearRect(0, 0, W, H);
+        // 방
+        c.fillStyle = 'rgba(255,255,255,.92)';
+        c.strokeStyle = 'rgba(120,130,145,.45)'; c.lineWidth = 1;
+        c.beginPath(); c.rect(X(0), Z(0), room.W * k, room.D * k); c.fill(); c.stroke();
+        // 좌석 영역(가구가 놓인 범위)
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+        for (const it of items || []) {
+          if (it.type !== 'seat' && it.type !== 'chair' && it.type !== 'desk' && it.type !== 'console') continue;
+          const x = u(it.x), z = u(it.z);
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (z < z0) z0 = z; if (z > z1) z1 = z;
+        }
+        if (x1 > x0) {
+          c.fillStyle = 'rgba(143,174,156,.28)';
+          c.fillRect(X(x0 - 0.3), Z(z0 - 0.3), (x1 - x0 + 0.6) * k, (z1 - z0 + 0.6) * k);
+        }
+        // LED — 벽(위쪽)에 두꺼운 선
+        c.strokeStyle = '#16233a'; c.lineWidth = 3; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(X(led.x), Z(0) + 1.5); c.lineTo(X(led.x + led.w), Z(0) + 1.5); c.stroke();
+        // 카메라 — 위치 점 + 보는 방향
+        cam.getWorldPosition(_p);
+        _t.copy(ctrls ? ctrls.target : new THREE.Vector3(room.W / 2, 0, 0));
+        const cxp = X(THREE.MathUtils.clamp(_p.x, -room.W * 0.6, room.W * 1.6));
+        const czp = Z(THREE.MathUtils.clamp(_p.z, -room.D * 0.6, room.D * 1.6));
+        const a = Math.atan2(X(_t.x) - cxp, Z(_t.z) - czp);
+        // 시야 부채꼴
+        c.save(); c.translate(cxp, czp); c.rotate(-a);
+        c.fillStyle = 'rgba(18,80,224,.16)';
+        c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 26, -Math.PI / 2 - 0.42, -Math.PI / 2 + 0.42); c.closePath(); c.fill();
+        c.restore();
+        c.fillStyle = '#1250E0';
+        c.beginPath(); c.arc(cxp, czp, 3.2, 0, Math.PI * 2); c.fill();
+      },
+      dispose() { el.remove(); },
+    };
+  })();
 
   // ── 치수 라벨(HTML 오버레이) ────────────────────────────────────────────────
   // 3D 문자는 각도마다 읽기 어렵고 무겁다. 캔버스 위에 HTML 알약을 띄우고
@@ -632,6 +734,7 @@ export function createViewerGL(canvas, { onError } = {}) {
   function disposeGroup(gr) {
     if (!gr) return;
     disposeFurniture(gr.getObjectByName('furniture'));
+    gr.getObjectByName('person')?.userData.tex?.dispose();
     gr.traverse(o => {
       o.geometry?.dispose?.();
       const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
@@ -653,6 +756,7 @@ export function createViewerGL(canvas, { onError } = {}) {
       renderer.render(scene, camera);
       const { w, h } = size();
       labels.update(model, camera, w, h);
+      mini.update(model, camera, controls);
     }
   }
 
@@ -688,6 +792,7 @@ export function createViewerGL(canvas, { onError } = {}) {
       needsRender = true;
       const { w, h } = size();
       labels.update(model, camera, w, h);
+      mini.update(model, camera, controls);
     },
     /** 시점 프리셋 선택. */
     setPreset(id, opts) { applyPreset(id, opts); },
@@ -695,8 +800,10 @@ export function createViewerGL(canvas, { onError } = {}) {
     stepPreset(step) { applyPreset(stepPreset(presetId, step)); },
     /** 지금 프리셋 id. */
     getPreset() { return presetId; },
-    /** 사용자가 돌려 둔 시점을 버리고 지금 프리셋 자리로 돌아간다('맞춤'). */
-    resetView() { applyPreset(presetId); },
+    /** 맞춤(Fit) — 지금 프리셋은 그대로 두고, 그 프리셋의 framing 으로 되돌린다. */
+    fitView() { applyPreset(presetId); },
+    /** 초기화(Reset) — 기본 시점(실내)으로 돌아간다. */
+    resetView() { applyPreset(DEFAULT_PRESET); },
     resize,
     /** 지금 카메라 상태(디버깅·검증용). */
     getView() {
@@ -720,12 +827,16 @@ export function createViewerGL(canvas, { onError } = {}) {
       cancelAnimationFrame(raf);
       ro?.disconnect();
       window.removeEventListener('resize', resize);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      canvas.removeEventListener('contextmenu', onCtx);
       controls?.dispose();
       disposeGroup(group);
       shared.glowTex.dispose();
       gridTexCache?.dispose();
       screenTexCache?.dispose();
       labels.dispose();
+      mini.dispose();
       renderer.dispose();
     },
   };

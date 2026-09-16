@@ -60,11 +60,13 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @param items room-presets의 배치 결과(STEP 1에서는 무대만 읽는다)
  * @returns { room, led, stage }  전부 unit
  */
-export function buildGLModel({ space, led, items, show }) {
+export function buildGLModel({ space, led, items, show, person }) {
   const room = { W: u(space.W), H: u(space.H), D: u(space.D) };
   const stageItem = (items || []).find(it => it && it.type === 'stage');
   return {
     room,
+    // 사람(축척 비교) — 화면이 고른 인물·키·자리를 그대로 받는다(여기서 위치를 정하지 않는다).
+    person: person || null,
     // 표시 토글(치수·바닥 격자·포인트 벽). 화면 상태를 그대로 받는다.
     show: {
       dims: show?.dims !== false,

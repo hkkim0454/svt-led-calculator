@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=361';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=361';
-import { createViewerGL } from './render3d-gl.js?v=361';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=361';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=363';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=363';
+import { createViewerGL } from './render3d-gl.js?v=363';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=363';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -840,6 +840,7 @@ function renderPreview3D() {
     },
     items: lay.items,
     show: { ...pv3dShow },
+    person: personFor3D(r, mount, sW, D, lay.items),
   }));
 
   // 배치 결과 안내 — 실제 놓인 좌석 수와, 방이 좁아 줄였을 때의 알림.
@@ -972,6 +973,16 @@ function buildInspector() {
     const el = bar?.querySelector(id);
     if (el) tools.appendChild(el);
   }
+  // '초기화'는 기본 시점(실내)으로 돌아가는 버튼 — '맞춤'(지금 시점 재정렬)과 역할이 다르다.
+  if (tools && !$('#btn3dHome')) {
+    const home = document.createElement('button');
+    home.type = 'button'; home.id = 'btn3dHome'; home.className = 'tiny ghost';
+    home.title = '기본 시점(실내)으로 돌아가기';
+    home.textContent = '초기화';
+    home.addEventListener('click', () => { viewer3d?.resetView(); syncPresetSel(); });
+    tools.insertBefore(home, tools.firstChild);
+  }
+
   // 배치 안내(좌석 수·자동 축소)는 패널 맨 아래에
   const note = $('#room3dNote');
   if (note) box.appendChild(note);
@@ -992,11 +1003,21 @@ function applyStagedUi() {
   // 3D에서는 위쪽 가로 막대를 쓰지 않는다 — 컨트롤은 전부 왼쪽 패널·캔버스 위로 옮겨 갔다.
   //   안내 문구(#room3dNote)만 막대에 남겨 보여 준다.
   show($('#pv3dBar'), false);
-  show($('[data-t3d="person"]'), false);   // 사람은 다음 단계
-  show($('#person3dSel'), false);
+  show($('[data-t3d="person"]'), true);     // 사람 — STEP 6
+  show($('#person3dSel'), true);
   show($('#btn3dPng'), false);             // PNG 저장은 다음 단계
+  syncPerson3dSel();
   syncSizeProxy();
   syncPresetButtons();
+}
+
+// 3D에 세울 사람 — 정면 뷰와 같은 인물·같은 키를 쓴다(pvPerson · PEOPLE).
+//   자리는 room-presets 의 personSpot 이 정한다(LED 옆 빈 곳). 여기서 새로 정하지 않는다.
+function personFor3D(r, mount, sW, D, items) {
+  if (!pv3dShow.person) return null;
+  const who = PEOPLE[pvPerson] || PEOPLE['go-youn-jung_01'];
+  const spot = personSpot({ W: sW, D }, { x: r.marginW, w: r.actualW, h: r.actualH, y: mount }, items);
+  return { x: spot.x, z: spot.z, heightMm: who.hMM, img: person3dImage() };
 }
 
 // 공간 타입 선택 + 그 타입의 옵션 입력칸을 그린다(타입마다 옵션이 다르므로 매번 새로 만든다).
@@ -1078,8 +1099,10 @@ $('#roomOpts')?.addEventListener('input', e => {
 });
 $('#roomOpts')?.addEventListener('change', () => renderRoomOptions());
 
-// 3D 표시 토글(치수·바닥 격자·포인트 벽)
-$('#pv3dBar')?.addEventListener('click', e => {
+// 3D 표시 토글(사람·치수·바닥 격자·포인트 벽).
+//   버튼은 왼쪽 패널로 '옮겨' 가므로(STEP 5) 특정 부모에 위임하면 끊긴다.
+//   문서 전체에 걸어 두면 어디로 옮겨도 계속 동작한다.
+document.addEventListener('click', e => {
   const b = e.target.closest('button[data-t3d]'); if (!b) return;
   const k = b.dataset.t3d;
   pv3dShow[k] = !pv3dShow[k];
@@ -1097,7 +1120,7 @@ $('#cubeView')?.addEventListener('change', () => {
   presetId = cameraPreset($('#cubeView').value).id;
   viewer3d?.setPreset(presetId);
 });
-$('#btn3dReset')?.addEventListener('click', () => viewer3d?.resetView());
+$('#btn3dReset')?.addEventListener('click', () => viewer3d?.fitView());
 $('#btn3dPng')?.addEventListener('click', () => {
   const url = viewer3d?.toPNG(3);   // 제안서·인쇄용 3배 해상도
   if (!url) { alert('먼저 3D 뷰를 표시한 뒤 저장하세요.'); return; }
