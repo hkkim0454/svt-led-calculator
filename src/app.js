@@ -1991,6 +1991,27 @@ function vpMfrFilterHTML(ranked) {
   const reset = anyLocked ? `<button type="button" class="vpMfrReset" data-mfrlock="__all__" title="모든 제조사 잠금 해제">전체 표시</button>` : '';
   return `<div class="vpMfrFilter"><span class="vpMfrFilterLab">제조사 필터 <span class="muted-note">— 눌러서 숨김/표시</span></span><div class="vpMfrChips">${chips}${reset}</div></div>`;
 }
+// 제품 '크기' 기준값 — 최대 4K 입력(있으면), 없으면 슬롯 수 합. 제품 라인업의 소형→대형 순서와 일치.
+function vpSizeKey(p) {
+  const i = p.inputs || {}, s = p.slots || {};
+  if (i.maxIndependent4k != null) return i.maxIndependent4k;
+  return (s.maxInputBoards || 0) + (s.maxOutputBoards || 0);
+}
+// 표시 순서 정렬: (1) 등급 순 유지 → (2) 같은 제조사끼리 묶음(각 등급 내 추천 우선순위 순) → (3) 작은 것부터.
+//   rankProcessors의 판정·순위는 그대로 두고, 화면 나열 순서만 재배치한다(계산 로직 무수정).
+function sortVpForDisplay(items) {
+  const gradeIdx = { '권장': 0, '적합': 1, '조건부 적합': 2, '한계 구성': 3, '부적합': 4 };
+  const mfrFirst = new Map();   // 등급별 제조사 첫 등장 위치(추천 우선순위 보존)
+  items.forEach((it, idx) => { const k = `${it.label}|${it.proc.manufacturer}`; if (!mfrFirst.has(k)) mfrFirst.set(k, idx); });
+  return items.map((it, idx) => ({ it, idx })).sort((a, b) => {
+    const ga = gradeIdx[a.it.label] ?? 9, gb = gradeIdx[b.it.label] ?? 9; if (ga !== gb) return ga - gb;
+    const ma = mfrFirst.get(`${a.it.label}|${a.it.proc.manufacturer}`), mb = mfrFirst.get(`${b.it.label}|${b.it.proc.manufacturer}`); if (ma !== mb) return ma - mb;
+    const sa = vpSizeKey(a.it.proc), sb = vpSizeKey(b.it.proc); if (sa !== sb) return sa - sb;   // 작은 것부터
+    const fa = a.it.proc.family || '', fb = b.it.proc.family || ''; if (fa !== fb) return fa.localeCompare(fb);
+    const na = String(a.it.proc.model), nb = String(b.it.proc.model); if (na !== nb) return na.localeCompare(nb, undefined, { numeric: true });
+    return a.idx - b.idx;   // 완전 동률이면 원래 순서 유지(안정)
+  }).map(x => x.it);
+}
 function renderProcessors() {
   const auto = $('#vpAuto'), out = $('#vpResult');
   if (!auto || !out) return;
@@ -2033,7 +2054,9 @@ function renderProcessors() {
   </div>`;
   const ranked = rankProcessors(PROCESSORS, req);
   // 제조사 잠금 필터: 잠근 제조사 제품은 목록에서 제외(visible). 칩 행은 전체(ranked)에서 만든다.
-  const visible = ranked.filter(x => !vpLockedMfrs.has(x.proc.manufacturer));
+  const visibleRaw = ranked.filter(x => !vpLockedMfrs.has(x.proc.manufacturer));
+  // 표시 정렬: 등급 그룹 유지 → 같은 제조사끼리 묶고(추천 우선순위 순) → 제품을 작은 것부터 큰 것 순으로(이사 요청 2026-09-16).
+  const visible = sortVpForDisplay(visibleRaw);
   const good = visible.filter(x => x.label !== '부적합');
   const bad = visible.filter(x => x.label === '부적합');
   const anyGoodBeforeLock = ranked.some(x => x.label !== '부적합');   // 잠금 때문에 비었는지 구분용
