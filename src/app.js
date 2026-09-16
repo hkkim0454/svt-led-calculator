@@ -1675,8 +1675,16 @@ function vpSlotCardHTML(item) {
   return `<div class="vpCards">
     <div class="vpCardGrid">${inS}${outS}</div>
     <div class="vpChips">${statusChip}${remChip('입력', inRem)}${remChip('출력', outRem)}</div>
+    ${aquilonCardNote(p)}
     ${note}
   </div>`;
+}
+// Aquilon(아날로그 웨이) 안내 — 공식 브로셔(2026-04) 기준: 입출력 카드는 커넥터 선택형 필드 스왑 카드이며
+//   4K60p를 single·double·quad(기본 4K 4채널)로 구성. 4K 출력 1개는 독립 FHD 4개로 분할 가능(브로셔 명시).
+function aquilonCardNote(p) {
+  return (p.manufacturer === 'Analog Way' && p.family === 'Aquilon')
+    ? '<div class="ioNote">입출력 카드는 커넥터(HDMI · DP · 3G/12G-SDI · SFP+/NDI 등)를 고르는 <b>필드 스왑형</b>이며, 4K60p를 1·2·4채널(기본 <b>4K 4채널</b>)로 구성합니다.</div>'
+    : '';
 }
 // 고정형(preconfigured) 제품 카드 본문 — 입력 커넥터 구성 + 입출력 수량.
 function vpFixedCardHTML(item) {
@@ -1697,9 +1705,12 @@ function vpFixedCardHTML(item) {
     ? `<div class="ioGroup"><div class="ioHd">멀티뷰어 <span class="ioSub">Dedicated</span></div>
       <div class="connRow"><span class="connChip mv"><span class="cLbl">${esc(o.activeConnector || 'HDMI 2.0')}</span><span class="cCnt">×${mv}</span></span></div></div>`
     : '';
-  const note = p.fieldSwappableCards
-    ? '<div class="ioNote">프리컨피규어드 기본 장착 카드 기준이며, 실제 구성은 I/O 카드 교체에 따라 달라질 수 있습니다.</div>'
-    : '';
+  // Aquilon(RS 등)은 4K 4채널 카드·커넥터 선택형 안내를 우선 표기. 그 외 스왑형은 기존 일반 안내.
+  const note = (p.manufacturer === 'Analog Way' && p.family === 'Aquilon')
+    ? aquilonCardNote(p) + '<div class="ioNote">아래 커넥터는 프리컨피규어드 기본 구성이며, 카드 교체로 종류·수량을 바꿀 수 있습니다.</div>'
+    : (p.fieldSwappableCards
+      ? '<div class="ioNote">프리컨피규어드 기본 장착 카드 기준이며, 실제 구성은 I/O 카드 교체에 따라 달라질 수 있습니다.</div>'
+      : '');
   return `<div class="vpFixed">${inGroup}${outGroup}${mvGroup}${note}</div>`;
 }
 // Edge-Blending(와이드 캔버스) 지원 표시값. 판단 불가(전부 null)면 null → 행 미표시.
