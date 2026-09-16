@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v363) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v367) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
@@ -1032,12 +1032,42 @@ body.pv3dOpen .cols{grid-template-columns:1fr}
 .previewStage[hidden],.stage3d[hidden]{display:none}
 /* 데스크톱에서 정면 뷰와 비슷한 존재감을 갖도록 높이를 키운다(1440~1600px 폭에서 약 620~640px).
    태블릿은 44vw로 자연스럽게 450~520px, 모바일은 기존 높이를 그대로 유지한다. */
-.stage3d canvas{display:block;width:100%;height:clamp(360px,44vw,640px)}
-/* 태블릿: 패널을 줄여 캔버스를 지킨다 */
-@media(max-width:1100px){ .pv3dInspector{flex-basis:210px;max-width:210px;padding:10px} }
-@media(max-width:680px){ .stage3d canvas{height:clamp(260px,64vw,420px)} }
+/* 3D 뷰포트 캔버스만 지정한다 — 미니맵(.pv3dMini)도 canvas라 후손 선택자를 쓰면 함께 잡힌다. */
+#cv3d{display:block;width:100%;height:clamp(360px,44vw,640px)}
+
+/* 태블릿 — 패널을 줄여 캔버스를 지킨다 */
+@media(max-width:1100px){
+  .pv3dInspector{flex-basis:212px;max-width:212px;padding:10px}
+  .pv3dRow .pv3dField input[type=number]{flex-basis:64px;width:64px}
+}
+/* 좁은 화면 — 패널을 캔버스 위로 접어 올린다(서랍처럼 열고 닫는다).
+   패널이 옆에 남아 있으면 캔버스가 손바닥만 해진다. */
+@media(max-width:820px){
+  .stage3d{flex-direction:column;gap:8px}
+  .pv3dInspector{flex:0 0 auto;max-width:none;width:100%;max-height:none;overflow:visible}
+  .pv3dInspector .pv3dSec{display:none}
+  .stage3d.pv3dOpenPanel .pv3dInspector .pv3dSec{display:block}
+  /* 여는 버튼 — 패널 맨 위에 항상 보인다 */
+  .pv3dPanelToggle{display:flex;align-items:center;justify-content:space-between;width:100%;
+    font:inherit;font-size:12px;font-weight:700;color:var(--ink);
+    padding:8px 10px;border:1px solid var(--line);border-radius:10px;
+    background:var(--field-fill);cursor:pointer}
+  .pv3dPanelToggle::after{content:'▾';color:var(--muted);transition:transform .15s}
+  .stage3d.pv3dOpenPanel .pv3dPanelToggle::after{transform:rotate(180deg)}
+  /* 좁은 화면에서는 방 설정 안내가 길어지므로 줄바꿈 허용 */
+  .pv3dRow .pv3dField{flex-wrap:wrap}
+}
+/* 넓은 화면에서는 여는 버튼이 필요 없다 */
+@media(min-width:821px){ .pv3dPanelToggle{display:none} }
+
+@media(max-width:680px){
+  #cv3d{height:clamp(260px,64vw,420px)}
+  .pv3dPresetBar{bottom:8px;padding:2px}
+  .pv3dPresetBar button{font-size:11px;padding:5px 9px}
+  .pv3dTools{right:8px;top:8px}
+}
 /* 인쇄 시에도 캔버스가 그대로 나오도록(비트맵이라 별도 처리 불필요). */
-body.printing .stage3d canvas{height:420px}
+body.printing #cv3d{height:420px}
 
 /* ── 3D 치수 라벨(캔버스 위 HTML 오버레이) ────────────────────────────────
    3D 문자는 각도마다 읽기 어렵고 무겁다. 알약을 캔버스 위에 띄우고 좌표만

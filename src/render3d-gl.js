@@ -18,13 +18,13 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=363';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=367';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
-} from './gl-model.js?v=363';
+} from './gl-model.js?v=367';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -335,6 +335,29 @@ function buildDimLines(model) {
   return g;
 }
 
+// 치수 알약을 캔버스에 그린다(PNG 내보내기용). 화면의 .gl3dDim 과 같은 모양.
+function drawPillOnCanvas(c, x, y, text, key, k) {
+  c.font = `600 ${12 * k}px ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif`;
+  const w = c.measureText(text).width + 18 * k, h = 24 * k;
+  const left = x - w / 2, top = y - h / 2, r = h / 2;
+  c.save();
+  c.shadowColor = 'rgba(30,40,55,.10)'; c.shadowBlur = 8 * k; c.shadowOffsetY = 2 * k;
+  c.beginPath();
+  if (c.roundRect) c.roundRect(left, top, w, h, r); else c.rect(left, top, w, h);
+  c.fillStyle = key ? 'rgba(17,21,27,.92)' : 'rgba(255,255,255,.94)';
+  c.fill();
+  c.restore();
+  if (!key) {
+    c.strokeStyle = 'rgba(120,130,145,.20)'; c.lineWidth = 1 * k;
+    c.beginPath();
+    if (c.roundRect) c.roundRect(left, top, w, h, r); else c.rect(left, top, w, h);
+    c.stroke();
+  }
+  c.fillStyle = key ? '#ffffff' : '#151A21';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(text, x, y + 0.5 * k);
+}
+
 // ── 뷰어 ────────────────────────────────────────────────────────────────────
 /**
  * 캔버스 하나를 Three.js 3D 뷰어로 만든다.
@@ -346,7 +369,10 @@ function buildDimLines(model) {
 export function createViewerGL(canvas, { onError } = {}) {
   let renderer;
   try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    // preserveDrawingBuffer — PNG로 내보낼 때 그린 내용을 다시 읽을 수 있어야 한다.
+    renderer = new THREE.WebGLRenderer({
+      canvas, antialias: true, alpha: false, preserveDrawingBuffer: true,
+    });
   } catch (e) {
     onError?.(e);
     return null;
@@ -747,6 +773,9 @@ export function createViewerGL(canvas, { onError } = {}) {
   function loop() {
     if (disposed) return;
     raf = requestAnimationFrame(loop);
+    // 정면 뷰를 보고 있을 때(3D 캔버스가 화면에서 숨겨졌을 때)는 아무것도 하지 않는다.
+    //   숨은 캔버스를 매 프레임 갱신할 이유가 없다 — 배터리와 GPU를 아낀다.
+    if (canvas.offsetParent === null) return;
     const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
     const moving = stepTween(now);
     // controls.update()는 카메라가 실제로 움직였을 때만 true를 돌려준다(관성 포함).
@@ -817,6 +846,51 @@ export function createViewerGL(canvas, { onError } = {}) {
         orthoHeight: camera.isOrthographicCamera ? +(camera.top - camera.bottom).toFixed(4) : null,
         animating: !!tween,
       };
+    },
+    /**
+     * 지금 화면을 PNG 데이터URL로. scale=2~3이면 인쇄·제안서용 고해상도.
+     * 3D 장면 + 치수 라벨만 담는다 — 설정 패널·시점 버튼·미니맵은 들어가지 않는다.
+     */
+    toPNG(scale = 3) {
+      if (!model) return null;
+      const { w, h } = size();
+      const k = Math.max(1, Math.min(4, scale));
+      const prevPR = renderer.getPixelRatio();
+      // 캔버스의 CSS 크기는 그대로 두고(false) 그리기 해상도만 올린다.
+      renderer.setPixelRatio(1);
+      renderer.setSize(Math.round(w * k), Math.round(h * k), false);
+      renderer.render(scene, camera);
+
+      const out = document.createElement('canvas');
+      out.width = Math.round(w * k); out.height = Math.round(h * k);
+      const c = out.getContext('2d');
+      c.drawImage(renderer.domElement, 0, 0, out.width, out.height);
+
+      // 치수 라벨 — 화면과 같은 자리에 같은 모양으로 얹는다.
+      if (model.show?.dims !== false) {
+        let specs = dimSpecs(model);
+        if (isFlatView(model, camera, h)) specs = specs.filter(d => d.id === 'w');
+        const _a = new THREE.Vector3(), _b = new THREE.Vector3();
+        for (const d of specs) {
+          const mid = [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2, (d.a[2] + d.b[2]) / 2];
+          _a.set(mid[0], mid[1], mid[2]).project(camera);
+          if (_a.z > 1) continue;
+          _b.set(mid[0] + d.off[0] * 0.5, mid[1] + d.off[1] * 0.5, mid[2] + d.off[2] * 0.5).project(camera);
+          let dx = _b.x - _a.x, dy = -(_b.y - _a.y);
+          const len = Math.hypot(dx, dy);
+          if (!Number.isFinite(len) || len < 1e-4) { dx = 0; dy = -1; } else { dx /= len; dy /= len; }
+          const GAP = 22, padX = 46, padY = 20;
+          const x = clampPx((_a.x * 0.5 + 0.5) * w + dx * GAP, padX, w - padX) * k;
+          const y = clampPx((-_a.y * 0.5 + 0.5) * h + dy * GAP, padY, h - padY) * k;
+          drawPillOnCanvas(c, x, y, `${Math.round(d.mm).toLocaleString('ko-KR')}mm`, !!d.key, k);
+        }
+      }
+
+      // 화면 해상도로 되돌린다.
+      renderer.setPixelRatio(prevPR);
+      renderer.setSize(w, h, false);
+      needsRender = true;
+      return out.toDataURL('image/png');
     },
     /** 사용 가능한 프리셋 목록(화면이 버튼을 만들 때 쓴다). */
     presets: CAMERA_PRESETS,

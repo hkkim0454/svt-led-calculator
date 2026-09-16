@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=363';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=363';
-import { createViewerGL } from './render3d-gl.js?v=363';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=363';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=367';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=367';
+import { createViewerGL } from './render3d-gl.js?v=367';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=367';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -951,6 +951,17 @@ function buildInspector() {
     if (el) s3.body.appendChild(el);
   }
 
+  // 좁은 화면에서 패널을 접었다 펴는 버튼(넓은 화면에서는 CSS가 숨긴다).
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'pv3dPanelToggle';
+  toggle.textContent = '공간·좌석 설정';
+  toggle.addEventListener('click', () => {
+    $('#stage3d')?.classList.toggle('pv3dOpenPanel');
+    viewer3d?.resize();   // 패널 높이가 바뀌면 캔버스 크기도 다시 잡는다
+  });
+  box.appendChild(toggle);
+
   box.append(s1, s2, s3);
 
   // 시점 프리셋 — 캔버스 아래 가운데. 기존 선택칸(#cubeView)은 숨기고 값만 공유한다.
@@ -1005,7 +1016,7 @@ function applyStagedUi() {
   show($('#pv3dBar'), false);
   show($('[data-t3d="person"]'), true);     // 사람 — STEP 6
   show($('#person3dSel'), true);
-  show($('#btn3dPng'), false);             // PNG 저장은 다음 단계
+  show($('#btn3dPng'), true);              // PNG 저장 — FINAL STEP
   syncPerson3dSel();
   syncSizeProxy();
   syncPresetButtons();
@@ -1131,7 +1142,8 @@ $('#btn3dPng')?.addEventListener('click', () => {
   const blobUrl = URL.createObjectURL(new Blob([buf], { type: 'image/png' }));
   const a = document.createElement('a');
   const name = ($('#pvModelName')?.textContent || 'LED').trim().replace(/[^\w가-힣.-]+/g, '_');
-  a.href = blobUrl; a.download = `3D_${name}_${roomType(roomTypeId).label}.png`;
+  a.href = blobUrl;
+  a.download = `3D_${name}_${roomType(roomTypeId).label}_${cameraPreset(presetId).label}.png`;
   document.body.appendChild(a);
   a.click();
   a.remove();

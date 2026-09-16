@@ -213,12 +213,28 @@ test('interior — Reference A: 천장에서 내려다보는 느낌이 나면 �
   const dist = Math.hypot(p.target[0] - p.position[0], p.target[2] - p.position[2]);
   const pitchDeg = Math.atan2(dy, dist) * 180 / Math.PI;
   assert.ok(pitchDeg > -3, `시선이 ${pitchDeg.toFixed(1)}° 아래를 향한다 — 내려다보는 느낌`);
-  // LED가 화면의 주인공이어야 한다 — 다른 실내 프리셋보다 가깝다
-  const distOf = id => {
+  // LED가 화면의 주인공이어야 한다. '가장 가까운 카메라'가 아니라 '화면에서 가장 크게
+  //   잡히는 대상'이라는 뜻이다 — interior는 관람자처럼 좌석 뒤에 서므로 front보다
+  //   멀 수 있고, 대신 화각이 넓다. 그래서 '화면 가로에서 LED가 차지하는 비율'로 잰다.
+  const shareOf = id => {
     const q = presetPose(id, room10, 16 / 9);
-    return Math.hypot(q.position[0] - q.target[0], q.position[2] - q.target[2]);
+    const dist = Math.hypot(q.position[0] - q.target[0], q.position[2] - q.target[2]);
+    const hFov = 2 * Math.atan(Math.tan(q.fov * Math.PI / 360) * (16 / 9));
+    return room10.led.w / (2 * dist * Math.tan(hFov / 2));   // 화면 가로 대비 LED 비율
   };
-  assert.ok(distOf('interior') < distOf('front'), 'interior가 front보다 LED에 가까워야 한다');
+  const share = shareOf('interior');
+  assert.ok(share > 0.3, `interior에서 LED가 화면 가로의 ${(share * 100).toFixed(0)}%밖에 안 된다`);
+  assert.ok(share < 0.9, `interior에서 LED가 화면을 꽉 채워 공간이 안 보인다 (${(share * 100).toFixed(0)}%)`);
+});
+
+test('interior — 관람자처럼 좌석 뒤에 선다(앞줄 좌석·무대가 보이도록)', () => {
+  // 좌석 한가운데에 서면 앞줄 좌석이 화면 아래로 빠지고 무대도 잘린다.
+  const seats = room10.items.filter(it => it.type === 'seat' || it.type === 'chair');
+  assert.ok(seats.length, '검증 장면에 좌석이 있어야 한다');
+  const backZ = Math.max(...seats.map(it => it.z)) / 1000;   // mm → m
+  const p = presetPose('interior', room10, 16 / 9);
+  assert.ok(p.position[2] > backZ, `카메라 z=${p.position[2].toFixed(2)} 가 마지막 좌석 z=${backZ.toFixed(2)} 보다 앞에 있다`);
+  assert.ok(p.position[2] < room10.room.D, '그래도 방 안에 있어야 한다');
 });
 
 test('코너 — 좌우가 LED 중심을 기준으로 반대편에 선다', () => {

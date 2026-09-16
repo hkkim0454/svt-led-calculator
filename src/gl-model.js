@@ -135,6 +135,18 @@ function hFovOf(fovDeg, aspect) {
   return 2 * Math.atan(Math.tan(fovDeg * DEG / 2) * Math.max(0.3, aspect));
 }
 
+// 좌석(관람석·의자)이 놓인 가장 뒤쪽 깊이(unit). 없으면 0.
+//   배치 계산 결과를 읽기만 한다 — 좌석 위치를 여기서 정하지 않는다.
+function seatingBackZ(model) {
+  let back = 0;
+  for (const it of model.items || []) {
+    if (it.type !== 'seat' && it.type !== 'chair' && it.type !== 'desk' && it.type !== 'console') continue;
+    const z = u(it.z);
+    if (z > back) back = z;
+  }
+  return back;
+}
+
 /** 가로 w × 세로 h 의 사각형이 화면에 들어오는 최소 거리. */
 function fitDistance(w, h, fovDeg, aspect) {
   const vFov = fovDeg * DEG;
@@ -153,7 +165,7 @@ function fitDistance(w, h, fovDeg, aspect) {
 const INSIDE = {
   // Reference A. 눈높이를 사람 키 가까이 내려 '천장에서 내려다보는' 느낌을 없앤다.
   //   바라보는 높이가 눈높이보다 높아 시선이 살짝 올라간다 — 실제로 스크린을 볼 때와 같다.
-  interior: { eye: 1.75, look: 2.05, yaw: 12,  fov: 42, padW: 1.85, padH: 2.30 },
+  interior: { eye: 1.75, look: 1.85, yaw: 12,  fov: 42, padW: 1.85, padH: 2.30 },
   // 둘러보기 3종. 조금 높은 시점에서 방과 LED의 관계를 본다.
   'corner-l': { eye: 2.20, look: 1.45, yaw: -28, fov: 40, padW: 2.30, padH: 2.90 },
   front:      { eye: 2.10, look: 1.40, yaw: 0,   fov: 40, padW: 2.25, padH: 2.85 },
@@ -217,7 +229,11 @@ export function presetPose(id, model, aspect = 16 / 9) {
   const yaw = s.yaw * DEG;
   const target = [cx, Math.min(s.look, room.H * 0.8), led.depth];
   // 거리는 LED 크기로 정하고, 방보다 뒤로는 못 간다(뒷벽 밖으로 나가면 벽이 사라진다).
-  const want = fitDistance(led.w * s.padW, led.h * s.padH, s.fov, a);
+  let want = fitDistance(led.w * s.padW, led.h * s.padH, s.fov, a);
+  // 실내 시점(Reference A)은 '관람자가 객석에서 보는' 그림이어야 한다.
+  //   좌석 한가운데에 서면 앞줄 좌석이 화면 아래로 빠지고 무대도 잘린다.
+  //   그래서 좌석이 놓인 범위보다 뒤로 물러난다(방 안에서 갈 수 있는 만큼만).
+  if (p.id === 'interior') want = Math.max(want, seatingBackZ(model) + 1.1);
   const dist = clamp(want, 1.6, Math.max(1.6, room.D - 0.6));
   const position = [
     clamp(cx + dist * Math.sin(yaw), 0.3, Math.max(0.3, room.W - 0.3)),
