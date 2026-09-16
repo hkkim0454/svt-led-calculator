@@ -133,7 +133,13 @@ body{
   }
 }
 
-.wrap{max-width:1200px;margin:0 auto;padding:34px 22px 80px}
+/* 페이지 최대 폭. 03 배열 미리보기가 이 도구의 주된 산출물이라, 넓은 화면에서는
+   양옆을 비워 두지 말고 미리보기에 폭을 준다(오너 결정 2026-09-16).
+     1,200px → 1,680px : 1920 화면에서 3D 캔버스 494 → 974px(2배), 정면 뷰도 1.7배.
+   상한을 두는 이유 — 27인치 이상에서 06 비교표·08 데이터 흐름이 옆으로 지나치게
+   늘어지면 눈이 멀리 움직여 오히려 읽기 불편해진다.
+   1,200px 이하(노트북·태블릿·모바일)는 예전과 완전히 동일하다. */
+.wrap{max-width:min(1680px, 100%);margin:0 auto;padding:34px 22px 80px}
 
 /* ---- Large-title nav bar ---- */
 header.top{
@@ -947,7 +953,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v374) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v375) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
