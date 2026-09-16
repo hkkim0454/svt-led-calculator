@@ -333,7 +333,8 @@ function layoutClassroom(o, W, D) {
     for (let c = 0; c < cols; c++) {
       const x = x0 + c * F.deskPitchX + (o.aisle && c >= half ? aisle : 0);
       items.push({ type: 'desk', x, z, rotY: 0, w: F.deskW, d: F.deskD });
-      items.push(chairAt(x, z + 750, x, z));   // 책상 뒤에 앉아 책상(과 LED)을 바라본다
+      // 강의용 의자 — 가구 자산만 지정한다(좌표·개수 계산은 그대로).
+      items.push({ ...chairAt(x, z + 750, x, z), asset: 'trainingChair' });
     }
   }
   if (o.podium) items.push({ type: 'podium', x: clamp(W * 0.22, 900, W - 900), z: F.frontClear * 0.6, rotY: 180 });

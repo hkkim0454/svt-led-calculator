@@ -149,7 +149,7 @@
 ## Current Verification Status
 
 - **Build**: N/A (빌드리스 단일 HTML)
-- **Automated Tests**: `node:test` 14종 자동화, 전부 통과(2026-07-24). S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
+- **Automated Tests**: `node:test` 자동화 **308/308 통과(2026-09-16)** — 가구 에셋 카탈로그 회귀(`tests/furniture-assets.test.js`) 포함. S-Box 영역 타일(가로·세로)·이중화·평균전력·null 전파·16:9 최대해상도 포함.
 - **Integration Tests**: N/A
 - **Security Checks**: 외부 의존성 0, 개인정보 미수집 → 저위험. 정식 점검 미수행
 - **Acceptance Review**: 프로토타입 v0.1 오너 리뷰 대기
@@ -178,6 +178,7 @@
 | P5-4 | 05 화면에 레이어 배치(카드별) 입력 추가 — NovaStar/Universe 카드 예산·cross-output 정밀 판정용. **엔진 지원 완료(DEC-021, `perOutputCardDemand` 배열)**, UI 미노출 | 김현규 / AI | 검토 | 이사 요청 시 |
 | P5-5 | 05 화면 제조사별 의미·판정 이유 표시(자료문서 §24·§25) — 노바 "카드당 4×4K", X100 "독립4K 8/8·윈도우 16/64", AW "믹싱/분할" 등. DEC-021 2차 | AI | 진행 예정 | 이사 확인 |
 | P5-6 | **프로세서 코드 3분할** — `processor-data.js`(데이터)·`processor-limits.js`(용량·한계)·`processor-validator.js`(판정)로 분리, engine.js는 LED 코어 전용. DEC-030 | AI | **완료(2026-09-12, v183)** | 무동작-변경 리팩터, 115/115 통과·헤드리스 로드 무오류 |
+| P7-1 | **3D Interior Realism STEP 1 — 가구 에셋 시스템** — 형상 정의를 순수 모듈 `src/furniture-assets.js`로 분리, V1 자산 5종(강당 객석·회의 회전의자·회의 테이블·강의 책상·강의 의자) 실제 비율 적용. DEC-070 | AI | **완료(2026-09-16, v376)** | 308/308 통과. 384석에서 그리기 호출 28개 고정, 배치 계산 무변경 |
 | P6-1 | **03 미리보기 CSS 3D 원근** — 방 5면 1점 투시·바닥 그리드·LED월·신호·사람·눈높이선, 2D 치수 오버레이(값 유지·동적 투영), 표시 토글 4개. DEC-033 | 김현규(디자인)/AI | **완료(2026-09-12, v186)** | 이사 디자인 핸드오프 반영. 다중 크기·토글·FHD 헤드리스 검증, 115/115 |
 
 ## Notes
