@@ -1,136 +1,34 @@
-// furniture-gl.js — 배치 결과(room-presets.js) → Three.js 가구 입체.
+// furniture-gl.js — 가구 에셋 카탈로그 → Three.js 입체 (어댑터).
 // ─────────────────────────────────────────────────────────────────────────────
-// 계산은 하지 않는다. room-presets.js가 정한 '무엇을 어디에 어느 방향으로'를 받아
-// 그대로 입체로 세운다. 치수는 furniture3d.js(기존 Canvas 뷰)와 같은 값을 쓴다
-// — 두 뷰의 가구 크기가 달라 보이면 안 되기 때문이다.
+// 계산도, 형상 정의도 하지 않는다.
+//   · 무엇을 어디에 놓을지 = room-presets.js
+//   · 어떤 부품이 어떤 크기로 붙는지 = furniture-assets.js  (순수, Node 테스트 대상)
+//   · 그것을 Three.js 메시로 세우는 일 = 이 파일
 //
 // 방향 규칙: 가구는 rotY = 0 일 때 LED 벽(-Z)을 바라보도록 만든다.
 //   room-presets의 faceTowards()가 주는 rotY는 '+X쪽으로 sin, -Z쪽으로 cos'인 좌표계라
 //   Three.js의 Y축 회전과 부호가 반대다 → rotation.y = -rotY.
 //
 // 성능: 같은 물건이 수십~수백 개 반복되므로(강당 좌석 등) InstancedMesh로 묶는다.
-//   캐비닛 518장짜리 미디어월처럼 큰 건에서도 그리기 호출이 폭발하지 않는다.
+//   그리기 호출 수는 **좌석 개수가 아니라 부품 종류 수**에 비례한다.
+//   지오메트리는 단위 상자/기둥 2개만 만들어 전부 공유하고, 크기는 행렬로 준다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=375';
+import { u } from './gl-model.js?v=376';
+import {
+  FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
+  assetFor, assetParts, assetKey, createConferenceTable,
+} from './furniture-assets.js?v=376';
 
 const DEG = Math.PI / 180;
 
-// 가구 색. 기존 3D 뷰(render3d.js PALETTE)와 같은 값 — 전부 조연이라 채도를 낮춘다.
-export const FURNITURE_COLORS = Object.freeze({
-  tableTop: '#f5f7fa', tableBase: '#a9b3c0',
-  chairSeat: '#cbdad7', chairBack: '#cbdad7', chairBase: '#aeb8c4',
-  seatFabric: '#cbdad7', seatFrame: '#aeb8c4',
-  deskTop: '#f3f6f9', deskLeg: '#b3bcc8', deskPanel: '#e4e9ef',
-  consoleTop: '#f3f6f9', consoleBase: '#9ba6b4', monitor: '#1b2532', monitorBase: '#8f99a7',
-  podium: '#eef2f7', podiumTop: '#f7f9fc',
-  rug: '#c1c9d5',
-  // 객석 단(계단). 윗면은 바닥보다 밝게, **옆면(챌판)은 뚜렷하게 어둡게** —
-  //   옆면이 바닥색과 비슷하면 단 경계가 안 보여 그냥 평평한 단 하나로 읽힌다.
-  riserTop: '#e6eaf0', riserSide: '#b9c1cd',
-  plantPot: '#f2f5f9', plantLeaf: '#8fae9c',
-});
-
-// 가구 기준 치수(mm) — furniture3d.js의 SIZES와 같은 값.
-export const SIZES = Object.freeze({
-  chair: { seatW: 470, seatD: 460, seatY: 430, seatH: 55, backH: 400, backD: 45, baseR: 195 },
-  seat: { w: 500, d: 450, seatY: 420, seatH: 50, backH: 480, backD: 45 },
-  table: { topY: 720, topH: 55 },
-  desk: { topY: 720, topH: 40 },
-  console: { topY: 730, topH: 50, monW: 760, monH: 440 },
-  podium: { w: 700, d: 500, h: 1080 },
-  plant: { potR: 170, potH: 300, leafH: 520 },
-  rug: { h: 14 },
-});
-
-// ── 반복되는 가구의 '부품 목록' ─────────────────────────────────────────────
-// 각 부품은 물건 중심(0,0) 기준 상자다. dx·dz = 가로·앞뒤 치우침, y = 부품 중심 높이. (mm)
-// 이 목록 하나가 InstancedMesh 하나가 된다.
-
-const chairParts = () => {
-  const S = SIZES.chair;
-  return [
-    // 납작한 받침(원기둥) + 가는 기둥 — 덩어리감을 줄인다.
-    { kind: 'chairBase', shape: 'cyl', dx: 0, dz: 0, r: S.baseR, y: 37.5, h: 35 },
-    { kind: 'chairBase', dx: 0, dz: 0, y: (55 + S.seatY) / 2, w: 68, h: S.seatY - 55, d: 68 },
-    { kind: 'chairSeat', dx: 0, dz: 0, y: S.seatY + S.seatH / 2, w: S.seatW, h: S.seatH, d: S.seatD },
-    // 등받이는 앉은 사람 뒤(+Z)
-    { kind: 'chairBack', dx: 0, dz: S.seatD / 2 - S.backD / 2, y: S.seatY + S.seatH + 40 + S.backH / 2,
-      w: S.seatW - 60, h: S.backH, d: S.backD },
-  ];
-};
-
-const seatParts = () => {
-  const S = SIZES.seat;
-  return [
-    { kind: 'seatFabric', dx: 0, dz: 0, y: S.seatY + S.seatH / 2, w: S.w, h: S.seatH, d: S.d },
-    { kind: 'seatFabric', dx: 0, dz: S.d / 2 - S.backD / 2, y: S.seatY + S.seatH + S.backH / 2,
-      w: S.w - 40, h: S.backH, d: S.backD },
-    // 다리는 가운데 하나 — 줄줄이 늘어설 때 시각적 잡음을 줄인다.
-    { kind: 'seatFrame', dx: 0, dz: 0, y: S.seatY / 2, w: 90, h: S.seatY, d: 90 },
-  ];
-};
-
-const deskParts = (w, d) => {
-  const S = SIZES.desk;
-  const parts = [{ kind: 'deskTop', dx: 0, dz: 0, y: S.topY + S.topH / 2, w, h: S.topH, d }];
-  for (const sx of [-w / 2 + 85, w / 2 - 85]) {
-    for (const sz of [-d / 2 + 85, d / 2 - 85]) {
-      parts.push({ kind: 'deskLeg', dx: sx, dz: sz, y: S.topY / 2, w: 50, h: S.topY, d: 50 });
-    }
-  }
-  // 앞을 가리는 가림판(-Z 쪽)
-  parts.push({ kind: 'deskPanel', dx: 0, dz: -d / 2 + 65, y: 340 + 175, w: w - 160, h: 350, d: 30 });
-  return parts;
-};
-
-const consoleParts = (w, d) => {
-  const S = SIZES.console;
-  const my = S.topY + S.topH;
-  const parts = [
-    { kind: 'consoleTop', dx: 0, dz: 0, y: S.topY + S.topH / 2, w, h: S.topH, d },
-    { kind: 'consoleBase', dx: 0, dz: 0, y: (20 + S.topY) / 2, w: w - 200, h: S.topY - 20, d: d - 200 },
-  ];
-  // 모니터 2대를 상판 위에 나란히
-  for (const sx of [-S.monW / 2 - 20, S.monW / 2 + 20]) {
-    parts.push({ kind: 'monitorBase', dx: sx, dz: 30, y: my + 60, w: 120, h: 120, d: 180 });
-    parts.push({ kind: 'monitor', dx: sx, dz: 15, y: my + 120 + S.monH / 2, w: S.monW, h: S.monH, d: 50 });
-  }
-  return parts;
-};
-
-const podiumParts = () => {
-  const S = SIZES.podium;
-  return [
-    { kind: 'podium', dx: 0, dz: 0, y: S.h / 2, w: S.w, h: S.h, d: S.d },
-    { kind: 'podiumTop', dx: 0, dz: 0, y: S.h + 22.5, w: S.w + 80, h: 45, d: S.d + 60 },
-  ];
-};
-
-// 물건 하나 → 부품 목록. 크기가 물건마다 다른 것(책상·콘솔)은 크기를 넘겨 만든다.
-function partsOf(item) {
-  switch (item.type) {
-    case 'chair': return chairParts();
-    case 'seat': return seatParts();
-    case 'desk': return deskParts(item.w || 1400, item.d || 600);
-    case 'console': return consoleParts(item.w || 1800, item.d || 900);
-    case 'podium': return podiumParts();
-    default: return null;
-  }
-}
-
-// 반복 가구를 묶을 때 쓰는 열쇠 — 크기가 같아야 같은 InstancedMesh에 들어갈 수 있다.
-function groupKey(item) {
-  switch (item.type) {
-    case 'chair': case 'seat': case 'podium': return item.type;
-    case 'desk': case 'console': return `${item.type}:${Math.round(item.w || 0)}x${Math.round(item.d || 0)}`;
-    default: return null;
-  }
-}
+export { FURNITURE_COLORS, DIMS, FURNITURE_ASSETS };
 
 // ── 행렬 ────────────────────────────────────────────────────────────────────
-// 물건 중심에서 회전시킨 뒤 부품 자리로 옮긴다(부품 자기 중심에서 돌리면 안 된다).
+// 물건 중심에서 회전시킨 뒤 부품 자리로 옮기고, 거기서 부품을 기울인다.
+//   T(물건) · Ry(물건 방향) · T(부품 위치) · Rx(부품 기울기) · S(부품 크기)
+// 부품을 '자기 중심에서' 돌려야 등받이가 좌판을 뚫고 나가지 않는다.
 const _m = new THREE.Matrix4(), _r = new THREE.Matrix4(), _t = new THREE.Matrix4(), _s = new THREE.Matrix4();
 
 function partMatrix(item, part, out) {
@@ -140,14 +38,16 @@ function partMatrix(item, part, out) {
   _m.multiplyMatrices(_t, _r);
   _t.makeTranslation(u(part.dx || 0), u(part.y), u(part.dz || 0));
   _m.multiply(_t);
+  if (part.tiltX) { _r.makeRotationX(part.tiltX * DEG); _m.multiply(_r); }
   if (part.shape === 'cyl') _s.makeScale(u(part.r) * 2, u(part.h), u(part.r) * 2);
   else _s.makeScale(u(part.w), u(part.h), u(part.d));
   return out.multiplyMatrices(_m, _s);
 }
 
-// ── 모양 만들기 ─────────────────────────────────────────────────────────────
+// ── 회의 테이블 ─────────────────────────────────────────────────────────────
+// 크기·모양이 물건마다 달라 InstancedMesh로 묶지 않는다(방에 1~3개뿐).
 
-// 보트형 상판 윤곽 — 긴 변이 바깥으로 살짝 부푼다(furniture3d.js와 같은 곡선).
+// 보트형 상판 윤곽 — 긴 변이 바깥으로 살짝 부푼다.
 function boatShape(w, d) {
   const n = 14, bulge = d * 0.16;
   const s = new THREE.Shape();
@@ -165,46 +65,58 @@ function boatShape(w, d) {
 }
 
 function tableMesh(item, mat) {
-  const S = SIZES.table;
+  const S = createConferenceTable(item);
   const g = new THREE.Group();
-  const w = Math.max(400, item.w || 2400), d = Math.max(400, item.d || 1200);
 
+  // 상판 — 두께 30mm로 얇게. 윗면이 정확히 surfaceY에 오도록 놓는다.
   let top;
-  if (item.shape === 'round') {
-    const r = u(Math.min(w, d) / 2);
-    top = new THREE.Mesh(new THREE.CylinderGeometry(r, r, u(S.topH), 40), mat.tableTop);
-  } else if (item.shape === 'boat') {
-    const geo = new THREE.ExtrudeGeometry(boatShape(w, d), { depth: u(S.topH), bevelEnabled: false });
-    geo.rotateX(-Math.PI / 2);          // XY 평면에 만든 뒤 눕힌다
-    geo.translate(0, u(S.topH), 0);     // 두께만큼 올려 윗면이 topY + topH 가 되게
+  if (S.shape === 'round') {
+    const r = u(Math.min(S.w, S.d) / 2);
+    top = new THREE.Mesh(new THREE.CylinderGeometry(r, r, u(S.topThk), 40), mat.tableTop);
+    top.position.y = u(S.topBottom + S.topThk / 2);
+  } else if (S.shape === 'boat') {
+    const geo = new THREE.ExtrudeGeometry(boatShape(S.w, S.d), { depth: u(S.topThk), bevelEnabled: false });
+    geo.rotateX(-Math.PI / 2);            // XY 평면에 만든 뒤 눕힌다
+    geo.translate(0, u(S.topThk), 0);     // 두께만큼 올려 윗면이 surfaceY가 되게
     top = new THREE.Mesh(geo, mat.tableTop);
+    top.position.y = u(S.topBottom);
   } else {
-    top = new THREE.Mesh(new THREE.BoxGeometry(u(w), u(S.topH), u(d)), mat.tableTop);
+    top = new THREE.Mesh(new THREE.BoxGeometry(u(S.w), u(S.topThk), u(S.d)), mat.tableTop);
+    top.position.y = u(S.topBottom + S.topThk / 2);
   }
-  top.position.y = u(S.topY + (item.shape === 'boat' ? 0 : S.topH / 2));
   g.add(top);
 
-  if (item.shape === 'round') {
-    const r1 = u(Math.min(w, d) * 0.17), r2 = u(Math.min(w, d) * 0.3);
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(r1, r1, u(S.topY - 60), 16), mat.tableBase);
-    post.position.y = u((60 + S.topY) / 2);
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(r2, r2, u(40), 16), mat.tableBase);
-    foot.position.y = u(40);
+  if (S.post && S.foot) {
+    // 원형 테이블: 가운데 기둥 + 원판 발.
+    const h = S.post.y1 - S.post.y0;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(u(S.post.r), u(S.post.r), u(h), 16), mat.tableBase);
+    post.position.y = u(S.post.y0 + h / 2);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(u(S.foot.r), u(S.foot.r), u(S.foot.h), 20), mat.tableBase);
+    foot.position.y = u(S.foot.h / 2);
     g.add(post, foot);
   } else {
-    // 상판을 받치는 얇은 받침 2개. 가로대를 두면 옆에서 볼 때 회색 덩어리로 뭉친다.
-    const pw = Math.max(90, w * 0.035), pd = Math.max(160, d * 0.42);
-    for (const sx of [-w * 0.28 + pw / 2, w * 0.28 - pw / 2]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(u(pw), u(S.topY - 15), u(pd)), mat.tableBase);
-      leg.position.set(u(sx), u((15 + S.topY) / 2), 0);
-      g.add(leg);
+    // 사각·보트형: T자 받침 2개(기둥 + 바닥 발).
+    for (const leg of S.legs) {
+      const h = leg.post.y1 - leg.post.y0;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(u(leg.post.w), u(h), u(leg.post.d)), mat.tableBase);
+      post.position.set(u(leg.dx), u(leg.post.y0 + h / 2), 0);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(u(leg.foot.w), u(leg.foot.h), u(leg.foot.d)), mat.tableBase);
+      foot.position.set(u(leg.dx), u(leg.foot.h / 2), 0);
+      g.add(post, foot);
+    }
+    if (S.beam) {
+      // 상판 아래 보강대 — 다리 2개가 허공에 떠 보이지 않게 이어 준다.
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(u(S.beam.w), u(S.beam.h), u(S.beam.d)), mat.tableBeam);
+      beam.position.y = u(S.beam.y);
+      g.add(beam);
     }
   }
   return g;
 }
 
 function plantMesh(mat) {
-  const S = SIZES.plant;
+  const S = DIMS.plant;
   const g = new THREE.Group();
   const pot = new THREE.Mesh(
     new THREE.CylinderGeometry(u(S.potR), u(S.potR * 0.78), u(S.potH), 14), mat.plantPot);
@@ -242,7 +154,7 @@ export function buildFurnitureGroup(items) {
   const singles = [];
   for (const it of items) {
     if (it.type === 'stage') continue;          // 무대는 방 구조와 함께 그린다
-    const key = groupKey(it);
+    const key = assetKey(it);
     if (key) {
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key).push(it);
@@ -254,12 +166,13 @@ export function buildFurnitureGroup(items) {
   const m4 = new THREE.Matrix4();
 
   for (const list of buckets.values()) {
-    const parts = partsOf(list[0]);
+    const parts = assetParts(list[0]);
     if (!parts) continue;
+    const id = assetFor(list[0]);
     for (const part of parts) {
       const geo = part.shape === 'cyl' ? cylGeo : boxGeo;
       const im = new THREE.InstancedMesh(geo, mat[part.kind] || mat.chairSeat, list.length);
-      im.name = `${list[0].type}:${part.kind}`;
+      im.name = `${id}:${part.kind}`;
       for (let i = 0; i < list.length; i++) im.setMatrixAt(i, partMatrix(list[i], part, m4));
       im.instanceMatrix.needsUpdate = true;
       im.frustumCulled = false;   // 인스턴스 전체 경계가 부정확해 통째로 사라지는 것을 막는다
@@ -284,8 +197,8 @@ export function buildFurnitureGroup(items) {
     }
     else if (it.type === 'rug') {
       obj = new THREE.Mesh(
-        new THREE.BoxGeometry(u(it.w || 4000), u(SIZES.rug.h), u(it.d || 3000)), mat.rug);
-      obj.position.y = u(SIZES.rug.h / 2);
+        new THREE.BoxGeometry(u(it.w || 4000), u(DIMS.rug.h), u(it.d || 3000)), mat.rug);
+      obj.position.y = u(DIMS.rug.h / 2);
     }
     if (!obj) continue;
     obj.position.x += u(it.x);
