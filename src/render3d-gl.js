@@ -18,9 +18,10 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=387';
-import { createMaterialLibrary } from './materials-gl.js?v=387';
-import { MOODS } from './materials.js?v=387';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=388';
+import { createMaterialLibrary } from './materials-gl.js?v=388';
+import { MOODS } from './materials.js?v=388';
+import { ledImageFit } from './led-image.js?v=388';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -28,7 +29,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=387';
+} from './gl-model.js?v=388';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -148,12 +149,34 @@ function makeGridTexture() {
   return tex;
 }
 
+// LED 화면에 넣은 이미지 → 텍스처. 맞춤(꽉 채우기·이동)은 정면 뷰와 **같은 함수**를 쓴다.
+//   넘치면 잘리고 모자라면 검정으로 남는 것까지 2D와 똑같다.
+function makeLedImageTexture(image, ledW, ledH) {
+  const H = 720;                                    // 텍스처 세로 픽셀
+  const W = Math.max(64, Math.round(H * (ledW / Math.max(1e-6, ledH))));
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#000';                             // 모자라는 자리는 검정(2D와 같다)
+  c.fillRect(0, 0, W, H);
+  const fit = ledImageFit({
+    ledW: W, ledH: H, imgAspect: image.aspect,
+    mode: image.mode, panX: image.panX, panY: image.panY,
+  });
+  try { c.drawImage(image.img, fit.left, fit.top, fit.iw, fit.ih); } catch { /* 아직 못 읽었으면 검정 */ }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
 // ── 장면 만들기 ─────────────────────────────────────────────────────────────
 // 방·LED·무대를 하나의 Group에 담아 돌려준다. 모델이 바뀌면 이 Group만 통째로 갈아 끼운다.
 function buildRoomGroup(model, shared) {
   const { room, led, stage } = model;
   // 가구(좌석·통로·테이블 등)는 room-presets 배치를 그대로 세운다 — 여기서 새로 계산하지 않는다.
   const furniture = buildFurnitureGroup(model.items);
+  const ownedTex = [];   // 이 Group만 쓰는 텍스처(공용 텍스처와 달리 여기서 반납한다)
   const g = new THREE.Group();
   g.name = 'roomGroup';
 
@@ -329,9 +352,12 @@ function buildRoomGroup(model, shared) {
   ledGroup.add(body);
 
   // 화면: 상자 앞면에 아주 살짝 띄워 붙인다(같은 위치면 z-fighting으로 지글거린다).
+  // 이미지를 넣었으면 그 그림을, 아니면 기본 화면(은은한 푸른 그라데이션)을 띄운다.
+  const ledImg = led.image && led.image.img ? makeLedImageTexture(led.image, led.w, led.h) : null;
+  if (ledImg) ownedTex.push(ledImg);
   const screen = new THREE.Mesh(
     new THREE.PlaneGeometry(led.w, led.h),
-    new THREE.MeshBasicMaterial({ map: shared.screenTex(led.w / led.h), toneMapped: false }),
+    new THREE.MeshBasicMaterial({ map: ledImg || shared.screenTex(led.w / led.h), toneMapped: false }),
   );
   screen.position.set(led.x + led.w / 2, led.y + led.h / 2, led.depth + u(1.5));
   screen.name = 'ledScreen';
@@ -424,6 +450,7 @@ function buildRoomGroup(model, shared) {
 
   // 재질 라이브러리는 이 Group의 것이다 — 버릴 때 텍스처까지 함께 반납한다.
   g.userData.materials = mats;
+  g.userData.ownedTextures = ownedTex;
 
   g.add(furniture);
 
@@ -1000,6 +1027,7 @@ export function createViewerGL(canvas, { onError } = {}) {
     });
     // 재질 라이브러리가 만든 무늬(normal map)는 이 Group 전용이므로 여기서 반납한다.
     gr.userData.materials?.dispose();
+    for (const t of gr.userData.ownedTextures || []) t.dispose?.();
     scene.remove(gr);
   }
 

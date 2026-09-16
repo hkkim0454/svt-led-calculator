@@ -9,13 +9,14 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=387';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=387';
-import { createViewerGL } from './render3d-gl.js?v=387';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=387';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=387';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=387';
-import { sideMonitorLayout } from './monitors.js?v=387';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=388';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=388';
+import { createViewerGL } from './render3d-gl.js?v=388';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=388';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=388';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=388';
+import { sideMonitorLayout } from './monitors.js?v=388';
+import { ledImageFit } from './led-image.js?v=388';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -700,17 +701,11 @@ function renderPreview() {
   //   LED 격자 ON이면 이미지 위에 캐비닛 격자선 오버레이. 이미지 없으면 파란 글로우.
   let ledExtra;
   if (pvImage) {
-    const asp = pvImgAspect || (Lw / Lh);
-    let iw, ih, left, top, range;
-    if (pvImgMode === 'height') {
-      // 세로 고정: 세로를 꽉 채우고 가로는 좌우로 이동(pvImgPanX).
-      ih = Lh; iw = Lh * asp; range = iw - Lw;             // range>0: 가로 넘침(크롭), <0: 모자람(검정)
-      left = (range > 0) ? (-range * pvImgPanX) : ((Lw - iw) * pvImgPanX); top = 0;
-    } else {
-      // 가로 고정: 가로를 꽉 채우고 세로는 위아래로 이동(pvImgPanY).
-      iw = Lw; ih = Lw / asp; range = ih - Lh;             // range>0: 세로 넘침(크롭), <0: 모자람(검정)
-      left = 0; top = (range > 0) ? (-range * pvImgPanY) : ((Lh - ih) * pvImgPanY);
-    }
+    // 맞춤 규칙은 led-image.js 한 곳에만 있다 — 3D 뷰도 같은 함수를 쓴다.
+    const { iw, ih, left, top, range } = ledImageFit({
+      ledW: Lw, ledH: Lh, imgAspect: pvImgAspect,
+      mode: pvImgMode, panX: pvImgPanX, panY: pvImgPanY,
+    });
     pvLedGeom = { mode: pvImgMode, lw: Lw, lh: Lh, iw, ih, range };
     const ov = pvShow.cellgrid
       ? `<div class="rs3LedGridOv" style="background-size:${(Lw / r.cols).toFixed(2)}px ${(Lh / r.rows).toFixed(2)}px"></div>` : '';
@@ -875,6 +870,13 @@ function renderPreview3D() {
       cols: r.cols, rows: r.rows, depth: (m && m.depth) || 60,
     },
     items,
+    // LED 화면 이미지 — 정면 뷰에서 넣은 그림을 3D에서도 그대로 쓴다(같은 맞춤·같은 위치).
+    ledImage: (() => {
+      const img = led3dImage();
+      if (!img || !img.complete || !img.naturalWidth) return null;
+      return { img, mode: pvImgMode, panX: pvImgPanX, panY: pvImgPanY,
+        aspect: pvImgAspect || (img.naturalWidth / img.naturalHeight), src: pvImage };
+    })(),
     show: { ...pv3dShow },
     roomType: roomTypeId,   // 바닥 마감(카펫/비닐)을 공간 타입에서 고른다
     sideMonitors: sm.monitors,
