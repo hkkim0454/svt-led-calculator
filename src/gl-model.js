@@ -9,8 +9,8 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=390';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=390';
+import { floorFinishFor, moodFor } from './materials.js?v=391';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=391';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -79,6 +79,8 @@ export function buildGLModel({ space, led, items, show, person, roomType, sideMo
       dims: show?.dims !== false,
       grid: show?.grid !== false,
       accentWall: show?.accentWall !== false,
+      // 천장 — 꺼 두면 실내 시점에서도 감춘다(켜도 아이소·평면도에는 생기지 않는다).
+      ceiling: show?.ceiling !== false,
       // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 벽 2면만 —
       //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
       walls: {
@@ -185,11 +187,14 @@ export function cameraInsideRoom(position, room, margin = 0.3) {
 
 /**
  * 천장을 보여야 하는가.
+ *   · 사용자가 '천장' 토글을 끄면 어느 시점에서도 감춘다(enabled = false).
  *   · 평면도(정사투영)는 무조건 감춘다 — 위에서 보는데 천장이 있으면 방이 안 보인다.
  *   · 기본 프리셋은 목록으로 정한다(실내 4종만 보임).
  *   · 저장해 둔 커스텀 시점은 카메라가 방 안에 있는지로 판단한다.
+ * 켠다고 해서 아이소·평면도에 천장이 생기지는 않는다 — 방 안이 안 보이게 되기 때문이다.
  */
-export function showCeiling({ presetId, ortho, position, room } = {}) {
+export function showCeiling({ presetId, ortho, position, room, enabled = true } = {}) {
+  if (enabled === false) return false;   // 사용자가 끈 경우 — 시점과 무관하게 감춘다
   if (ortho) return false;
   if (presetId && presetId !== 'custom') return INTERIOR_PRESETS.includes(presetId);
   return cameraInsideRoom(position, room);
