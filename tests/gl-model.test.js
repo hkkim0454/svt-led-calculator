@@ -26,7 +26,28 @@ test('buildGLModel — 공간 W/H/D를 그대로 옮긴다', () => {
     led: { w: 3840, h: 2160, marginW: 3080, mount: 1000, cols: 4, rows: 4, depth: 79.5 },
     items: [],
   });
-  assert.deepEqual(m.room, { W: 10, H: 3.5, D: 10 });
+  assert.equal(m.room.W, 10);
+  assert.equal(m.room.H, 3.5);
+  assert.equal(m.room.D, 10);
+});
+
+test('buildGLModel — 벽 두께는 방 바깥으로 붙는다(안쪽 치수를 건드리지 않는다)', () => {
+  const make = wallThk => buildGLModel({
+    space: { W: 10000, H: 3500, D: 10000, wallThk },
+    led: { w: 3840, h: 2160, marginW: 3080, mount: 1000, cols: 4, rows: 4, depth: 79.5 },
+    items: [],
+  });
+  assert.equal(make(150).room.wallThk, 0.15);
+  assert.equal(make(0).room.wallThk, 0);
+  // 두께를 바꿔도 방 안쪽 치수는 그대로다 — 계산값이니 흔들리면 안 된다
+  for (const t of [0, 100, 400]) {
+    const r = make(t).room;
+    assert.equal(r.W, 10); assert.equal(r.H, 3.5); assert.equal(r.D, 10);
+  }
+  // 말도 안 되는 값은 안전한 범위로 잘린다
+  assert.equal(make(99999).room.wallThk, 0.6);
+  assert.equal(make(-50).room.wallThk, 0);
+  assert.equal(make(undefined).room.wallThk, 0);
 });
 
 test('buildGLModel — LED 실제 크기·여백·하단 높이를 그대로 옮긴다', () => {

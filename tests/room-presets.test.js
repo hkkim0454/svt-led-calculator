@@ -380,3 +380,91 @@ test('사람 자리 — 무대 위에 서지 않는다(바닥에 세우므로 �
   assert.ok(stage, '무대가 있어야 하는 테스트');
   assert.ok(spot.z > stage.z + (stage.d || 2600) / 2, `사람(z=${spot.z})이 무대(z≤${stage.z + (stage.d||2600)/2}) 밖에 서야 함`);
 });
+
+// ── 객석 단차(계단식 좌석) ──────────────────────────────────────────────────
+
+test('강당 단차 — 단 수만큼 나누고 뒤로 갈수록 한 단씩 올라간다', () => {
+  const lay = layoutRoom('hall_m',
+    { rows: 10, seatsPerRow: 16, aisles: '2', stage: true, tiers: 5, riserH: 250, plant: false },
+    { W: 18000, D: 24000 });
+  const seats = lay.items.filter(i => i.type === 'seat');
+  assert.equal(seats.length, 160);
+  // 높이는 0 · 250 · 500 · 750 · 1000 다섯 단계, 각 단에 같은 수만큼
+  const byY = {};
+  for (const s of seats) byY[s.y || 0] = (byY[s.y || 0] || 0) + 1;
+  assert.deepEqual(Object.keys(byY).map(Number).sort((a, b) => a - b), [0, 250, 500, 750, 1000]);
+  for (const n of Object.values(byY)) assert.equal(n, 32);
+  // 앞줄이 더 낮다 — 뒤로 갈수록 올라가야 시야가 확보된다
+  const sorted = [...seats].sort((a, b) => a.z - b.z);
+  assert.equal(sorted[0].y, 0);
+  assert.equal(sorted[sorted.length - 1].y, 1000);
+  for (let i = 1; i < sorted.length; i++) assert.ok(sorted[i].y >= sorted[i - 1].y, '뒤로 갈수록 낮아지면 안 된다');
+  assert.equal(lay.placed.tiers, 5);
+  assert.equal(lay.placed.riserH, 250);
+  assert.ok(lay.notes.some(n => n.includes('5단')), '단차를 안내해야 한다');
+});
+
+test('강당 단차 — 단(플랫폼)이 좌석 높이와 맞물린다', () => {
+  const lay = layoutRoom('hall_s',
+    { rows: 6, seatsPerRow: 10, aisles: '1', stage: true, tiers: 3, riserH: 200, plant: false },
+    { W: 12000, D: 18000 });
+  const risers = lay.items.filter(i => i.type === 'riser');
+  // 첫 단은 바닥이므로 플랫폼은 (단 수 − 1)개
+  assert.equal(risers.length, 2);
+  assert.deepEqual(risers.map(r => r.h), [200, 400]);
+  // 뒤쪽 단일수록 앞 끝이 더 뒤에 있다(계단 모양)
+  assert.ok(risers[1].z - risers[1].d / 2 > risers[0].z - risers[0].d / 2);
+  // 각 단의 좌석은 그 단 높이 위에 앉아 있다
+  const seats = lay.items.filter(i => i.type === 'seat');
+  for (const h of [0, 200, 400]) {
+    assert.ok(seats.some(s => (s.y || 0) === h), `${h}mm 단에 좌석이 없다`);
+  }
+});
+
+test('강당 단차 — 단 수 1이거나 높이 0이면 기존과 똑같이 평평하다', () => {
+  for (const o of [{ tiers: 1, riserH: 300 }, { tiers: 5, riserH: 0 }]) {
+    const lay = layoutRoom('hall_s',
+      { rows: 6, seatsPerRow: 10, aisles: '1', stage: true, plant: false, ...o },
+      { W: 12000, D: 18000 });
+    assert.equal(lay.items.filter(i => i.type === 'riser').length, 0, JSON.stringify(o));
+    for (const s of lay.items.filter(i => i.type === 'seat')) {
+      assert.ok(!s.y, `평평해야 하는데 y=${s.y} (${JSON.stringify(o)})`);
+    }
+  }
+});
+
+test('강당 단차 — 요청한 단 수를 정확히 쓴다(줄이 딱 안 나눠떨어져도)', () => {
+  // 5줄 4단처럼 나눠떨어지지 않아도 4단이 나와야 한다.
+  //   (줄을 올림으로 나누면 마지막 단이 비어 3단만 생긴다)
+  for (const [rows, tiers] of [[5, 4], [7, 3], [12, 5], [7, 7]]) {
+    const lay = layoutRoom('hall_m',
+      { rows, seatsPerRow: 10, aisles: '1', stage: true, tiers, riserH: 250, plant: false },
+      { W: 16000, D: 30000 });
+    assert.equal(lay.placed.rows, rows, '이 방에는 요청한 줄이 다 들어가야 한다');
+    const levels = [...new Set(lay.items.filter(i => i.type === 'seat').map(i => i.y || 0))];
+    assert.equal(levels.length, tiers, `${rows}줄 ${tiers}단 → 실제 ${levels.length}단`);
+    // 플랫폼은 (단 수 − 1)개 — 첫 단은 바닥이다
+    assert.equal(lay.items.filter(i => i.type === 'riser').length, tiers - 1);
+  }
+});
+
+test('강당 단차 — 단 수가 줄 수보다 많아도 깨지지 않는다', () => {
+  const lay = layoutRoom('hall_s',
+    { rows: 3, seatsPerRow: 8, aisles: '1', stage: true, tiers: 20, riserH: 200, plant: false },
+    { W: 12000, D: 12000 });
+  const seats = lay.items.filter(i => i.type === 'seat');
+  assert.ok(seats.length > 0);
+  // 줄 수보다 많은 단은 만들 수 없다
+  assert.ok(lay.placed.tiers <= lay.placed.rows, `단 ${lay.placed.tiers} > 줄 ${lay.placed.rows}`);
+  assert.ok(lay.notes.some(n => n.includes('단은 만들 수 없어')), '줄였다고 알려야 한다');
+  for (const s of seats) assert.ok(Number.isFinite(s.y || 0), '높이가 숫자가 아니다');
+});
+
+test('강당 단차 — 좌석은 단 위에서도 여전히 LED 벽을 바라본다', () => {
+  const lay = layoutRoom('hall_l',
+    { rows: 12, seatsPerRow: 20, aisles: '2', stage: true, tiers: 6, riserH: 300, plant: false },
+    { W: 30000, D: 40000 });
+  for (const s of lay.items.filter(i => i.type === 'seat')) {
+    assert.equal(s.rotY % 360, 0, `좌석이 LED 벽을 안 본다 (rotY=${s.rotY})`);
+  }
+});

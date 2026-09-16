@@ -126,6 +126,10 @@ function hallOptions(rows, perRow, twoAisles) {
     { key: 'aisles', label: '통로', type: 'select', default: twoAisles ? '2' : '1',
       choices: [{ value: '0', label: '없음' }, { value: '1', label: '가운데 1개' }, { value: '2', label: '양쪽 2개' }] },
     { key: 'stage', label: '무대(단상)', type: 'toggle', default: true },
+    // 객석 단차(계단식 좌석). 단 수 1 = 평평한 바닥(기존과 동일).
+    //   뒷줄로 갈수록 한 단씩 올라가 앞사람 머리에 시야가 가리지 않게 한다.
+    { key: 'tiers', label: '객석 단 수', type: 'number', default: 1, min: 1, max: 20 },
+    { key: 'riserH', label: '한 단 높이(mm)', type: 'number', default: 200, min: 0, max: 900 },
     { key: 'plant', label: '화분', type: 'toggle', default: false },
   ];
 }
@@ -363,12 +367,54 @@ function layoutHall(o, W, D) {
     for (let i = 0; i < cnt; i++) { xs.push(x); x += F.seatPitchX; }
     x += F.aisleW;
   }
+  // ── 객석 단차(계단식 좌석) ──
+  //   단 수(tiers)만큼 객석을 나누고, 뒤쪽 단일수록 한 단(riserH)씩 올라간다.
+  //   첫 단은 바닥(높이 0)이다 — 단 수 1이면 기존과 똑같이 평평하다.
+  const tiers = clamp(int(o.tiers, 1), 1, Math.max(1, rows));
+  const riserH = Math.max(0, int(o.riserH, 0));
+  if (tiers < int(o.tiers, 1)) notes.push(`줄 수(${rows})보다 많은 단은 만들 수 없어 ${tiers}단으로 줄였습니다.`);
+  // 줄을 단에 고르게 나눈다. ceil로 나누면 뒷단이 비어 요청한 단 수가 안 나온다
+  //   (예: 5줄 4단 → ceil(5/4)=2 → 3단만 생김). 남는 줄은 앞단부터 하나씩 더 준다.
+  const tierRows = Array.from({ length: tiers },
+    (_, t) => Math.floor(rows / tiers) + (t < rows % tiers ? 1 : 0));
+  const tierStart = [];                       // 각 단의 첫 줄 번호
+  for (let t = 0, acc = 0; t < tiers; t++) { tierStart.push(acc); acc += tierRows[t]; }
+  const tierOf = r => {
+    for (let t = tiers - 1; t >= 0; t--) if (r >= tierStart[t]) return t;
+    return 0;
+  };
+  const seatZ = r => zStart + r * F.seatPitchZ;
+
+  // 단(플랫폼) — 뒤쪽 단이 더 높으므로 앞 단을 덮어 계단 모양이 된다.
+  //   각 단은 '그 단의 첫 줄 앞'부터 객석 맨 뒤까지 깔린다.
+  if (riserH > 0 && tiers > 1) {
+    const platW = Math.min(W, perRow * F.seatPitchX + aisleTotal + F.seatPitchX);
+    const zBackEdge = seatZ(rows - 1) + F.seatPitchZ * 0.75;
+    for (let t = 1; t < tiers; t++) {
+      const zFront = seatZ(tierStart[t]) - F.seatPitchZ * 0.55;
+      if (zFront >= zBackEdge) break;
+      items.push({
+        type: 'riser', x: W / 2, z: (zFront + zBackEdge) / 2, rotY: 0,
+        w: platW, d: zBackEdge - zFront, h: t * riserH, tier: t,
+      });
+    }
+  }
+
   for (let r = 0; r < rows; r++) {
-    const z = zStart + r * F.seatPitchZ;
-    for (const sx of xs) items.push(chairAt(sx, z, sx, 0, 'seat'));   // 무대·LED(z=0) 쪽을 바라본다
+    const z = seatZ(r);
+    const y = riserH > 0 ? tierOf(r) * riserH : 0;   // 그 줄이 올라앉은 단 높이
+    // 무대·LED(z=0) 쪽을 바라본다. y는 좌석이 놓인 바닥 높이(단차).
+    for (const sx of xs) items.push({ ...chairAt(sx, z, sx, 0, 'seat'), y });
   }
   if (o.plant) addPlant(items, W, D);
-  return { items, placed: { seats: rows * xs.length, rows, perRow: xs.length }, capacity: maxRows * maxPerRow, notes };
+  if (riserH > 0 && tiers > 1) {
+    notes.push(`객석 ${tiers}단 · 한 단 ${riserH}mm (맨 뒤 +${(tiers - 1) * riserH}mm)`);
+  }
+  return {
+    items,
+    placed: { seats: rows * xs.length, rows, perRow: xs.length, tiers, riserH },
+    capacity: maxRows * maxPerRow, notes,
+  };
 }
 
 // ── 상황실 ──────────────────────────────────────────────────────────────────

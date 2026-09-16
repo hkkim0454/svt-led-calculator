@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v367) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v370) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
@@ -1015,11 +1015,29 @@ body.pv3dOpen .cols{grid-template-columns:1fr}
   padding:6px 13px;border:0;border-radius:999px;background:transparent;cursor:pointer;white-space:nowrap}
 .pv3dPresetBar button:hover{background:rgba(47,127,246,.08);color:var(--ink)}
 .pv3dPresetBar button.on{background:var(--accent,#1250E0);color:#fff}
+/* 기본 시점과 저장한 시점 사이 구분선 */
+.pv3dPresetSep{width:1px;align-self:stretch;margin:4px 3px;background:var(--line)}
+/* 저장한 시점 — 편집 모드에서 × 가 붙는다 */
+.pv3dPresetBar button.saved{padding-right:11px}
+.pv3dPresetBar button.saved .pv3dDel{display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;margin-left:6px;border-radius:999px;font-style:normal;font-size:11px;line-height:1;
+  background:rgba(120,130,145,.18);color:var(--ink-2)}
+.pv3dPresetBar button.saved .pv3dDel:hover{background:#E5484D;color:#fff}
+.pv3dPresetBar button.on .pv3dDel{background:rgba(255,255,255,.28);color:#fff}
+/* 시점 저장 토글 · ＋ 버튼 */
+.pv3dPresetBar .pv3dEdit.on{background:rgba(47,127,246,.12);color:var(--accent,#1250E0)}
+.pv3dPresetBar .pv3dAdd{background:var(--accent,#1250E0);color:#fff;font-size:14px;padding:5px 12px}
+.pv3dPresetBar .pv3dAdd:hover{background:var(--accent-2)}
 
 /* 보조 도구(맞춤·초기화·PNG) — 캔버스 오른쪽 위 */
 .pv3dTools{position:absolute;right:12px;top:12px;display:flex;gap:6px;z-index:2}
-.pv3dTools .tiny{background:rgba(255,255,255,.92);border:1px solid var(--line);
+/* 캔버스 위에 뜨는 버튼이라 반투명 흰 판을 깔아 준다.
+   단, primary(파란 버튼)까지 흰색으로 덮으면 흰 글자가 흰 배경에 묻힌다 — 제외한다. */
+.pv3dTools .tiny:not(.primary){background:rgba(255,255,255,.92);border:1px solid var(--line);
   box-shadow:0 2px 8px rgba(30,40,55,.08);backdrop-filter:blur(6px)}
+.pv3dTools .tiny.primary{background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 4px 14px -4px var(--accent)}
+.pv3dTools .tiny.primary:hover{background:var(--accent-2)}
 .pv3dTools .tiny[hidden]{display:none}
 
 /* 미니맵 — 지금 어디서 보고 있는지. 캔버스 오른쪽 아래에 작게. */
