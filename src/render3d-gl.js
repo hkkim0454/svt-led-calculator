@@ -18,12 +18,15 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=411';
-import { createMaterialLibrary } from './materials-gl.js?v=411';
-import { MOODS } from './materials.js?v=411';
-import { roomFinishForDesign } from './design-finish.js?v=411';
-import { ledImageFit } from './led-image.js?v=411';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=411';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=412';
+import { createMaterialLibrary } from './materials-gl.js?v=412';
+import { MOODS } from './materials.js?v=412';
+import { roomFinishForDesign } from './design-finish.js?v=412';
+import {
+  applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
+} from './design-lighting.js?v=412';
+import { ledImageFit } from './led-image.js?v=412';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=412';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -31,7 +34,10 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=411';
+} from './gl-model.js?v=412';
+
+// 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
+const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -647,9 +653,9 @@ export function createViewerGL(canvas, { onError } = {}) {
   key.castShadow = true;
   const shadowPx = shadowMapSize(typeof window !== 'undefined' ? window.devicePixelRatio : 1);
   key.shadow.mapSize.set(shadowPx, shadowPx);
-  key.shadow.radius = 4;            // PCFSoft 흐림 — 가장자리를 뭉갠다
-  key.shadow.bias = -0.0006;        // 면 자기 그림자(얼룩) 방지
-  key.shadow.normalBias = 0.02;
+  key.shadow.radius = SHADOW_DEFAULTS.radius;        // PCFSoft 흐림 — 가장자리를 뭉갠다
+  key.shadow.bias = SHADOW_DEFAULTS.bias;            // 면 자기 그림자(얼룩) 방지
+  key.shadow.normalBias = SHADOW_DEFAULTS.normalBias;
   scene.add(key);
   // ④ 보조광 — 반대쪽에서 아주 약하게. 그림자 속이 새까매지지 않게 받쳐 준다.
   const fill = new THREE.DirectionalLight(0xffffff, LIGHTS.fill);
@@ -925,8 +931,20 @@ export function createViewerGL(canvas, { onError } = {}) {
     orthoCam.far = Math.max(200, span * 12);
     orthoCam.updateProjectionMatrix();
     // 조명은 방을 기준으로 놓는다 — 방이 커져도 같은 방향에서 빛이 온다.
-    key.position.set(room.W * 0.25, room.H * 2.2, room.D * 1.1);
-    key.target.position.set(room.W / 2, room.H * 0.3, room.D * 0.3);
+    //   디자인이 주광 자리를 정했으면 그 자리로, 아니면 기존 자리로. **조명 개수는 그대로다.**
+    const kp = keyLightPlacementForDesign(model?.design, room);
+    if (kp) {
+      key.position.set(kp.position.x, kp.position.y, kp.position.z);
+      key.target.position.set(kp.target.x, kp.target.y, kp.target.z);
+    } else {
+      key.position.set(room.W * 0.25, room.H * 2.2, room.D * 1.1);
+      key.target.position.set(room.W / 2, room.H * 0.3, room.D * 0.3);
+    }
+    // 그림자 부드럽기 — 디자인이 정하지 않았으면 **기본값으로 되돌린다**(다른 공간으로 새지 않게).
+    const sh = shadowSettingsForDesign(model?.design) || SHADOW_DEFAULTS;
+    key.shadow.radius = sh.radius;
+    key.shadow.bias = sh.bias;
+    key.shadow.normalBias = sh.normalBias;
     scene.add(key.target);
     fill.position.set(room.W * 1.3, room.H * 1.2, room.D * 0.2);
     fill.target.position.set(room.W / 2, room.H * 0.4, 0);
@@ -1119,7 +1137,9 @@ export function createViewerGL(canvas, { onError } = {}) {
       ledSpill.distance = Math.max(3, Math.min(9, model.led.w * 1.6));
       // 조명 세기 = 기준값 × 표현 방식(심플/실사) 배수 × 분위기 배수. 조명 개수는 그대로다.
       const md = MOODS[model.finish?.mood] || MOODS.office;
-      const lv = lightLevels(LIGHTS, model.renderMode, md.light);
+      //   디자인이 조명을 정했으면 마지막에 그 배수를 얹는다. 정하지 않았으면 받은 값 그대로다 —
+      //   **조명 개수도 종류도 바뀌지 않는다.** 세기와 그림자 설정만 달라진다.
+      const lv = applyDesignLighting(lightLevels(LIGHTS, model.renderMode, md.light), model.design);
       hemi.intensity = lv.hemi;
       ceilLight.intensity = lv.ceiling;
       key.intensity = lv.key;

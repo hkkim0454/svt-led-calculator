@@ -345,15 +345,15 @@ test('가구 이름 계약 — 디자인이 가리키는 가구 이름에 떠 �
   }
 });
 
-test('대기업 회의실 — 가구(의자·테이블)와 마감만 정하고 나머지는 그대로다(PHASE 2-c)', () => {
+test('대기업 회의실 — 가구·마감·조명을 정하고 화각은 그대로다(PHASE 2-d.1)', () => {
   const f = ROOM_DESIGNS.corporateMeeting.furniture;
   assert.deepEqual({ ...f }, { chair: 'corporateChair', table: 'corporateTable' });
   // `planned(...)` 가 아니라 **맨 문자열** — 실제로 만들었다는 뜻이다.
   assert.equal(typeof f.chair, 'string');
   assert.equal(typeof f.table, 'string');
   assert.ok(FURNITURE_ASSETS.corporateChair && FURNITURE_ASSETS.corporateTable, '도형이 실제로 있다');
-  // 벽 구성·조명·화각·소품은 여전히 INHERIT = 기존 그대로(PHASE 2-d 이후).
-  for (const k of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
+  // 벽 구성·화각·소품은 여전히 INHERIT = 기존 그대로. **화각은 PHASE 2-d.2 몫이다.**
+  for (const k of ['wallTreatment', 'camera', 'accessories']) {
     assert.equal(ROOM_DESIGNS.corporateMeeting[k], null, `${k} 는 아직 건드리지 않는다`);
   }
 });

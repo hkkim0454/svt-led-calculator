@@ -1,0 +1,145 @@
+// design-lighting.js — "이 공간 디자인은 어떤 빛으로 보여 주는가". (순수 — THREE도 DOM도 쓰지 않는다)
+// ─────────────────────────────────────────────────────────────────────────────
+// 무엇을 고치려는 것인가 — 측정값으로 시작한다(PHASE 2-c 상태, 실내 시점).
+//   상판   평균 251.9 · 하위5% 252 · 상위95% 252   ← **완전히 날아갔다.** 명암이 하나도 없다.
+//   바닥   평균 204.6 · 하위5% 206 · 상위95% 208   ← 폭이 2단계뿐. 카펫 결이 보일 자리가 없다.
+//   벽     평균 212.0 · 하위5% 211 · 상위95% 213
+//
+//   상판 색은 #e9e4da(따뜻한 중성)인데 화면에는 252/252/252, 즉 **순백**으로 나온다.
+//   세 채널이 전부 위에서 잘려 색도 형태도 사라진 것이다. 재질 잘못이 아니라 **빛이 너무 많다.**
+//
+// 그래서 **재질을 어둡게 하지 않는다**(오너 지침 §5). 빛에서 푼다.
+//
+// 어디를 줄일 것인가 — 위를 보는 면과 벽이 받는 빛이 다르다는 점이 열쇠다.
+//   천장등은 **위를 보는 면**(상판·바닥)만 때리고 벽에는 거의 닿지 않는다(빛이 벽과 나란하다).
+//   환경광도 하늘 쪽 성분이 위를 보는 면에 훨씬 세게 들어간다.
+//   그래서 벽을 어둡게 만들지 않고 상판·바닥만 내리려면 **천장등을 가장 많이 줄이면 된다.**
+//   벽까지 같이 줄이면 '밝고 깨끗한 오프화이트'가 '칙칙한 회색'이 된다(오너 지침 §13).
+//
+// 그림자는 **연하게가 아니라 넓고 부드럽게**. 검은 얼룩처럼 보이는 것은 진하기보다
+//   가장자리가 또렷해서다. 흐림 반경을 키우고, 주광 비중이 과하게 오르지 않게 보조광을 조금 올린다.
+//
+// 이 파일은 **배수(비율)만** 정한다. 기준값(LIGHTS)은 gl-model.js가 계속 주인이다 —
+//   기준이 바뀌면 모든 공간이 함께 따라가야 하기 때문이다.
+// 디자인이 조명을 정하지 않았으면 **null**을 돌려준다. 렌더러는 그러면 지금 하던 그대로다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { roomDesign, isPlanned } from './room-design.js?v=412';
+
+/** 세기 배수가 붙는 조명 자리. 조명 **개수는 바꾸지 않는다** — 자리마다 역할이 정해져 있다. */
+export const LIGHT_ROLES = Object.freeze(['hemi', 'ceiling', 'key', 'fill', 'ledSpill']);
+
+/**
+ * 배수의 안전 범위. 밖으로 나가면 '조명 디자인'이 아니라 사고다.
+ * 위쪽이 2.0인 이유: 보조광은 기준값이 0.40으로 애초에 아주 작다.
+ *   두 배로 올려도 절대값은 0.76이라 주광(1.01)을 넘지 않는다 — 배수가 크다고 센 빛이 아니다.
+ *   그래서 절대값 상한도 함께 둔다(아래 MAX_ABS_INTENSITY).
+ */
+export const SCALE_RANGE = Object.freeze({ min: 0.2, max: 2.0 });
+
+/** 어떤 조명도 이 세기를 넘지 않는다. 넘으면 그 면은 다시 하얗게 날아간다. */
+export const MAX_ABS_INTENSITY = 2.2;
+
+/** 그림자를 만드는 조명은 **최대 1개**. 늘리면 그림자가 겹쳐 얼룩이 되고 비용도 곱으로 는다. */
+export const MAX_SHADOW_CASTERS = 1;
+
+export const LIGHTING_PRESETS = Object.freeze({
+  /**
+   * 대기업 회의실 — 밝지만 날아가지 않는 사무 조명.
+   *
+   * 배수를 이렇게 고른 이유 — **줄이기만 한 것이 아니라 다시 나눈 것**이다.
+   *   ceiling 0.36  **가장 많이 줄인다.** 위를 보는 면만 때리므로, 상판·바닥의 과다 노출을
+   *                 벽을 건드리지 않고 걷어낼 수 있는 유일한 자리다.
+   *   hemi    0.82  전체 바탕 밝기. 너무 줄이면 의자·수납장의 어두운 면이 뭉개진다.
+   *   key     0.88  방향감(형태)을 만드는 빛. 줄이되 없애지 않는다 — 없으면 다시 평평해진다.
+   *   fill    1.90  **유일하게 올린다.** 기준값이 0.40으로 워낙 작아 두 배로 올려도 0.76이다.
+   *                 두 가지 일을 한다 — ① 그늘 속을 받쳐 그림자가 검은 얼룩이 되지 않게 하고,
+   *                 ② 벽처럼 **세워진 면**을 밝힌다(천장등은 벽에 거의 닿지 않기 때문이다).
+   *                 이것이 없으면 상판을 내리는 순간 벽까지 칙칙해진다.
+   *   ledSpill 1.00 LED는 건드리지 않는다(오너 지침 §18).
+   *
+   * 결과(측정값, 실내 시점) — 상판 251.9 → 227.4 · 최대 253 → 228(**더는 잘리지 않는다**),
+   *   상판 색 252/252/252 → 230/225/216으로 **재질 본래의 따뜻함이 되살아났다**(#e9e4da = 233/228/218).
+   *   벽은 212 → 187.5로 내려가되 '칙칙한 회색'이 되지 않는 선에서 멈춘다.
+   * 그림자 비중(주광 ÷ 전체)은 0.253 → 0.273으로 아주 조금 오르지만, 보조광을 올리고
+   *   흐림 반경을 두 배 넘게 키워 **더 넓고 부드럽게** 만든다.
+   */
+  corporateSoft: Object.freeze({
+    id: 'corporateSoft',
+    label: '대기업 사무 조명(밝고 부드러움)',
+    scale: Object.freeze({ hemi: 0.82, ceiling: 0.36, key: 0.88, fill: 1.90, ledSpill: 1.00 }),
+    shadow: Object.freeze({
+      radius: 9,             // 흐림 반경 — 기본 4. 가장자리를 넓게 뭉개 '얼룩'이 아니라 '그늘'로.
+      bias: -0.0004,         // 면 자기 그림자 방지. 너무 키우면 물체가 바닥에서 떠 보인다.
+      normalBias: 0.035,     // 얇은 면(상판 25mm)에서 생기는 줄무늬를 막는다.
+    }),
+    /**
+     * 주광 방향 — 방 크기에 대한 비율이다(방이 커져도 같은 방향에서 온다).
+     * 기본값(0.25, 2.2, 1.1)보다 **더 높고 더 가운데**로 옮긴다:
+     *   낮고 비스듬한 빛은 의자 뒤로 긴 그림자를 뻗어 사무실이 아니라 저녁 창가처럼 보인다.
+     *   천장 조명에 가까운 각도여야 '사무 공간'으로 읽힌다(드라마틱한 햇빛 금지 — §3).
+     */
+    keyPos: Object.freeze({ x: 0.36, y: 2.9, z: 0.95 }),
+    keyTarget: Object.freeze({ x: 0.5, y: 0.15, z: 0.42 }),
+  }),
+});
+
+/** 조명 프리셋 이름 → 프리셋. 모르는 이름이면 null. */
+export function lightingPreset(id) {
+  return (typeof id === 'string' && LIGHTING_PRESETS[id]) || null;
+}
+
+/**
+ * 그 공간 디자인의 조명 프리셋. 정하지 않았거나(INHERIT) 아직 없는 값(planned)이면 null.
+ * null = 지금 하던 그대로. 다른 공간이 흔들리지 않는 이유가 이것이다.
+ */
+export function lightingForDesign(designId) {
+  const v = roomDesign(designId).lighting;
+  if (isPlanned(v)) return null;
+  return lightingPreset(v);
+}
+
+/**
+ * 최종 조명 세기 = 기준값 × 표현 방식 배수 × 분위기 배수 **× 디자인 배수**.
+ * 앞의 셋은 호출한 쪽이 이미 곱해서 넘긴다(`levels`). 여기서는 디자인 몫만 얹는다.
+ * @param levels   지금까지 계산된 세기(하던 대로의 값)
+ * @param designId 공간 디자인 id
+ * @returns 디자인이 조명을 정했으면 새 세기, 아니면 **받은 값 그대로**(같은 객체가 아니어도 값이 같다)
+ */
+export function applyDesignLighting(levels, designId) {
+  const p = lightingForDesign(designId);
+  if (!p || !levels) return levels;
+  const out = {};
+  for (const role of LIGHT_ROLES) {
+    const k = p.scale[role];
+    out[role] = typeof levels[role] === 'number' && typeof k === 'number' ? levels[role] * k : levels[role];
+  }
+  return out;
+}
+
+/**
+ * 그림자 설정. 디자인이 정하지 않았으면 null → 렌더러는 기존 값을 쓴다.
+ * **그림자를 만드는 조명을 늘리지 않는다** — 자리는 주광 하나뿐이다.
+ */
+export function shadowSettingsForDesign(designId) {
+  const p = lightingForDesign(designId);
+  return p ? p.shadow : null;
+}
+
+/**
+ * 주광 위치·목표. 방 크기(W·H·D)에 비율을 곱해 실제 좌표로 바꾼다.
+ * 디자인이 정하지 않았으면 null → 렌더러는 기존 자리를 쓴다.
+ */
+export function keyLightPlacementForDesign(designId, room) {
+  const p = lightingForDesign(designId);
+  if (!p || !room) return null;
+  const at = f => ({ x: room.W * f.x, y: room.H * f.y, z: room.D * f.z });
+  return Object.freeze({ position: at(p.keyPos), target: at(p.keyTarget) });
+}
+
+/** 주광이 전체 빛에서 차지하는 비중 = 그림자의 진하기(검증용). */
+export function keyShareOfLevels(levels) {
+  if (!levels) return 0;
+  const total = levels.hemi + levels.ceiling + levels.key + levels.fill;
+  return total > 0 ? levels.key / total : 0;
+}

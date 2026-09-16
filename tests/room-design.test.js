@@ -19,6 +19,7 @@ import { computeConfig } from '../src/engine.js';
 import { MODELS } from '../src/models.js';
 import { MATERIAL_PRESETS, MATERIAL_IDS, resolveMaterialId, floorFinishFor, moodFor } from '../src/materials.js';
 import { designPalette } from '../src/design-finish.js';
+import { lightingPreset } from '../src/design-lighting.js';
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
 const ROOM_TYPE_IDS = ROOM_TYPES.map(t => t.id);
@@ -169,7 +170,7 @@ test('아직 구현하지 않은 3개 공간 — 적용해도 화면이 바뀌�
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
 });
 
-test('corporateMeeting — PHASE 2-c 에서 가구와 마감을 정한다(조명·화각은 여전히 INHERIT)', () => {
+test('corporateMeeting — PHASE 2-d.1 에서 가구·마감·조명을 정한다(화각은 여전히 INHERIT)', () => {
   const d = ROOM_DESIGNS.corporateMeeting;
   assert.equal(d.status, DESIGN_STATUS.READY, '지금 쓸 수 있는 유일한 디자인이다');
   assert.equal(d.phase, 2);
@@ -179,8 +180,10 @@ test('corporateMeeting — PHASE 2-c 에서 가구와 마감을 정한다(조명
   assert.equal(d.materials.floor, 'carpetTileLight');
   assert.equal(d.materials.wall, 'paintedWallWhite');
   assert.equal(d.materials.credenza, 'blackEquipment');
-  // 조명·화각·벽 구성·소품은 여전히 비어 있어야 한다 — 누가 값을 채우면 테스트가 잡는다.
-  for (const f of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
+  assert.equal(d.lighting, 'corporateSoft');
+  // 화각·벽 구성·소품은 여전히 비어 있어야 한다 — 누가 값을 채우면 테스트가 잡는다.
+  //   **화각(camera)은 PHASE 2-d.2 몫이다.** 여기에 값이 들어가면 이번 단계의 검증이 무너진다.
+  for (const f of ['wallTreatment', 'camera', 'accessories']) {
     assert.equal(d[f], INHERIT, `corporateMeeting.${f} 에 값을 넣으면 현재 화면이 더 바뀐다`);
   }
   // INHERIT는 '용도가 정하던 규칙 그대로'를 뜻한다 — 그 규칙이 살아 있는지 확인한다.
@@ -199,7 +202,7 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   // 별칭(carpetTileLight 등)도 실재하는 재질이다 — 정식 id로 풀리면 된다.
   const known = new Set([...Object.keys(MATERIAL_PRESETS), ...Object.keys(FURNITURE_ASSETS)]);
   //   팔레트 이름도 '적용되는 값'이다 — 실재하는 팔레트로 풀려야 한다(가짜 스펙 금지).
-  const exists = x => known.has(x) || !!resolveMaterialId(x) || !!designPalette(x);
+  const exists = x => known.has(x) || !!resolveMaterialId(x) || !!designPalette(x) || !!lightingPreset(x);
   for (const id of DESIGN_IDS) {
     const r = resolveDesign(id);
     const ids = VALUE_FIELDS.flatMap(f => appliedIds(r[f]));
@@ -209,12 +212,12 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   // PHASE 2-c 에서 실제로 적용되는 것은 대기업 회의실의 가구 2종 + 마감 4종뿐이다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
-    'blackEquipment', 'carpetTileLight', 'corporateChair', 'corporateNeutral', 'corporateTable',
-    'darkGraphite', 'neutralLaminate', 'paintedWallWhite',
+    'blackEquipment', 'carpetTileLight', 'corporateChair', 'corporateNeutral', 'corporateSoft',
+    'corporateTable', 'darkGraphite', 'neutralLaminate', 'paintedWallWhite',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
-    assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id),
-      `${id} 는 실재하는 가구·재질·팔레트여야 한다`);
+    assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id) || lightingPreset(id),
+      `${id} 는 실재하는 가구·재질·팔레트·조명이어야 한다`);
   }
   // 아직 구현 전인 3종은 planned 표시를 달고 있어야 한다(빈 껍데기가 아니라 '계획'이라는 뜻).
   for (const id of ['executiveBoardroom', 'largeConference', 'controlRoom']) {
@@ -288,7 +291,6 @@ test('기존 계산 무변경 ② LED — 삼성 검증 기준값(MP012F 6×3.4m
   //   디자인이 정하는 것은 **가구의 생김새와 마감**뿐이고, 조명·화각은 아직 전부 INHERIT 다.
   for (const id of [...DESIGN_IDS, undefined]) {
     const d = resolveDesign(id);
-    assert.equal(d.lighting, INHERIT, `${id}: 조명은 아직 디자인이 정하지 않는다`);
     assert.equal(d.camera, INHERIT, `${id}: 화각은 아직 디자인이 정하지 않는다`);
   }
 });
