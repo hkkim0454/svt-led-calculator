@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions,
-  autoDepthForType, layoutRoom, FURNITURE, faceTowards, distributeSeats, personSpot, PERSON_BLOCKING,
+  autoDepthForType, layoutRoom, FURNITURE, faceTowards, distributeSeats, personSpot, PERSON_BLOCKING, tierPlan,
 } from '../src/room-presets.js';
 
 // 배치된 물건이 모두 방 안(0..W, 0..D)에 있는지 확인한다.
@@ -626,4 +626,83 @@ test('아이디에이션 — 스툴·라운지는 자기 테이블을 바라본�
         `${seat}가 ${table}을 바라보지 않는다`);
     }
   }
+});
+
+
+// ── 단차 시작 줄 · 상황실 단 (기능 C) ───────────────────────────────────────
+
+test('단 계획 — 시작 줄을 주면 그 줄부터 올라간다', () => {
+  // 6줄 2단, 4줄부터 → 1~3줄 바닥, 4~6줄이 한 단 위.
+  const p = tierPlan(6, 2, 250, 4);
+  assert.deepEqual(p.tierRows, [3, 3]);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(p.tierOf), [0, 0, 0, 1, 1, 1]);
+  // 2줄부터 → 1줄만 바닥.
+  assert.deepEqual(tierPlan(6, 2, 250, 2).tierRows, [1, 5]);
+  // 0이면 예전처럼 고르게 나눈다.
+  assert.deepEqual(tierPlan(6, 2, 250, 0).tierRows, [3, 3]);
+  assert.deepEqual(tierPlan(7, 3, 250, 0).tierRows, [3, 2, 2]);
+});
+
+test('단 계획 — 뒤 단마다 최소 한 줄은 남긴다', () => {
+  // 5줄 3단인데 시작 줄을 5로 주면 뒤 두 단에 1줄씩 남겨야 하므로 3줄로 당긴다.
+  const p = tierPlan(5, 3, 200, 5);
+  assert.equal(p.tierRows[0], 3);
+  assert.equal(p.tierRows.reduce((a, b) => a + b, 0), 5);
+  assert.ok(p.tierRows.every(n => n >= 1), '빈 단이 생기면 안 된다');
+  assert.ok(p.notes.length > 0, '조정했으면 알려 줘야 한다');
+  // 시작 줄이 줄 수를 넘어도 무너지지 않는다.
+  const q = tierPlan(4, 2, 200, 99);
+  assert.equal(q.tierRows.reduce((a, b) => a + b, 0), 4);
+  assert.ok(q.tierRows.every(n => n >= 1));
+});
+
+test('단 계획 — 줄보다 많은 단은 만들지 않고, 단 1이면 평평하다', () => {
+  const p = tierPlan(3, 9, 200, 0);
+  assert.equal(p.tiers, 3);
+  assert.ok(p.notes.length > 0);
+  const flat = tierPlan(6, 1, 200, 3);
+  assert.equal(flat.tiers, 1);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(flat.tierOf), [0, 0, 0, 0, 0, 0]);
+  assert.equal(tierPlan(6, 3, 0, 0).riserH, 0, '높이 0이면 단이 없다');
+});
+
+test('강당 — 단 시작 줄이 실제 좌석 높이에 반영된다', () => {
+  const room = { W: 14000, D: 16000 };
+  const base = { ...defaultOptions('hall_s'), rows: 6, seatsPerRow: 8, aisles: '1', tiers: 2, riserH: 250 };
+  const auto = layoutRoom('hall_s', { ...base, tierStartRow: 0 }, room);
+  const from4 = layoutRoom('hall_s', { ...base, tierStartRow: 4 }, room);
+  const from2 = layoutRoom('hall_s', { ...base, tierStartRow: 2 }, room);
+  const count = r => r.items.filter(i => i.type === 'seat')
+    .reduce((m, s) => (m[s.y] = (m[s.y] || 0) + 1, m), {});
+  // 좌석 수는 어느 경우에도 같다 — 높이 배분만 달라진다.
+  const total = r => r.items.filter(i => i.type === 'seat').length;
+  assert.equal(total(auto), total(from4));
+  assert.equal(total(auto), total(from2));
+  assert.deepEqual(count(from4), { 0: 24, 250: 24 }, '4줄부터 → 3줄씩');
+  assert.deepEqual(count(from2), { 0: 8, 250: 40 }, '2줄부터 → 1줄만 바닥');
+  // 단(플랫폼)은 단 수 − 1개.
+  assert.equal(from4.items.filter(i => i.type === 'riser').length, 1);
+  assertInside(from4, room.W, room.D, '단 시작 줄');
+});
+
+test('상황실 — 콘솔에도 단이 생기고, 콘솔과 그 의자가 같은 높이에 앉는다', () => {
+  const room = { W: 14000, D: 17000 };
+  const opts = { ...defaultOptions('control'), consoleRows: 4, perRow: 4, tiers: 3, riserH: 250, backTable: true };
+  const res = layoutRoom('control', opts, room);
+  const consoles = res.items.filter(i => i.type === 'console');
+  const ys = [...new Set(consoles.map(i => i.y))].sort((a, b) => a - b);
+  assert.deepEqual(ys, [0, 250, 500], '3단 → 0 / 250 / 500mm');
+  assert.deepEqual(res.items.filter(i => i.type === 'riser').map(i => i.h), [250, 500]);
+  // 각 콘솔 뒤 의자가 같은 단 높이에 있어야 한다(의자만 바닥에 남으면 떠 보인다).
+  for (const c of consoles) {
+    const chair = res.items.find(i => i.type === 'chair' && Math.abs(i.x - c.x) < 1 && Math.abs(i.z - (c.z + 1000)) < 1);
+    assert.ok(chair, '콘솔 뒤 의자가 없다');
+    assert.equal(chair.y, c.y, '의자가 콘솔과 다른 높이에 있다');
+  }
+  // 단 1이면 예전처럼 평평하다(기존 동작 보존).
+  const flat = layoutRoom('control', { ...opts, tiers: 1 }, room);
+  assert.equal(flat.items.filter(i => i.type === 'riser').length, 0);
+  for (const c of flat.items.filter(i => i.type === 'console')) assert.equal(c.y, 0);
+  assert.equal(flat.placed.consoles, res.placed.consoles, '단을 줘도 콘솔 수는 그대로');
+  assertInside(res, room.W, room.D, '상황실 단차');
 });
