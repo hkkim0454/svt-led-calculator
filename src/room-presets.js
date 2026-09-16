@@ -344,7 +344,7 @@ function layoutHall(o, W, D) {
   const nAisle = int(o.aisles, 1);
   const aisleTotal = nAisle * F.aisleW;
   const stageD = o.stage ? 2600 : 0;
-  if (o.stage) items.push({ type: 'stage', x: W / 2, z: stageD / 2, rotY: 0, w: W, d: stageD, h: 450 });
+  if (o.stage) items.push({ type: 'stage', x: W / 2, z: stageD / 2, rotY: 0, w: W, d: stageD, h: 280 });   // 높이는 보이는 값일 뿐 — 좌석 계산은 깊이(stageD)만 쓴다
 
   const zStart = Math.max(stageD, F.frontClear) + 1600;
   const maxPerRow = Math.max(1, fitCount(W - F.wallClear * 2 - aisleTotal, F.seatPitchX));
@@ -427,7 +427,8 @@ export function personSpot(room, led, items = []) {
   });
   // LED 좌·우 바깥쪽을 먼저, 벽에서 조금씩 떨어뜨려 가며 빈 곳을 찾는다.
   //   벽에 너무 붙이면 화면에서 치수선·치수 라벨과 겹치므로 적당히 띄운다.
-  const xs = [led.x - 1400, led.x + led.w + 1400, led.x - 2300, led.x + led.w + 2300];
+  //   LED 오른쪽을 먼저 본다 — 왼쪽에는 '하단 높이' 치수선이 내려와 사람과 겹친다.
+  const xs = [led.x + led.w + 1400, led.x - 1400, led.x + led.w + 2300, led.x - 2300];
   const zs = [2200, 2800, 1500, 3400];   // 벽에서 2.2 m쯤 떨어져 서면 치수 라벨과 겹치지 않는다
   for (const z of zs) {
     for (const x of xs) {

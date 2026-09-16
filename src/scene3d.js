@@ -52,48 +52,73 @@ export function clampView(v = {}) {
   };
 }
 
-// ── 큐브 뷰(고정 시점) ──────────────────────────────────────────────────────
-// 자유 회전 대신 '정육면체를 꼭짓점·모서리·면에서 바라보는' 정해진 각도만 쓴다.
-// 제품 렌더처럼 항상 반듯한 그림이 나오고, 어느 시점이든 결과가 똑같이 재현된다.
-//   ISO_PITCH = 35.264° — 정육면체의 꼭짓점에서 바라볼 때의 각도(정아이소메트릭).
-export const ISO_PITCH = Math.atan(1 / Math.SQRT2) / DEG;   // 35.2644°
+// ── 시점(고정 카메라) ───────────────────────────────────────────────────────
+// 자유 회전 대신 '정해진 몇 개의 시점'만 쓴다. 결과가 항상 똑같이 재현되고,
+// 어느 시점에서든 같은 카메라 언어(눈높이·화각)를 쓰므로 그림이 한 벌처럼 보인다.
+//
+// 아이소메트릭(정사투영)이 아니라 **건축 투시도(원근)** 다.
+//   · 사람 눈높이에서 살짝 내려다보는 각도 — 천장에서 내려다보는 미니어처 느낌을 없앤다.
+//   · 정면 뷰에서 카메라를 좌우로 조금 옮긴 그림이 되도록 yaw만 바꾼다.
+// 평면도(top)만 예외로 정사투영을 쓴다(도면이므로 원근이 있으면 안 된다).
 
-export const LOW_PITCH = 10;   // '면·모서리에서 본' 낮은 시점. 0°로 두면 바닥이 선으로 뭉개진다.
+export const EYE_MM = 2350;     // 카메라 눈높이(바닥에서 mm). 서 있는 눈높이보다 살짝 위.
+export const LOOK_MM = 1100;    // 바라보는 높이 — 눈높이보다 낮아 자연스럽게 내려다본다.
+export const FOV_DEG = 33;      // 화각. 건축 투시도에 쓰는 약망원(왜곡이 적다).
+export const MIN_PITCH_DEG = 9; // 최소한 이만큼은 내려다본다. 강당처럼 깊은 공간에서
+                                // 눈높이 그대로 두면 좌석이 지평선에 납작하게 뭉친다.
 
 export const CUBE_VIEWS = Object.freeze([
-  // 꼭짓점(정아이소메트릭) — 제품 렌더에 쓰는 기본 시점
-  { id: 'iso-l',   label: '좌측 코너',   kind: 'corner', yaw: -45, pitch: ISO_PITCH },
-  { id: 'front-h', label: '정면 위',     kind: 'edge',   yaw: 0,   pitch: ISO_PITCH },
-  { id: 'iso-r',   label: '우측 코너',   kind: 'corner', yaw: 45,  pitch: ISO_PITCH },
-  // 모서리·면 — 눈높이에 가까운 낮은 시점
-  { id: 'side-l',  label: '좌측면',      kind: 'face',   yaw: -90, pitch: LOW_PITCH },
-  { id: 'edge-l',  label: '좌측 모서리', kind: 'edge',   yaw: -45, pitch: LOW_PITCH },
-  { id: 'front',   label: '정면',        kind: 'face',   yaw: 0,   pitch: LOW_PITCH },
-  { id: 'edge-r',  label: '우측 모서리', kind: 'edge',   yaw: 45,  pitch: LOW_PITCH },
-  { id: 'side-r',  label: '우측면',      kind: 'face',   yaw: 90,  pitch: LOW_PITCH },
-  // 위에서(평면도)
-  { id: 'top',     label: '평면도',      kind: 'face',   yaw: 0,   pitch: 90 },
+  { id: 'side-l',   label: '좌측',      yaw: -40 },
+  { id: 'corner-l', label: '좌측 코너', yaw: -21 },
+  { id: 'front',    label: '정면',      yaw: 0 },
+  { id: 'corner-r', label: '우측 코너', yaw: 21 },
+  { id: 'side-r',   label: '우측',      yaw: 40 },
+  { id: 'top',      label: '평면도',    yaw: 0, plan: true },
 ]);
 
-export const DEFAULT_CUBE_VIEW = 'iso-r';
+export const DEFAULT_CUBE_VIEW = 'corner-r';
 
 export function cubeView(id) {
   return CUBE_VIEWS.find(v => v.id === id) || CUBE_VIEWS.find(v => v.id === DEFAULT_CUBE_VIEW);
 }
 
-// 큐브 뷰를 좌우(step +1 = 오른쪽)로 한 칸 돌린다. 같은 높이(pitch)의 시점끼리 순환.
+// 시점을 좌우(step +1 = 오른쪽)로 한 칸 돌린다.
+// 평면도는 고리 밖이므로, 평면도에서 화살표를 누르면 가운데(정면) 옆 칸으로 들어온다.
 export function rotateCubeView(id, step) {
-  const cur = cubeView(id);
-  const ring = CUBE_VIEWS.filter(v => Math.abs(v.pitch - cur.pitch) < 0.01 && v.pitch < 89)
-    .sort((a, b) => a.yaw - b.yaw);
-  if (ring.length < 2) return cur.id;
-  const i = ring.findIndex(v => v.id === cur.id);
+  const ring = CUBE_VIEWS.filter(v => !v.plan);
+  const i = ring.findIndex(v => v.id === cubeView(id).id);
+  if (i < 0) {
+    const mid = ring.findIndex(v => v.yaw === 0);
+    return ring[Math.min(ring.length - 1, Math.max(0, mid + Math.sign(step || 1)))].id;
+  }
   return ring[(i + step + ring.length) % ring.length].id;
 }
 
-// 카메라-LED 거리(mm). 방 깊이·LED 폭을 함께 보고 잡는다(원근 강도를 결정).
-export function defaultDistanceMm(scene) {
-  return Math.max(scene.D * 0.95, scene.led.w * 1.15, 4000);
+// 카메라가 방 밖에 서도록 하는 거리(mm). 방 안에 들어가면 벽이 카메라 뒤로 넘어가 잘린다.
+export function viewDistanceMm(scene) {
+  return Math.max(scene.D * 1.45, scene.W * 1.25, 8000);
+}
+
+/**
+ * 시점 id → 카메라. 모든 시점이 같은 눈높이·화각을 쓴다(= 같은 카메라 언어).
+ * 평면도만 정사투영.
+ */
+export function viewCamera(scene, viewId) {
+  const v = cubeView(viewId);
+  if (v.plan) {
+    return makeCamera({
+      target: [scene.W / 2, 0, scene.D / 2],
+      yaw: 0, pitch: 90,
+      distance: Math.max(scene.W, scene.D) * 8,
+      ortho: true,
+    });
+  }
+  const distance = viewDistanceMm(scene);
+  const target = [scene.W / 2, Math.min(LOOK_MM, scene.H * 0.45), scene.D * 0.28];
+  // 눈높이를 정하면 내려다보는 각도(pitch)가 기하로 결정된다 — 각도를 손으로 적지 않는다.
+  //   다만 방이 깊을수록 각도가 0에 가까워지므로 최소 각도를 보장한다(깊은 공간도 안이 보이게).
+  const pitch = Math.max(MIN_PITCH_DEG, Math.asin(clamp((EYE_MM - target[1]) / distance, -1, 1)) / DEG);
+  return makeCamera({ target, yaw: v.yaw, pitch, distance, fovDeg: FOV_DEG });
 }
 
 // 카메라를 만든다. target(바라보는 점)을 중심으로 yaw·pitch·distance 만큼 떨어진 곳에 선다.
@@ -214,6 +239,31 @@ export function polyPrismQuads(kind, ring, y0, y1, extra) {
     for (let i = 0; i < n; i++) {
       const [ax, az] = ring[i], [bx, bz] = ring[(i + 1) % n];
       out.push(quad(kind, [[cx, y, cz], [ax, y, az], [bx, y, bz], [cx, y, cz]], nml, extra));
+    }
+  }
+  return out;
+}
+
+// 원뿔대(위아래 지름이 다른 기둥) — 둥근 수형처럼 매끄럽게 굵기가 변하는 형태에 쓴다.
+// 같은 지름의 기둥을 쌓으면 계단처럼 층이 보인다.
+export function frustumQuads(kind, { cx, cz, r0, r1, y0, y1, sides = 12 }, extra) {
+  const out = [];
+  const pt = (r, y, i) => {
+    const a = (i / sides) * Math.PI * 2;
+    return [cx + Math.cos(a) * r, y, cz + Math.sin(a) * r];
+  };
+  for (let i = 0; i < sides; i++) {
+    const a0 = pt(r0, y0, i), b0 = pt(r0, y0, i + 1);
+    const a1 = pt(r1, y1, i), b1 = pt(r1, y1, i + 1);
+    const nx = (a0[0] + b0[0]) / 2 - cx, nz = (a0[2] + b0[2]) / 2 - cz;
+    out.push(quad(kind, [a0, b0, b1, a1], unit([nx, (r0 - r1) * 0.5, nz]), extra));
+  }
+  // 위·아래 뚜껑
+  for (const [r, y, n] of [[r1, y1, [0, 1, 0]], [r0, y0, [0, -1, 0]]]) {
+    if (r <= 0) continue;
+    for (let i = 0; i < sides; i++) {
+      const a = pt(r, y, i), b = pt(r, y, i + 1);
+      out.push(quad(kind, [[cx, y, cz], a, b, [cx, y, cz]], n, extra));
     }
   }
   return out;
