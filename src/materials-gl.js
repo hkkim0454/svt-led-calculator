@@ -12,8 +12,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { MATERIAL_PRESETS, tileRepeat } from './materials.js?v=388';
-import { MM_PER_UNIT } from './gl-model.js?v=388';
+import { MATERIAL_PRESETS, tileRepeat } from './materials.js?v=389';
+import { MM_PER_UNIT } from './gl-model.js?v=389';
 
 const TEX_SIZE = 256;
 
@@ -98,7 +98,7 @@ function makeNormalTexture(kind) {
  * 재질 라이브러리를 하나 만든다. 방을 다시 지을 때마다 새로 만들고, 버릴 때 dispose()한다.
  * @returns {{ get, surface, preset, dispose }}
  */
-export function createMaterialLibrary() {
+export function createMaterialLibrary({ textureScale = 1 } = {}) {
   const texCache = new Map();     // kind → 원본 normal map
   const matCache = new Map();     // 토큰|색|반복 → 재질
   const owned = [];               // 여기서 만든 재질·텍스처(반납 대상)
@@ -115,14 +115,15 @@ export function createMaterialLibrary() {
     const m = new THREE.MeshStandardMaterial({
       color, roughness: p.roughness, metalness: p.metalness, ...extra,
     });
-    const src = baseTex(p.texture);
-    if (src && p.normalScale > 0) {
+    const src = (p.normalScale * textureScale > 0) ? baseTex(p.texture) : null;
+    const nScale = p.normalScale * textureScale;   // 표현 방식(심플/실사)이 무늬 세기를 정한다
+    if (src && nScale > 0) {
       // 면마다 반복 횟수가 다르므로 텍스처는 복제한다(이미지 자체는 공유되어 메모리가 늘지 않는다).
       const t = src.clone();
       t.needsUpdate = true;
       t.repeat.set(repeat ? repeat[0] : 1, repeat ? repeat[1] : 1);
       m.normalMap = t;
-      m.normalScale = new THREE.Vector2(p.normalScale, p.normalScale);
+      m.normalScale = new THREE.Vector2(nScale, nScale);
       owned.push(t);
     }
     owned.push(m);

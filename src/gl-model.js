@@ -9,7 +9,8 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=388';
+import { floorFinishFor, moodFor } from './materials.js?v=389';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=389';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -62,7 +63,7 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @param items room-presets의 배치 결과(STEP 1에서는 무대만 읽는다)
  * @returns { room, led, stage }  전부 unit
  */
-export function buildGLModel({ space, led, items, show, person, roomType, sideMonitors, ledImage }) {
+export function buildGLModel({ space, led, items, show, person, roomType, sideMonitors, ledImage, renderMode }) {
   // 벽 두께는 '방 바깥쪽'으로 붙인다 — 안쪽 치수(W×H×D)는 계산값 그대로여야 한다.
   const room = {
     W: u(space.W), H: u(space.H), D: u(space.D),
@@ -89,6 +90,8 @@ export function buildGLModel({ space, led, items, show, person, roomType, sideMo
     },
     // 바닥 마감 — 공간 타입이 정한다(강의실만 비닐, 나머지는 카펫).
     //   재질 수치는 materials.js에 있고 여기서는 '어떤 마감인지'만 고른다.
+    // 표현 방식(심플/실사) — 형상·치수는 그대로이고 빛과 재질만 달라진다.
+    renderMode: renderMode || DEFAULT_RENDER_MODE,
     finish: { floor: floorFinishFor(roomType), mood: moodFor(roomType) },
     // LED 옆 보조 모니터 — 화면이 계산해 넘긴 값을 unit으로만 바꾼다(여기서 자리를 정하지 않는다).
     sideMonitors: (sideMonitors || []).map(mn => ({
