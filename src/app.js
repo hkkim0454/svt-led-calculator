@@ -630,7 +630,10 @@ function renderPreview() {
   // 캐비닛 수 라벨은 LED만. 사이니지는 중앙 '장' 표기 대신 우상단 인치 라벨(아래 svSizeHTML)로 표시(이사 요청 2026-09-14).
   //   위치: 중앙 → '왼쪽 하단' 안쪽(넓은 벽에서 중앙이 화면을 가리지 않게, 이사 요청 2026-09-14). 좌하단 앵커.
   if (!svMode) {
-    const bx = clx(Lx + Lw - px(120)), by = cly(Ly + Lh - px(120));   // 우측 하단 안쪽(사람과 겹치지 않게, 이사 요청 2026-09-15)
+    // 완성된 디스플레이(LED) 우측하단 안쪽 코너. translate(-100%,-100%)로 우하단 앵커 → 라벨은 앵커 왼쪽·위로 그려짐.
+    //   우측/하단 프레임을 넘지 않도록 앵커를 프레임 안쪽으로 추가 clamp(넉넉한 여유, 이사 요청 2026-09-16).
+    const bx = Math.min(clx(Lx + Lw - px(60)), visR - 34 / effFit);
+    const by = Math.min(cly(Ly + Lh - px(60)), visB - 22 / effFit);
     dims.push(`<div class="rs3Dlbl count br" style="left:${bx}px;top:${by}px">${r.cols} × ${r.rows} = ${r.total} 캐비닛</div>`);
   }
 
@@ -1128,7 +1131,7 @@ function openProcImgPopup(id, side = 'front') {
       }
     });
     // 원형 돋보기(확대 렌즈) — 이미지 위에서 커서를 따라 해당 부분을 확대해 보여준다(이사 요청 2026-09-15).
-    const LOUPE = 133, ZOOM = 3.1;   // 돋보기 원 133px · 배율 60%로 축소(5.2→3.1, 이사 요청 2026-09-15)
+    const LOUPE = 160, ZOOM = 3.1;   // 돋보기 원 160px(133→160, 1.2배 확대 이사 요청 2026-09-16) · 배율 3.1
     const moveLoupe = e => {
       const img = el.querySelector('#procImgImg'), loupe = el.querySelector('#procLoupe');
       if (!img || !loupe || !img.complete || !img.naturalWidth) return;
