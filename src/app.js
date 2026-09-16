@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=371';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=371';
-import { createViewerGL } from './render3d-gl.js?v=371';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=371';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=374';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=374';
+import { createViewerGL } from './render3d-gl.js?v=374';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=374';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -265,7 +265,12 @@ let cubeViewId = DEFAULT_CUBE_VIEW;   // (구 Canvas 뷰의 시점 id — 구성
 let presetId = DEFAULT_PRESET;        // 3D 카메라 시점 프리셋
 let customViews = [];                 // 사용자가 저장한 시점(구성과 함께 저장된다)
 let viewEditMode = false;             // 시점 편집 모드 — 켜면 '+'(저장)와 '×'(삭제)가 보인다
-const pv3dShow = { person: true, dims: true, grid: true, accentWall: true };
+const pv3dShow = {
+  person: true, dims: true, grid: true, accentWall: true,
+  // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 2면 —
+  //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
+  walls: { front: true, back: false, left: true, right: false },
+};
 let viewer3d = null;   // createViewerGL() 인스턴스(3D 뷰를 처음 열 때 만든다)
 let gl3dFailed = false;   // WebGL을 쓸 수 없는 환경인지(한 번 실패하면 다시 시도하지 않는다)
 // 사람(스케일 기준 인물): 실사 사진(연예인, 실제 키) + 의상형 실루엣(남/여, 회색 PNG).
@@ -920,6 +925,32 @@ function buildSizeProxy() {
   return box;
 }
 
+// 벽 4면 켜고 끄기 — 어느 벽을 보여줄지 직접 고른다.
+//   (카메라 쪽 벽까지 켜면 방 안이 안 보이므로 기본은 2면만 켜 둔다)
+function buildWallToggles() {
+  const box = document.createElement('div');
+  box.className = 'pv3dWalls';
+  const lab = document.createElement('span');
+  lab.className = 'pv3dWallsLab';
+  lab.textContent = '벽면';
+  box.appendChild(lab);
+  for (const [key, text, title] of [
+    ['front', '앞', 'LED가 붙은 벽'],
+    ['back', '뒤', '반대편 벽'],
+    ['left', '좌', '왼쪽 벽'],
+    ['right', '우', '오른쪽 벽'],
+  ]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pvTog pv3dWallBtn' + (pv3dShow.walls[key] ? ' on' : '');
+    b.dataset.t3dwall = key;
+    b.title = title;
+    b.textContent = text;
+    box.appendChild(b);
+  }
+  return box;
+}
+
 // 벽 두께(mm) — 3D 뷰 전용 표시 설정. 방 안쪽 치수(W×H×D)는 건드리지 않는다.
 function buildWallThkField() {
   const lab = document.createElement('label');
@@ -962,6 +993,7 @@ function buildInspector() {
   // [설치 요소] 무대는 좌석 옵션 안에 있으므로 renderRoomOptions가 옮겨 준다.
   const s3 = inspectorSection('설치 요소');
   s3.id = 'pv3dElements';
+  s3.body.appendChild(buildWallToggles());
   for (const sel of ['[data-t3d="person"]', '#person3dSel', '[data-t3d="dims"]',
                      '[data-t3d="grid"]', '[data-t3d="accentWall"]']) {
     const el = bar?.querySelector(sel);
@@ -1134,10 +1166,15 @@ function setPreviewView(v) {
   pvView = (v === '3d') ? '3d' : '2d';
   $('#pvViewMode')?.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.view === pvView));
   const is3d = pvView === '3d';
-  // 3D에서는 03 카드가 페이지 폭을 다 쓰게 한다(캔버스가 가장 넓은 영역이 되도록).
-  document.body.classList.toggle('pv3dOpen', is3d);
   if ($('#pv3dBar')) $('#pv3dBar').hidden = !is3d;
-  if ($('#pvToggles')) $('#pvToggles').hidden = is3d;
+  // 3D에서도 'Fullscreen'은 쓸 수 있어야 한다 — 막대는 남기고 2D 전용 버튼만 숨긴다.
+  if ($('#pvToggles')) {
+    $('#pvToggles').hidden = false;
+    for (const el of $('#pvToggles').children) {
+      const keep = el.dataset.act === 'zoom';   // Fullscreen 버튼
+      el.hidden = is3d && !keep;
+    }
+  }
   if ($('#signalMode')) $('#signalMode').hidden = is3d;
   if (!is3d && $('#stage3d')) { $('#stage3d').hidden = true; $('#stage').hidden = false; }
   if (is3d) { renderRoomOptions(); applyStagedUi(); syncPresetSel(); }
@@ -1176,6 +1213,15 @@ $('#roomOpts')?.addEventListener('input', e => {
   renderPreview();
 });
 $('#roomOpts')?.addEventListener('change', () => renderRoomOptions());
+
+// 벽면 4개 토글.
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-t3dwall]'); if (!b) return;
+  const k = b.dataset.t3dwall;
+  pv3dShow.walls[k] = !pv3dShow.walls[k];
+  b.classList.toggle('on', pv3dShow.walls[k]);
+  renderPreview();
+});
 
 // 3D 표시 토글(사람·치수·바닥 격자·포인트 벽).
 //   버튼은 왼쪽 패널로 '옮겨' 가므로(STEP 5) 특정 부모에 위임하면 끊긴다.
@@ -2565,7 +2611,9 @@ syncPvToggles();
 
   let overlay = null;
   const head = () => document.querySelector('.pvHeadRow');
-  const stageEl = () => document.querySelector('#stage');
+  // 지금 보고 있는 미리보기(정면 뷰 또는 3D 작업영역)를 팝업으로 옮긴다.
+  const stageEl = () => document.querySelector(pvView === '3d' ? '#stage3d' : '#stage');
+  let moved = null;   // 팝업으로 옮겨 둔 요소 — 닫을 때 그대로 되돌린다
   function ensureOverlay() {
     if (overlay) return;
     overlay = document.createElement('div');
@@ -2582,17 +2630,22 @@ syncPvToggles();
     if (overlay && !overlay.hidden) return;
     ensureOverlay();
     const body = overlay.querySelector('.pvZoomBody');
-    body.appendChild(head()); body.appendChild(stageEl());   // 머리줄+미리보기를 팝업으로 이동
+    moved = stageEl();
+    body.appendChild(head()); body.appendChild(moved);        // 머리줄+미리보기를 팝업으로 이동
     overlay.hidden = false; document.body.classList.add('pvZoomOpen');
     document.addEventListener('keydown', onKey);
     renderPreview();
+    viewer3d?.resize();   // 3D면 캔버스가 커졌으니 다시 맞춘다
   }
   function closeZoom() {
     if (!overlay || overlay.hidden) return;
-    card.appendChild(head()); card.appendChild(stageEl());    // 원래 카드로 되돌림(h2 다음 순서 유지)
+    card.appendChild(head());
+    if (moved) card.appendChild(moved);                       // 옮겨 둔 그대로 되돌림
+    moved = null;
     overlay.hidden = true; document.body.classList.remove('pvZoomOpen');
     document.removeEventListener('keydown', onKey);
     renderPreview();
+    viewer3d?.resize();
   }
   btn.addEventListener('click', openZoom);
 })();

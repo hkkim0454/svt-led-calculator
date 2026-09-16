@@ -18,18 +18,20 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=371';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=374';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
-} from './gl-model.js?v=371';
+  TOP_PITCH_DEG, orthoFitHeight,
+} from './gl-model.js?v=374';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
+  TOP_PITCH_DEG, orthoFitHeight,
 };
 
 // 프리셋 전환에 걸리는 시간(ms). 툭 끊기지 않으면서 기다린다는 느낌은 없는 길이.
@@ -176,17 +178,36 @@ function buildRoomGroup(model, shared) {
   const thk = room.wallThk || 0;
   const wallMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
 
+  const wallOn = model.show?.walls || {};
+
   // ② 정면 벽(LED가 붙는 벽, z=0) — 방 안쪽(+Z)을 향한다.
-  let wallFront;
-  if (thk > 0) {
-    wallFront = wallMesh(room.W + thk * 2, room.H, thk, matWallFront);
-    wallFront.position.set(room.W / 2, room.H / 2, -thk / 2);
-  } else {
-    wallFront = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallFront);
-    wallFront.position.set(room.W / 2, room.H / 2, 0);
+  if (wallOn.front !== false) {
+    let wallFront;
+    if (thk > 0) {
+      wallFront = wallMesh(room.W + thk * 2, room.H, thk, matWallFront);
+      wallFront.position.set(room.W / 2, room.H / 2, -thk / 2);
+    } else {
+      wallFront = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallFront);
+      wallFront.position.set(room.W / 2, room.H / 2, 0);
+    }
+    wallFront.name = 'wallFront';
+    g.add(wallFront);
   }
-  wallFront.name = 'wallFront';
-  g.add(wallFront);
+
+  // ②' 뒷벽(z=D) — 방 안쪽(−Z)을 향한다. 기본은 꺼 둔다(카메라가 이쪽에 선다).
+  if (wallOn.back) {
+    let wallBack;
+    if (thk > 0) {
+      wallBack = wallMesh(room.W + thk * 2, room.H, thk, matWallSide);
+      wallBack.position.set(room.W / 2, room.H / 2, room.D + thk / 2);
+    } else {
+      wallBack = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallSide);
+      wallBack.rotation.y = Math.PI;               // 방 안쪽(−Z)을 향한다
+      wallBack.position.set(room.W / 2, room.H / 2, room.D);
+    }
+    wallBack.name = 'wallBack';
+    g.add(wallBack);
+  }
 
   // ③④ 좌·우 벽. 포인트 벽은 **공간 좌표 기준 한쪽 벽(ACCENT_WALL_SIDE)에 고정**한다.
   //     '카메라에서 보이는 옆벽'에 칠하면 시점을 돌릴 때 벽이 좌↔우로 옮겨 다닌다 —
@@ -209,23 +230,32 @@ function buildRoomGroup(model, shared) {
     return [0, 1, 2, 3, 4, 5].map(i => (i === inner ? matAccent : matWallSide));
   };
 
-  let wallLeft, wallRight;
-  if (thk > 0) {
-    wallLeft = wallMesh(thk, room.H, room.D, sideMat('left'));
-    wallLeft.position.set(-thk / 2, room.H / 2, room.D / 2);
-    wallRight = wallMesh(thk, room.H, room.D, sideMat('right'));
-    wallRight.position.set(room.W + thk / 2, room.H / 2, room.D / 2);
-  } else {
-    wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('left'));
-    wallLeft.rotation.y = Math.PI / 2;             // 방 안쪽(+X)을 향한다
-    wallLeft.position.set(0, room.H / 2, room.D / 2);
-    wallRight = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('right'));
-    wallRight.rotation.y = -Math.PI / 2;           // 방 안쪽(−X)을 향한다
-    wallRight.position.set(room.W, room.H / 2, room.D / 2);
+  if (wallOn.left !== false) {
+    let wallLeft;
+    if (thk > 0) {
+      wallLeft = wallMesh(thk, room.H, room.D, sideMat('left'));
+      wallLeft.position.set(-thk / 2, room.H / 2, room.D / 2);
+    } else {
+      wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('left'));
+      wallLeft.rotation.y = Math.PI / 2;           // 방 안쪽(+X)을 향한다
+      wallLeft.position.set(0, room.H / 2, room.D / 2);
+    }
+    wallLeft.name = 'wallLeft';
+    g.add(wallLeft);
   }
-  wallLeft.name = 'wallLeft';
-  wallRight.name = 'wallRight';
-  g.add(wallLeft, wallRight);
+  if (wallOn.right) {
+    let wallRight;
+    if (thk > 0) {
+      wallRight = wallMesh(thk, room.H, room.D, sideMat('right'));
+      wallRight.position.set(room.W + thk / 2, room.H / 2, room.D / 2);
+    } else {
+      wallRight = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('right'));
+      wallRight.rotation.y = -Math.PI / 2;         // 방 안쪽(−X)을 향한다
+      wallRight.position.set(room.W, room.H / 2, room.D / 2);
+    }
+    wallRight.name = 'wallRight';
+    g.add(wallRight);
+  }
 
   // ⑤ LED — 벽에서 캐비닛 깊이만큼 튀어나온 상자 + 그 앞면에 붙는 화면.
   //    상자와 화면을 나누면 옆면(두께)과 화면 색을 따로 줄 수 있다.
@@ -450,9 +480,10 @@ export function createViewerGL(canvas, { onError } = {}) {
     //   (아이소·평면도는 원래 방 밖에서 보는 시점이라 이 제한을 풀어 준다)
     // 조작 규칙 — 왼쪽 끌기=회전, 휠=확대, 오른쪽 끌기=이동.
     //   Shift+왼쪽 끌기도 이동이 되도록 아래에서 버튼 배정을 바꿔 준다.
+    // 왼쪽=회전 · 휠 굴리기=확대 · **휠 버튼 누르고 끌기=전체 이동** · 오른쪽 끌기=이동
     c.mouseButtons = {
       LEFT: THREE.MOUSE.ROTATE,
-      MIDDLE: THREE.MOUSE.DOLLY,
+      MIDDLE: THREE.MOUSE.PAN,
       RIGHT: THREE.MOUSE.PAN,
     };
     c.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
