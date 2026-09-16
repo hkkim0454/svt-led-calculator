@@ -15,16 +15,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=405';
-import { createMaterialLibrary } from './materials-gl.js?v=405';
-import { PART_MATERIAL, PART_FINISH, finishForPart } from './materials.js?v=405';
-import { GRADE_COLORS } from './viewangle.js?v=405';
-import { createGeometryCache } from './geometry-gl.js?v=405';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=405';
+import { u } from './gl-model.js?v=411';
+import { createMaterialLibrary } from './materials-gl.js?v=411';
+import { PART_MATERIAL, PART_FINISH, finishForPart } from './materials.js?v=411';
+import { GRADE_COLORS } from './viewangle.js?v=411';
+import { createGeometryCache } from './geometry-gl.js?v=411';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=411';
+import { credenzaFinishForDesign, floorPartFinishForDesign } from './design-finish.js?v=411';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
-} from './furniture-assets.js?v=405';
+} from './furniture-assets.js?v=411';
 
 const DEG = Math.PI / 180;
 
@@ -240,6 +241,7 @@ export function buildFurnitureGroup(items, opts = {}) {
   //   부품 종류 → 재질 프리셋 대응표는 materials.js(PART_MATERIAL)에 있다.
   //   같은 프리셋 + 같은 색이면 재질 하나를 돌려 쓰므로 그리기 호출이 늘지 않는다.
   const lib = createMaterialLibrary({ textureScale: opts.textureScale ?? 1 });
+  const designId = opts.designId || null;
   const mat = {};
   for (const [k, c] of Object.entries(FURNITURE_COLORS)) {
     const token = PART_MATERIAL[k];
@@ -264,10 +266,18 @@ export function buildFurnitureGroup(items, opts = {}) {
     mat[kind] = lib.get(fin.material, fin.color, Object.keys(extra).length ? extra : undefined);
   }
 
+  // ── 공간 디자인이 정한 마감으로 갈아 끼우는 부품 ──
+  //   **형상은 그대로 두고 마감만 바꾼다.** AV 수납장은 여러 공간이 함께 쓰는 자산이라
+  //   자산 자체의 색을 바꾸면 그 공간들이 전부 같이 바뀐다. 디자인이 정한 공간에서만 갈아 끼운다.
+  //   디자인이 마감을 정하지 않았으면 null이므로 아무 일도 일어나지 않는다.
+  for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId)]) {
+    if (!fin) continue;
+    for (const [part, f] of Object.entries(fin)) mat[part] = lib.get(f.material, f.color);
+  }
+
   // ── 반복 가구는 InstancedMesh 로 묶는다 ──
   const buckets = new Map();
   const singles = [];
-  const designId = opts.designId || null;
   // 이 배치에 테이블이 몇 조각인가. 한 조각이면 '가운데 회의 테이블', 여러 조각이면 U자형 등이다.
   const oneTable = items.filter(x => x.type === 'table').length === 1;
   for (const raw of items) {
