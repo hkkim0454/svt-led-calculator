@@ -28,6 +28,13 @@ export const FURNITURE_COLORS = Object.freeze({
   deskTop: '#efeae1', deskLeg: '#b3bcc8', deskPanel: '#e4e9ef', deskRail: '#a9b3c0',
   consoleTop: '#f3f6f9', consoleBase: '#9ba6b4', monitor: '#1b2532', monitorBase: '#8f99a7',
   podium: '#eef2f7', podiumTop: '#efeae1',
+  credenzaBody: '#e7ecf2', credenzaDoor: '#dfe5ed', credenzaTop: '#ece6db', credenzaToe: '#b9c1cd',
+  // 아이디에이션 공간 — 회의실보다 밝고 가볍게. 채도는 여전히 낮다.
+  highTop: '#efe9df', highLeg: '#aeb8c4',
+  stoolSeat: '#cfdcd8', stoolBase: '#a9b3c0',
+  loungeSeat: '#d5dfe6', loungeBack: '#d5dfe6', loungeLeg: '#b3bcc8',
+  collabTop: '#efe9df', collabLeg: '#aeb8c4',
+  standBase: '#9ba6b4', standPole: '#aeb8c4', standPanel: '#1b2532',
   rug: '#c1c9d5',
   // 객석 단(계단). 윗면은 바닥보다 밝게, **옆면(챌판)은 뚜렷하게 어둡게** —
   //   옆면이 바닥색과 비슷하면 단 경계가 안 보여 그냥 평평한 단 하나로 읽힌다.
@@ -71,6 +78,20 @@ export const DIMS = Object.freeze({
   // 상황실 콘솔 / 교탁 — 이번 단계에서 형상을 바꾸지 않는다(기존 값 유지).
   controlConsole: Object.freeze({ surfaceY: 730, topThk: 50, monW: 760, monH: 440 }),
   podium: Object.freeze({ w: 700, d: 500, h: 1080 }),
+  // AV 수납장 — LED 벽 아래 낮은 수납장. 700 × 450mm(실제 AV 랙 수납장 치수).
+  avCredenza: Object.freeze({ h: 700, d: 450, toeH: 80, topThk: 30, doorGap: 20 }),
+  // 하이 테이블 — 서서 쓰는 협업 테이블. 상판 1,050mm(스툴 좌석 750에 맞춘 높이).
+  highTable: Object.freeze({ surfaceY: 1050, topThk: 40, legW: 70, railY: 220 }),
+  // 스툴 — 등받이 없는 하이 체어. 좌석 750mm.
+  stool: Object.freeze({ seatTop: 750, seatThk: 60, seatR: 190, baseR: 175, columnR: 32, ringR: 165, ringY: 230 }),
+  // 라운지 체어 — 낮고 푹신한 1인용. 좌석 400mm(회의 의자보다 낮다).
+  loungeChair: Object.freeze({ seatTop: 400, seatThk: 140, seatW: 640, seatD: 620,
+    backH: 420, backThk: 150, backTilt: 18, legH: 260, legW: 55 }),
+  // 소형 협업 테이블 — 낮은 원형. 다리 3개(회의 테이블의 가운데 기둥과 다른 실루엣).
+  collabTable: Object.freeze({ surfaceY: 700, topThk: 28, dia: 1100, legW: 60 }),
+  // 이동식 디스플레이 스탠드 — 바퀴 달린 이동형 화면.
+  mobileStand: Object.freeze({ baseW: 760, baseD: 560, baseH: 70, poleW: 110, panelY: 1280,
+    panelW: 1150, panelH: 660, panelThk: 65 }),
   // 부속물
   plant: Object.freeze({ potR: 170, potH: 300, leafH: 520 }),
   rug: Object.freeze({ h: 14 }),
@@ -205,6 +226,92 @@ export function createConferenceTable(item = {}) {
   return spec;
 }
 
+/**
+ * AV 수납장 — 굽(토킥) + 몸통 + 상판 + 여닫이문 2짝. 아주 단순한 형태로 만든다.
+ * 장식용 가구가 아니라 공간 현실감을 위한 보조 요소라 여기서 더 꾸미지 않는다.
+ */
+export function createAvCredenza(w = 1800, d = 450) {
+  const S = DIMS.avCredenza;
+  const bodyH = S.h - S.toeH - S.topThk;        // 590
+  const bodyY = S.toeH + bodyH / 2;
+  const doorW = (w - 40 - S.doorGap) / 2;       // 양쪽 20mm씩 들어간 문 2짝
+  return [
+    // 굽 — 안쪽으로 들여 그림자를 만든다(바닥에 딱 붙은 상자로 보이지 않게).
+    box('credenzaToe', 0, S.toeH / 2, 0, w - 120, S.toeH, d - 80),
+    box('credenzaBody', 0, bodyY, 0, w, bodyH, d),
+    // 문 2짝 — 몸통보다 12mm 앞으로(LED 벽 반대쪽 = -Z가 방 안쪽이다).
+    box('credenzaDoor', -(doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12),
+    box('credenzaDoor', (doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12),
+    // 상판 — 테이블과 같은 옅은 오크. 사방으로 살짝 내민다.
+    box('credenzaTop', 0, S.h - S.topThk / 2, 0, w + 30, S.topThk, d + 20),
+  ];
+}
+
+/** 하이 테이블 — 상판 + 얇은 다리 4 + 발 거는 가로대 2. 서서 쓰는 높이. */
+export function createHighTable(w = 1800, d = 900) {
+  const S = DIMS.highTable;
+  const top = S.surfaceY - S.topThk;
+  const lx = w / 2 - 110, lz = d / 2 - 110;
+  const parts = [box('highTop', 0, top + S.topThk / 2, 0, w, S.topThk, d)];
+  for (const sx of [-lx, lx]) {
+    for (const sz of [-lz, lz]) parts.push(box('highLeg', sx, top / 2, sz, S.legW, top, S.legW));
+    parts.push(box('highLeg', sx, S.railY, 0, S.legW * 0.6, S.legW * 0.6, lz * 2));
+  }
+  return parts;
+}
+
+/** 스툴 — 원형 좌판 + 가는 기둥 + 납작한 받침 + 발 거는 링. 등받이는 없다. */
+export function createStool() {
+  const S = DIMS.stool;
+  const seatBottom = S.seatTop - S.seatThk;
+  return [
+    cyl('stoolBase', 0, 12, 0, S.baseR, 24),
+    cyl('stoolBase', 0, (24 + seatBottom) / 2, 0, S.columnR, seatBottom - 24),
+    // 발 거는 링은 얇은 원판으로 대신한다(도넛을 만들면 폴리곤만 는다).
+    cyl('stoolBase', 0, S.ringY, 0, S.ringR, 26),
+    cyl('stoolSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatR, S.seatThk),
+  ];
+}
+
+/** 라운지 체어 — 낮고 두툼한 1인용. 회의 의자보다 낮고 넓어 실루엣이 확실히 다르다. */
+export function createLoungeChair() {
+  const S = DIMS.loungeChair;
+  const seatBottom = S.seatTop - S.seatThk;
+  const lx = S.seatW / 2 - 70, lz = S.seatD / 2 - 70;
+  const parts = [];
+  for (const sx of [-lx, lx]) {
+    for (const sz of [-lz, lz]) parts.push(box('loungeLeg', sx, seatBottom / 2, sz, S.legW, seatBottom, S.legW));
+  }
+  parts.push(box('loungeSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD));
+  parts.push(box('loungeBack', 0, S.seatTop + S.backH / 2, S.seatD / 2 - S.backThk / 2,
+    S.seatW, S.backH, S.backThk, S.backTilt));
+  return parts;
+}
+
+/** 소형 협업 테이블 — 낮은 원형 상판 + 다리 3개(삼각 배치). */
+export function createCollabTable(dia = 0) {
+  const S = DIMS.collabTable;
+  const r = (dia || S.dia) / 2;
+  const top = S.surfaceY - S.topThk;
+  const parts = [cyl('collabTop', 0, top + S.topThk / 2, 0, r, S.topThk)];
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    parts.push(box('collabLeg', Math.sin(a) * r * 0.62, top / 2, Math.cos(a) * r * 0.62,
+      S.legW, top, S.legW));
+  }
+  return parts;
+}
+
+/** 이동식 디스플레이 스탠드 — 받침 + 기둥 + 화면. 아주 단순하게. */
+export function createMobileStand() {
+  const S = DIMS.mobileStand;
+  return [
+    box('standBase', 0, S.baseH / 2, 0, S.baseW, S.baseH, S.baseD),
+    box('standPole', 0, S.panelY / 2, 0, S.poleW, S.panelY, S.poleW),
+    box('standPanel', 0, S.panelY + S.panelH / 2 - 120, -40, S.panelW, S.panelH, S.panelThk),
+  ];
+}
+
 /** 상황실 콘솔 — 이번 단계에서는 형상 변경 없음(기존 값 그대로). */
 export function createControlConsole(w = 1800, d = 900) {
   const S = DIMS.controlConsole;
@@ -240,6 +347,12 @@ export const FURNITURE_ASSETS = Object.freeze({
   trainingDesk: { id: 'trainingDesk', label: '강의용 책상', instanced: true, sized: true, build: it => createTrainingDesk(it.w, it.d) },
   controlConsole: { id: 'controlConsole', label: '상황실 콘솔', instanced: true, sized: true, build: it => createControlConsole(it.w, it.d) },
   podium: { id: 'podium', label: '교탁', instanced: true, sized: false, build: () => createPodium() },
+  avCredenza: { id: 'avCredenza', label: 'AV 수납장', instanced: true, sized: true, build: it => createAvCredenza(it.w, it.d) },
+  highTable: { id: 'highTable', label: '하이 테이블', instanced: true, sized: true, build: it => createHighTable(it.w, it.d) },
+  stool: { id: 'stool', label: '스툴', instanced: true, sized: false, build: () => createStool() },
+  loungeChair: { id: 'loungeChair', label: '라운지 체어', instanced: true, sized: false, build: () => createLoungeChair() },
+  collabTable: { id: 'collabTable', label: '협업 테이블', instanced: true, sized: true, build: it => createCollabTable(it.w) },
+  mobileStand: { id: 'mobileStand', label: '이동식 디스플레이', instanced: true, sized: false, build: () => createMobileStand() },
   conferenceTable: { id: 'conferenceTable', label: '회의 테이블', instanced: false, sized: true, spec: it => createConferenceTable(it) },
 });
 
@@ -262,6 +375,12 @@ export function assetFor(item) {
     case 'desk': return 'trainingDesk';
     case 'console': return 'controlConsole';
     case 'podium': return 'podium';
+    case 'credenza': return 'avCredenza';
+    case 'highTable': return 'highTable';
+    case 'stool': return 'stool';
+    case 'lounge': return 'loungeChair';
+    case 'collabTable': return 'collabTable';
+    case 'mobileStand': return 'mobileStand';
     case 'table': return 'conferenceTable';
     default: return null;
   }
