@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=356';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=356';
-import { createViewerGL } from './render3d-gl.js?v=356';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=356';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=357';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=357';
+import { createViewerGL } from './render3d-gl.js?v=357';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=357';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -841,10 +841,18 @@ function renderPreview3D() {
     items: lay.items,
   }));
 
+  // 배치 결과 안내 — 실제 놓인 좌석 수와, 방이 좁아 줄였을 때의 알림.
+  //   좌석 수는 room-presets가 낸 값을 그대로 보여준다(여기서 새로 세지 않는다).
   const note = $('#room3dNote');
   if (note) {
-    note.textContent = 'STEP 2 — 공간·LED·무대와 시점 프리셋까지(좌석·치수·사람·PNG는 다음 단계). '
-      + '끌기=회전 · 휠=확대 · 오른쪽 끌기=이동 · 돌린 뒤 ‘맞춤’을 누르면 시점으로 돌아옵니다';
+    const seats = lay.placed.seats ?? lay.placed.chairs ?? lay.placed.consoles ?? 0;
+    const rowInfo = (lay.placed.rows && lay.placed.perRow)
+      ? `${lay.placed.perRow}석 × ${lay.placed.rows}줄` : '';
+    note.textContent = [
+      seats ? `배치 ${seats}석${rowInfo ? ` (${rowInfo})` : ''}` : '',
+      ...lay.notes,
+      '끌기=회전 · 휠=확대 · ‘맞춤’=시점 복귀',
+    ].filter(Boolean).join(' · ');
   }
 }
 
