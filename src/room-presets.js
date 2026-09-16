@@ -127,6 +127,7 @@ function hallOptions(rows, perRow, twoAisles) {
     { key: 'aisles', label: '통로', type: 'select', default: twoAisles ? '2' : '1',
       choices: [{ value: '0', label: '없음' }, { value: '1', label: '가운데 1개' }, { value: '2', label: '양쪽 2개' }] },
     { key: 'stage', label: '무대(단상)', type: 'toggle', default: true },
+    { key: 'stageStep', label: '무대 계단', type: 'toggle', default: true },
     // 객석 단차(계단식 좌석). 단 수 1 = 평평한 바닥(기존과 동일).
     //   뒷줄로 갈수록 한 단씩 올라가 앞사람 머리에 시야가 가리지 않게 한다.
     { key: 'tiers', label: '객석 단 수', type: 'number', default: 1, min: 1, max: 20 },
@@ -365,7 +366,8 @@ function layoutHall(o, W, D) {
   const nAisle = int(o.aisles, 1);
   const aisleTotal = nAisle * F.aisleW;
   const stageD = o.stage ? 2600 : 0;
-  if (o.stage) items.push({ type: 'stage', x: W / 2, z: stageD / 2, rotY: 0, w: W, d: stageD, h: 280 });   // 높이는 보이는 값일 뿐 — 좌석 계산은 깊이(stageD)만 쓴다
+  // 높이는 보이는 값일 뿐 — 좌석 계산은 깊이(stageD)만 쓴다. step은 계단을 붙일지 여부.
+  if (o.stage) items.push({ type: 'stage', x: W / 2, z: stageD / 2, rotY: 0, w: W, d: stageD, h: 280, step: o.stageStep !== false });
 
   const zStart = Math.max(stageD, F.frontClear) + 1600;
   const maxPerRow = Math.max(1, fitCount(W - F.wallClear * 2 - aisleTotal, F.seatPitchX));

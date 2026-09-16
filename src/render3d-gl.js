@@ -18,8 +18,8 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=380';
-import { createMaterialLibrary } from './materials-gl.js?v=380';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=381';
+import { createMaterialLibrary } from './materials-gl.js?v=381';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -27,7 +27,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize,
-} from './gl-model.js?v=380';
+} from './gl-model.js?v=381';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -54,6 +54,7 @@ export const GL_PALETTE = Object.freeze({
   ledGlow: '#2f7ff6',       // 벽에 번지는 푸른 헤일로
   stageTop: '#eef1f5',      // 무대 윗면
   stageSide: '#dce1e7',     // 무대 옆면
+  stageFascia: '#c8cfd9',   // 무대 전면판(관객 쪽) — 옆면보다 어둡게 해 단 높이가 읽히게
   wallAccent: '#afc9be',    // 포인트 벽(차분한 세이지) — 기존 3D 뷰와 같은 색
   gridMinor: 'rgba(89,104,125,.10)',   // 바닥 격자 600mm
   gridMajor: 'rgba(89,104,125,.20)',   // 바닥 격자 1200mm
@@ -346,16 +347,49 @@ function buildRoomGroup(model, shared) {
   // ⑥ 무대 — 강당류에서 배치 계산(room-presets)이 무대를 놓았을 때만 그린다.
   //    크기·위치는 전부 그 계산 결과를 그대로 쓴다(여기서 새로 정하지 않는다).
   if (stage) {
-    const top = mats.surface('stageSurface', GL_PALETTE.stageTop, stage.w, stage.d);
-    const side = mats.get('stageSurface', GL_PALETTE.stageSide);
-    // BoxGeometry 면 순서: +X, −X, +Y(윗면), −Y, +Z, −Z
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(stage.w, stage.h, stage.d),
-      [side, side, top, side, side, side],
-    );
-    box.position.set(stage.x, stage.h / 2, stage.z);
-    box.name = 'stage';
-    g.add(box);
+    //   상자 하나로 그리면 '바닥에 놓인 회색 판'으로 읽힌다. 실제 무대처럼
+    //   상판(앞으로 살짝 내민 코) + 전면판 + 계단으로 나눈다. 크기·위치는 배치 계산 값 그대로다.
+    const matTop = mats.surface('stageSurface', GL_PALETTE.stageTop, stage.w, stage.d);
+    const matSide = mats.get('stageSurface', GL_PALETTE.stageSide);
+    const matFascia = mats.get('stageSurface', GL_PALETTE.stageFascia);
+    const sg = new THREE.Group();
+    sg.name = 'stage';
+    sg.position.set(stage.x, 0, stage.z);
+
+    const topThk = u(40), lip = u(50);            // 상판 두께 / 앞으로 내민 코
+    const bodyH = Math.max(u(20), stage.h - topThk);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(stage.w, bodyH, stage.d), matSide);
+    body.position.y = bodyH / 2;
+    body.name = 'stageBody';
+    sg.add(body);
+
+    // 상판 — 관객 쪽(+Z)으로만 내민다. 그 그늘이 무대 앞 선을 만든다.
+    const top = new THREE.Mesh(new THREE.BoxGeometry(stage.w, topThk, stage.d + lip), matTop);
+    top.position.set(0, stage.h - topThk / 2, lip / 2);
+    top.name = 'stageTop';
+    sg.add(top);
+
+    // 전면판 — 관객을 향한 면. 옆면보다 어두워 단 높이가 또렷하게 읽힌다.
+    const fascia = new THREE.Mesh(
+      new THREE.BoxGeometry(stage.w, Math.max(u(20), bodyH - u(20)), u(25)), matFascia);
+    fascia.position.set(0, bodyH / 2, stage.d / 2 + u(12));
+    fascia.name = 'stageFascia';
+    sg.add(fascia);
+
+    // 계단 — 무대 앞 가운데. 단 수는 무대 높이가 정한다(한 단 140mm 안팎).
+    if (stage.step !== false && stage.h > u(160)) {
+      const n = Math.min(3, Math.max(1, Math.round(stage.h / u(160))));
+      const stepW = Math.min(stage.w * 0.35, u(1600));
+      const stepD = u(320);
+      for (let i = 0; i < n; i++) {
+        const h = stage.h * (n - i) / (n + 1);
+        const st = new THREE.Mesh(new THREE.BoxGeometry(stepW, h, stepD), matSide);
+        st.position.set(0, h / 2, stage.d / 2 + lip + stepD * (i + 0.5));
+        st.name = 'stageStep';
+        sg.add(st);
+      }
+    }
+    g.add(sg);
   }
 
   // 재질 라이브러리는 이 Group의 것이다 — 버릴 때 텍스처까지 함께 반납한다.
