@@ -325,7 +325,7 @@ input:focus{outline:none;background:var(--field-fill-focus);box-shadow:0 0 0 4px
 .rs3Num{position:absolute;transform:translate(-50%,-50%);font-size:calc(8.4px / var(--fit,1));font-weight:700;font-family:var(--mono);pointer-events:none;white-space:nowrap}
 .rs3Num.col{color:#EDEEF4;text-shadow:0 1px 2px rgba(0,0,0,.7)}
 .rs3Num.row{color:#6B7178}
-.rs3Sig{position:absolute;box-sizing:border-box;border:0.7px solid rgba(47,127,246,.95);transform:translateZ(14px);pointer-events:none}   /* FHD/UHD 신호선 두께 0.7px(1px→30% 더 축소, 이사 요청) */
+.rs3Sig{position:absolute;box-sizing:border-box;border:0.91px solid rgba(47,127,246,.95);transform:translateZ(14px);pointer-events:none}   /* FHD/UHD 신호선 두께 0.91px(0.7px→30% 두껍게, 이사 요청 2026-09-16) */
 .rs3Sig.uhd{border-color:rgba(255,59,48,.95)}
 .rs3SigTag{position:absolute;top:0;left:0;font-size:12.75px;font-weight:700;color:#fff;background:rgba(47,127,246,.95);padding:1px 6px;border-radius:0 0 4px 0}   /* FHD/UHD 태그 1.5배(8.5→12.75px, 이사 요청) */
 .rs3Sig.uhd .rs3SigTag{background:rgba(255,59,48,.95)}
