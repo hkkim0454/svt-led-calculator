@@ -1934,6 +1934,34 @@ function vpLegendHTML(ranked) {
     .map(([short, c]) => `<span class="vpLegItem"><span class="vpLegSw" style="background:var(--vp-${c})"></span>${short} ${counts[c]}</span>`).join('');
   return items ? `<div class="vpLegend">${items}</div>` : '';
 }
+// 제조사 잠금 필터 — 잠근(locked) 제조사의 제품은 추천 목록에서 숨긴다. 선택은 이 브라우저에 기억(localStorage).
+const VP_LOCK_KEY = 'svt.vpLockedMfrs';
+function loadLockedMfrs() { try { const s = localStorage.getItem(VP_LOCK_KEY); return s ? JSON.parse(s) : []; } catch { return []; } }
+let vpLockedMfrs = new Set(loadLockedMfrs());
+function saveLockedMfrs() { try { localStorage.setItem(VP_LOCK_KEY, JSON.stringify([...vpLockedMfrs])); } catch { } }
+// 자물쇠 아이콘(닫힘=잠김 / 열림=표시). 이모지 대신 인라인 SVG.
+const VP_LOCK_ICON = {
+  locked: '<svg class="vpLockIco" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5.5" y="10" width="13" height="9.5" rx="2.2" fill="currentColor"/></svg>',
+  open: '<svg class="vpLockIco" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10V7a4 4 0 0 1 7.9-.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5.5" y="10" width="13" height="9.5" rx="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+};
+// 제조사 필터 칩 행 — ranked(전체)에서 제조사 목록·개수를 만들고, 클릭으로 잠금(숨김)/해제(표시) 토글.
+function vpMfrFilterHTML(ranked) {
+  const order = [];
+  const count = new Map();
+  for (const x of ranked) {
+    const mfr = x.proc.manufacturer || '기타';
+    if (!count.has(mfr)) { count.set(mfr, 0); order.push(mfr); }
+    count.set(mfr, count.get(mfr) + 1);
+  }
+  if (order.length <= 1) return '';   // 제조사가 하나뿐이면 필터가 의미 없음
+  const chips = order.map(mfr => {
+    const locked = vpLockedMfrs.has(mfr);
+    return `<button type="button" class="vpMfrChip${locked ? ' locked' : ''}" data-mfrlock="${esc(mfr)}" aria-pressed="${locked}" title="${locked ? '잠금 해제 — 목록에 다시 표시' : '잠금 — 목록에서 숨김'}">${locked ? VP_LOCK_ICON.locked : VP_LOCK_ICON.open}<span class="vpMfrChipName">${esc(mfr)}</span><span class="vpMfrChipN">${count.get(mfr)}</span></button>`;
+  }).join('');
+  const anyLocked = order.some(mfr => vpLockedMfrs.has(mfr));
+  const reset = anyLocked ? `<button type="button" class="vpMfrReset" data-mfrlock="__all__" title="모든 제조사 잠금 해제">전체 표시</button>` : '';
+  return `<div class="vpMfrFilter"><span class="vpMfrFilterLab">제조사 필터 <span class="muted-note">— 눌러서 숨김/표시</span></span><div class="vpMfrChips">${chips}${reset}</div></div>`;
+}
 function renderProcessors() {
   const auto = $('#vpAuto'), out = $('#vpResult');
   if (!auto || !out) return;
@@ -1975,8 +2003,11 @@ function renderProcessors() {
     </div>
   </div>`;
   const ranked = rankProcessors(PROCESSORS, req);
-  const good = ranked.filter(x => x.label !== '부적합');
-  const bad = ranked.filter(x => x.label === '부적합');
+  // 제조사 잠금 필터: 잠근 제조사 제품은 목록에서 제외(visible). 칩 행은 전체(ranked)에서 만든다.
+  const visible = ranked.filter(x => !vpLockedMfrs.has(x.proc.manufacturer));
+  const good = visible.filter(x => x.label !== '부적합');
+  const bad = visible.filter(x => x.label === '부적합');
+  const anyGoodBeforeLock = ranked.some(x => x.label !== '부적합');   // 잠금 때문에 비었는지 구분용
   const pill = $('#vpAutoPill'); if (pill) pill.textContent = `자동 추천 · ${good.length}종`;
   // 사양 확인중 신규 모델 — 자동추천엔 안 들어가지만 이미지만 볼 수 있게 하단에 별도 표시.
   const pend = PROCESSORS.filter(p => SPEC_PENDING_IDS.has(p.id));
@@ -1984,11 +2015,14 @@ function renderProcessors() {
     + pend.map(p => `<div class="vpPendItem"><span class="vpPendName">${esc(p.manufacturer)} · ${esc(p.model)}</span>`
       + `${PROC_IMG_IDS.has(p.id) ? `<button type="button" class="vpImgBtn" data-procimg="${esc(p.id)}" title="제품 앞/뒤 이미지 보기">이미지</button>` : ''}`
       + `<span class="vpVer" title="사양은 확인 후 반영됩니다">사양 확인중</span></div>`).join('') + `</details>` : '';
-  // STEP 3 — 등급 레전드 + 순위 순 평면 리스트(부적합은 하단 접이식 행).
+  // STEP 3 — 제조사 필터 + 등급 레전드 + 순위 순 평면 리스트(부적합은 하단 접이식 행).
+  const emptyMsg = anyGoodBeforeLock
+    ? '<div class="notice warn">잠근 제조사를 빼면 표시할 추천이 없습니다. 위 <b>제조사 필터</b>에서 잠금을 풀어 보세요.</div>'
+    : '<div class="notice warn">지금 요구 조건을 만족하는 프로세서가 없습니다. 입력 수·레이어 수·운용 방식을 조정해 보세요.</div>';
   out.innerHTML =
-    vpLegendHTML(ranked)
-    + (good.length ? good.map((it, i) => vpItemHTML(it, i + 1)).join('')
-      : '<div class="notice warn">지금 요구 조건을 만족하는 프로세서가 없습니다. 입력 수·레이어 수·운용 방식을 조정해 보세요.</div>')
+    vpMfrFilterHTML(ranked)
+    + vpLegendHTML(visible)
+    + (good.length ? good.map((it, i) => vpItemHTML(it, i + 1)).join('') : emptyMsg)
     + (bad.length ? `<details class="vpFail"><summary>부적합 ${bad.length}종 보기 <span class="vpFailSub">출력 수 · 레이어 부족</span></summary>${bad.map(it => vpItemHTML(it)).join('')}</details>` : '')
     + pendHTML;
   renderBuild(req, ranked);
@@ -2504,6 +2538,16 @@ $('#vpBuildProc')?.addEventListener('change', renderProcessors);
 document.addEventListener('click', e => { const t = e.target.closest('[data-portproc]'); if (t) openPortPopup(t.dataset.portproc); });
 // 프로세서 카드 '이미지' 버튼 → 제품 앞/뒤 이미지 뷰어 팝업.
 document.addEventListener('click', e => { const t = e.target.closest('[data-procimg]'); if (t) openProcImgPopup(t.dataset.procimg); });
+// 제조사 필터 칩 → 잠금(숨김)/해제(표시) 토글. '__all__'은 전체 해제.
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-mfrlock]'); if (!t) return;
+  const mfr = t.dataset.mfrlock;
+  if (mfr === '__all__') vpLockedMfrs.clear();
+  else if (vpLockedMfrs.has(mfr)) vpLockedMfrs.delete(mfr);
+  else vpLockedMfrs.add(mfr);
+  saveLockedMfrs();
+  renderProcessors();
+});
 // ↕ 손잡이: 03 미리보기의 디스플레이를 위아래로 끌어 '디스플레이 하단 높이'를 조정(LED·단독형·비디오월 공통).
 (function setupHeightDrag() {
   let dragging = false, startY = 0, startBase = 0, pxPerMm = 1;
