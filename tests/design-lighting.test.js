@@ -44,12 +44,13 @@ test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
 });
 
 // ③ 카메라 무변경 — 이번 단계는 조명 단계다
-test('화각 동결 — 디자인은 카메라를 정하지 않고 프리셋도 그대로다', () => {
-  // 해석 결과가 기준이다 — `planned(...)`는 '아직 없음' 표시라 적용되지 않는다.
-  for (const id of [...DESIGN_IDS, undefined]) {
-    assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각은 PHASE 2-d.2 몫이다`);
+test('화각 — 프리셋 목록·기본 화각·범위가 그대로다(PHASE 2-d.2 에서도 늘리지 않았다)', () => {
+  // 아직 구현 전인 3종은 여전히 화각을 적용하지 않는다(planned = '아직 없음').
+  for (const id of DESIGN_IDS) {
+    if (id === 'corporateMeeting') continue;
+    assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각을 적용하면 안 된다`);
   }
-  assert.equal(ROOM_DESIGNS.corporateMeeting.camera, INHERIT, '대기업 회의실 화각은 비어 있어야 한다');
+  assert.equal(ROOM_DESIGNS.corporateMeeting.camera, 'corporateProposal');
   // 프리셋 목록과 기본 화각을 스냅샷으로 고정한다.
   assert.deepEqual(CAMERA_PRESETS.map(p => p.id),
     ['interior', 'corner-l', 'front', 'corner-r', 'iso', 'top']);
