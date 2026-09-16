@@ -1748,10 +1748,14 @@ function vpItemHTML(item, rank) {
   const rankHTML = rank ? `<span class="vpRank">${rank}</span>` : '';
   // 제품 전면 사진 플레이트(있는 제품만). 클릭 시 앞/뒤 이미지 팝업(openProcImgPopup) 재사용.
   const hasImg = PROC_IMG_IDS.has(p.id);
+  // 사진 있으면 클릭 확대 판, 없으면 '사진 미등록' 표시 판(빈칸으로 두지 않음).
   const plateHTML = hasImg ? `<div class="vpPlate">
       <div class="vpPlateBox" data-procimg="${esc(p.id)}" role="button" tabindex="0" title="제품 앞·뒤 이미지 크게 보기"><img src="${procImgSrc(p.id, 'front')}" alt="${esc(p.manufacturer)} ${esc(p.model)} 전면" draggable="false"/></div>
       <div class="vpPlateCap"><span class="t">전면 패널</span><span class="s">클릭하면 앞 · 뒤 확대</span></div>
-    </div>` : '';
+    </div>` : `<div class="vpPlate">
+      <div class="vpPlateBox vpPlateEmpty" aria-hidden="true"><span class="vpNoImg">사진 미등록</span></div>
+      <div class="vpPlateCap"><span class="t">전면 패널</span><span class="s">제품 사진 미등록</span></div>
+    </div>`;
   return `<div class="vpItem ${VP_BADGE_CLASS[item.label] || ''}">
     <div class="vpHead">
       ${rankHTML}
