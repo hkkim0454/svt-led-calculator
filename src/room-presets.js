@@ -54,7 +54,7 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=386';
+import { isOccupied } from './viewangle.js?v=387';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -86,6 +86,17 @@ export const ROOM_TYPES = Object.freeze([
         ] },
       { key: 'seats', label: '좌석 수', type: 'number', default: 12, min: 0, max: 60 },
       { key: 'credenza', label: 'AV 수납장', type: 'toggle', default: true },
+      // 아래 둘은 '가구 배치'가 아니라 정면 벽에 거는 화면이라 layoutMeeting이 쓰지 않는다.
+      //   화면(app.js)이 이 값을 읽어 LED 옆에 모니터를 건다.
+      { key: 'sideMonitor', label: 'LED 옆 모니터', type: 'select', default: 'none',
+        choices: [
+          { value: 'none', label: '없음' },
+          { value: 'left', label: '왼쪽' },
+          { value: 'right', label: '오른쪽' },
+          { value: 'both', label: '양쪽' },
+        ] },
+      { key: 'sideMonitorIn', label: '모니터 인치', type: 'select', default: '55',
+        choices: [43, 49, 55, 65, 75, 85, 98].map(n => ({ value: String(n), label: `${n}인치` })) },
       { key: 'rug', label: '러그', type: 'toggle', default: true },
       { key: 'plant', label: '화분', type: 'toggle', default: true },
     ],

@@ -18,9 +18,9 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=386';
-import { createMaterialLibrary } from './materials-gl.js?v=386';
-import { MOODS } from './materials.js?v=386';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=387';
+import { createMaterialLibrary } from './materials-gl.js?v=387';
+import { MOODS } from './materials.js?v=387';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -28,7 +28,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=386';
+} from './gl-model.js?v=387';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -350,6 +350,29 @@ function buildRoomGroup(model, shared) {
   halo.name = 'ledHalo';
   ledGroup.add(halo);
   g.add(ledGroup);
+
+  // ⑤' LED 옆 보조 모니터 — 정면 벽에 거는 화면. 몸통(테두리) + 화면 두 조각이다.
+  //    LED와 같은 화면 텍스처를 쓰되 크기가 달라 비율에 맞춰 따로 굽는다.
+  for (const mn of model.sideMonitors || []) {
+    const mg = new THREE.Group();
+    mg.name = 'sideMonitor';
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(mn.panelW, mn.panelH, mn.depth),
+      mats.get('metalFrame', GL_PALETTE.ledBody));
+    body.position.z = mn.depth / 2;
+    body.name = 'sideMonitorBody';
+    const screen = new THREE.Mesh(
+      new THREE.PlaneGeometry(mn.w, mn.h),
+      // 화면 텍스처는 **LED와 같은 것을 쓴다**. shared.screenTex()는 종횡비가 달라지면
+      //   이전 텍스처를 버리므로, 여기서 다른 비율을 요청하면 LED 화면이 지워진다.
+      //   무늬가 가운데만 은은한 방사형이라 비율이 조금 달라도 눈에 띄지 않는다.
+      new THREE.MeshBasicMaterial({ map: shared.screenTex(led.w / led.h), toneMapped: false }));
+    screen.position.z = mn.depth + 0.002;
+    screen.name = 'sideMonitorScreen';
+    mg.add(body, screen);
+    mg.position.set(mn.x, mn.y, 0);
+    g.add(mg);
+  }
 
   // ⑥ 무대 — 강당류에서 배치 계산(room-presets)이 무대를 놓았을 때만 그린다.
   //    크기·위치는 전부 그 계산 결과를 그대로 쓴다(여기서 새로 정하지 않는다).
