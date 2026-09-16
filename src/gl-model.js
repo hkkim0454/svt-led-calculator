@@ -9,8 +9,10 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=412';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=412';
+import { floorFinishFor, moodFor } from './materials.js?v=413';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=413';
+
+import { cameraPlanForDesign } from './design-camera.js?v=413';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -400,6 +402,19 @@ export function presetPose(id, model, aspect = 16 / 9, opts = {}) {
   }
 
   // ── 실내 계열 — 카메라가 방 안에 선다 ──
+  // 공간 디자인이 화각을 정했으면 그 계획을 쓴다(대기업 회의실 = 뒤에서 보는 제안 구도).
+  //   정하지 않았으면 null이라 아래 기존 계산이 그대로 돈다 — **다른 공간은 그대로다.**
+  //   아이소·평면도는 이 아래로 내려오지 않으므로 애초에 영향이 없다.
+  const plan = cameraPlanForDesign(model.design, p.id, model, a);
+  if (plan) {
+    // 사용자가 화각을 직접 바꿨으면 그 비율만큼 따라간다(기존 실내 시점과 같은 규칙).
+    const fov = clampFov(plan.fov * (clampFov(opts.fov) / FOV_DEG), plan.fov);
+    return {
+      id: p.id, ortho: false,
+      position: plan.position, target: plan.target, up: [0, 1, 0],
+      fov, orthoHeight: null,
+    };
+  }
   const s = INSIDE[p.id] || INSIDE.interior;
   const yaw = s.yaw * DEG;
   const target = [cx, Math.min(s.look, room.H * 0.8), led.depth];
