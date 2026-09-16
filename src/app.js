@@ -1515,14 +1515,18 @@ function slotSideHTML(side, p, need, reqCards, slots, perCard) {
     : (reqCards != null ? `필요 <b>${reqCards}</b>장` : '필요 <b>미상</b>');
   const slotTxt = (slots != null) ? `전체 <b>${slots}</b>슬롯` : '전체 슬롯 <b>미상</b>';
   const chan = cardChannelPhrase(p, perCard, side);
-  let remTxt;
+  let remTxt, remCls = '';
   if (slots == null || reqCards == null) remTxt = `남는 ${kLabel} 슬롯 <span class="muted-note">미상</span>`;
-  else { const rem = slots - reqCards; remTxt = rem >= 0 ? `남는 ${kLabel} 슬롯 <b>${rem}</b>개` : `<b class="vpShort">${kLabel} 슬롯 ${-rem}개 부족</b>`; }
+  else {
+    const rem = slots - reqCards;
+    if (rem < 0) { remTxt = `<b class="vpShort">${kLabel} 슬롯 ${-rem}개 부족</b>`; remCls = 'short'; }
+    else { remTxt = `남는 ${kLabel} 슬롯 <b>${rem}</b>개`; remCls = rem >= 2 ? 'ok' : 'warn'; }
+  }
   return `<div class="vpCardCol">
     <h5 class="vpColHd">${kLabel} 카드</h5>
     <div class="vpColLine">${reqTxt} / ${slotTxt}</div>
     <div class="vpColChan">${esc(chan)}</div>
-    <div class="vpColRem">${remTxt}</div>
+    <div class="vpColRem ${remCls}">${remTxt}</div>
     ${slotVizHTML(reqCards, slots)}
   </div>`;
 }
@@ -1613,7 +1617,14 @@ function vpDetailHTML(item) {
     ${checks ? `<div class="vpDetailSub">요구 대비 판정</div><ul class="vpChecksList">${checks}</ul>` : ''}
   </details>`;
 }
-function vpItemHTML(item) {
+// 조건부 적합 카드의 설명 블록 — item.checks에서 '확인 필요'(ok===null)인 항목만 문장으로 조립(추정 금지).
+function vpCondNoteHTML(item) {
+  if (item.label !== '조건부 적합') return '';
+  const unknowns = (item.checks || []).filter(c => c.ok === null).map(c => c.name);
+  if (!unknowns.length) return '';
+  return `<div class="vpCondNote">${esc(unknowns.join(' · '))} 지원 여부가 공식 사양에 없어 추정하지 않았습니다. 그 외 입력 · 출력 · 레이어 요구는 모두 충족합니다.</div>`;
+}
+function vpItemHTML(item, rank) {
   const p = item.proc;
   const needsVer = p.verification?.status !== 'official';
   const cp = item.cardPlan;
@@ -1623,13 +1634,23 @@ function vpItemHTML(item) {
   // 포트 고정형 제품은 이름을 누르면 포트별 입출력 수량 팝업(이사 요청).
   const fixed = procHasFixedPorts(p);
   const nameAttr = fixed ? ` class="vpName vpNameClickable" data-portproc="${esc(p.id)}" role="button" tabindex="0" title="포트별 입출력 수량 보기"` : ' class="vpName"';
+  const rankHTML = rank ? `<span class="vpRank">${rank}</span>` : '';
+  // 제품 전면 사진 플레이트(있는 제품만). 클릭 시 앞/뒤 이미지 팝업(openProcImgPopup) 재사용.
+  const hasImg = PROC_IMG_IDS.has(p.id);
+  const plateHTML = hasImg ? `<div class="vpPlate">
+      <div class="vpPlateBox" data-procimg="${esc(p.id)}" role="button" tabindex="0" title="제품 앞·뒤 이미지 크게 보기"><img src="${procImgSrc(p.id, 'front')}" alt="${esc(p.manufacturer)} ${esc(p.model)} 전면" draggable="false"/></div>
+      <div class="vpPlateCap"><span class="t">전면 패널</span><span class="s">클릭하면 앞 · 뒤 확대</span></div>
+    </div>` : '';
   return `<div class="vpItem ${VP_BADGE_CLASS[item.label] || ''}">
     <div class="vpHead">
+      ${rankHTML}
       <span class="vpBadge">${item.label}</span>
-      <span${nameAttr}>${esc(p.manufacturer)} · ${esc(p.model)}${fixed ? ' <span class="vpPortHint">포트▾</span>' : ''}</span>
-      ${PROC_IMG_IDS.has(p.id) ? `<button type="button" class="vpImgBtn" data-procimg="${esc(p.id)}" title="제품 앞/뒤 이미지 보기">이미지</button>` : ''}
+      <span${nameAttr}>${esc(p.manufacturer)} · ${esc(p.model)}${fixed ? ' <span class="vpPortHint">포트 ⌄</span>' : ''}</span>
+      ${hasImg ? `<button type="button" class="vpImgBtn" data-procimg="${esc(p.id)}" title="제품 앞/뒤 이미지 보기">이미지</button>` : ''}
       ${needsVer ? '<span class="vpVer" title="일부 사양이 공식 확인 전입니다">확인 필요 사양 포함</span>' : ''}
     </div>
+    ${plateHTML}
+    ${vpCondNoteHTML(item)}
     ${bodyMain}
     ${vpDetailHTML(item)}
   </div>`;
@@ -1792,35 +1813,20 @@ function openPortPopup(id) {
   </div>`;
   el.hidden = false;
 }
-// 추천 결과를 제조사별로 묶어 접이식(details)으로 그린다. 순서는 전체 추천 순위를 유지
-//   (=제일 좋은 모델을 가진 제조사가 맨 위, 그 제조사 그룹만 기본 펼침). 나머지는 제조사명을 눌러 펼친다.
-//   불필요하게 긴 목록을 줄이기 위함(이사 지침 2026-09-12).
-function vpGroupsHTML(good) {
-  const order = [];
-  const groups = new Map();
-  for (const item of good) {
-    const mfr = item.proc.manufacturer || '기타';
-    if (!groups.has(mfr)) { groups.set(mfr, []); order.push(mfr); }
-    groups.get(mfr).push(item);
-  }
-  return order.map((mfr, i) => {
-    const items = groups.get(mfr);
-    const best = items[0];   // 그룹 내 최상위(전체 순위 정렬 유지)
-    const cls = VP_BADGE_CLASS[best.label] || '';
-    return `<details class="vpMfr ${cls}"${i === 0 ? ' open' : ''}>
-      <summary class="vpMfrHead">
-        <span class="vpMfrName">${esc(mfr)}</span>
-        <span class="vpBadge">${best.label}</span>
-        <span class="vpMfrTop">${esc(best.proc.model)}</span>
-        <span class="vpMfrCount">${items.length}개 모델</span>
-      </summary>
-      <div class="vpResult">${items.map(vpItemHTML).join('')}</div>
-    </details>`;
-  }).join('');
+// 등급 레전드 바 — 결과 목록 위에 등급별 개수(권장/적합/조건부/한계/부적합)를 색 스와치와 함께 표시.
+//   개수는 rankProcessors 결과 전체에서 집계(부적합 포함). 순위 정렬은 rankProcessors가 담당.
+function vpLegendHTML(ranked) {
+  const order = [['권장', 'rec'], ['적합', 'ok'], ['조건부', 'cond'], ['한계', 'edge'], ['부적합', 'no']];
+  const counts = {};
+  for (const x of ranked) { const c = VP_BADGE_CLASS[x.label] || ''; counts[c] = (counts[c] || 0) + 1; }
+  const items = order.filter(([, c]) => counts[c])
+    .map(([short, c]) => `<span class="vpLegItem"><span class="vpLegSw" style="background:var(--vp-${c})"></span>${short} ${counts[c]}</span>`).join('');
+  return items ? `<div class="vpLegend">${items}</div>` : '';
 }
 function renderProcessors() {
   const auto = $('#vpAuto'), out = $('#vpResult');
   if (!auto || !out) return;
+  { const pill = $('#vpAutoPill'); if (pill) pill.textContent = '자동 추천'; }
   if (svCode) { auto.innerHTML = '<div class="previewEmpty">삼성 LCD 사이니지에는 해당 없습니다 (비디오 프로세서는 LED 전용).</div>'; out.innerHTML = ''; const b = $('#vpBuildResult'); if (b) b.innerHTML = ''; return; }
   const m = models.find(x => x.id === selectedId);
   if (!m) { auto.innerHTML = '<div class="previewEmpty">모델을 선택하면 추천이 표시됩니다.</div>'; out.innerHTML = ''; return; }
@@ -1835,24 +1841,44 @@ function renderProcessors() {
   if (vpOut4kEdited) { const v = num(out4kEl?.value); if (v > 0) o.required4kOutputs = v; }
   const req = processorRequirements(r, o);
   const out4kAuto = req.required4kOutputs === autoReq.required4kOutputs;
-  auto.innerHTML = `<div class="vpAutoRow">
-    <span>전체 해상도 <b>${fmt(r.resW)} × ${fmt(r.resH)}</b> px</span>
-    <span>필요 4K 출력 <b>${req.required4kOutputs ?? '—'}</b> 개${out4kAuto ? '' : ' <em class="muted-note">(직접 입력)</em>'}</span>
-    <span>필요 2K 출력 <b>${req.required2kOutputs ?? '—'}</b> 개</span>
+  // #vpOut4k 자동/직접 입력 상태에 따라 필드 스타일(점선 '자동' vs 실선) 전환.
+  const out4kField = $('#vpOut4kField');
+  if (out4kField) out4kField.classList.toggle('isAuto', !vpOut4kEdited);
+  // STEP 1 — 04 산출값 스탯 타일 3개.
+  const modelName = m.name || m.id;
+  auto.innerHTML = `<div class="vpStatGrid">
+    <div class="vpStat">
+      <div class="vpStatLab">전체 해상도</div>
+      <div class="vpStatVal">${fmt(r.resW)}<span class="x">×</span>${fmt(r.resH)}</div>
+      <div class="vpStatSub">${esc(modelName)} · ${r.cols} × ${r.rows} 캐비닛</div>
+    </div>
+    <div class="vpStat accent${out4kAuto ? '' : ' manual'}">
+      <div class="vpStatLab">필요 4K 출력 <span class="vpStatTag">${out4kAuto ? '자동' : '직접 입력'}</span></div>
+      <div class="vpStatVal">${req.required4kOutputs ?? '—'}<span class="u"> 개</span></div>
+      <div class="vpStatSub">4K 캔버스 ${req.required4kOutputs ?? '—'}장 결합</div>
+    </div>
+    <div class="vpStat">
+      <div class="vpStatLab">필요 2K 출력</div>
+      <div class="vpStatVal">${req.required2kOutputs ?? '—'}<span class="u"> 개</span></div>
+      <div class="vpStatSub">2K 분할 환산</div>
+    </div>
   </div>`;
   const ranked = rankProcessors(PROCESSORS, req);
   const good = ranked.filter(x => x.label !== '부적합');
   const bad = ranked.filter(x => x.label === '부적합');
+  const pill = $('#vpAutoPill'); if (pill) pill.textContent = `자동 추천 · ${good.length}종`;
   // 사양 확인중 신규 모델 — 자동추천엔 안 들어가지만 이미지만 볼 수 있게 하단에 별도 표시.
   const pend = PROCESSORS.filter(p => SPEC_PENDING_IDS.has(p.id));
   const pendHTML = pend.length ? `<details class="vpPending"><summary>신규 · 사양 확인중 ${pend.length}종 (이미지만 보기)</summary>`
     + pend.map(p => `<div class="vpPendItem"><span class="vpPendName">${esc(p.manufacturer)} · ${esc(p.model)}</span>`
       + `${PROC_IMG_IDS.has(p.id) ? `<button type="button" class="vpImgBtn" data-procimg="${esc(p.id)}" title="제품 앞/뒤 이미지 보기">이미지</button>` : ''}`
       + `<span class="vpVer" title="사양은 확인 후 반영됩니다">사양 확인중</span></div>`).join('') + `</details>` : '';
+  // STEP 3 — 등급 레전드 + 순위 순 평면 리스트(부적합은 하단 접이식 행).
   out.innerHTML =
-    (good.length ? vpGroupsHTML(good)
+    vpLegendHTML(ranked)
+    + (good.length ? good.map((it, i) => vpItemHTML(it, i + 1)).join('')
       : '<div class="notice warn">지금 요구 조건을 만족하는 프로세서가 없습니다. 입력 수·레이어 수·운용 방식을 조정해 보세요.</div>')
-    + (bad.length ? `<details class="vpFail"><summary>부적합 ${bad.length}개 보기</summary>${bad.map(vpItemHTML).join('')}</details>` : '')
+    + (bad.length ? `<details class="vpFail"><summary>부적합 ${bad.length}종 보기 <span class="vpFailSub">출력 수 · 레이어 부족</span></summary>${bad.map(it => vpItemHTML(it)).join('')}</details>` : '')
     + pendHTML;
   renderBuild(req, ranked);
 }

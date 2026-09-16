@@ -40,6 +40,13 @@
   --ok:#1E9E52;
   --danger:#D70015;
 
+  /* 05 판정 등급 색 (권장/적합/조건부 적합/한계 구성/부적합) — rail·ink·tint·border */
+  --vp-rec:#007AFF; --vp-rec-ink:#0057D8; --vp-rec-border:rgba(0,122,255,.38);
+  --vp-ok:#1E9E52;  --vp-ok-ink:#177A41;  --vp-ok-tint:rgba(30,158,82,.08);   --vp-ok-border:rgba(30,158,82,.30);
+  --vp-cond:#E08A20;--vp-cond-ink:#C7590A; --vp-cond-tint:rgba(224,138,32,.10); --vp-cond-border:rgba(199,89,10,.30);
+  --vp-edge:#8944AB;--vp-edge-ink:#8944AB; --vp-edge-tint:rgba(137,68,171,.09); --vp-edge-border:rgba(137,68,171,.30);
+  --vp-no:#D70015;  --vp-no-ink:#D70015;   --vp-no-tint:rgba(215,0,21,.06);     --vp-no-border:rgba(215,0,21,.22);
+
   /* glass */
   --glass-fill:rgba(255,255,255,.62);
   --glass-fill-2:rgba(255,255,255,.5);
@@ -82,6 +89,13 @@
     --warn-tint:rgba(255,159,10,.18);
     --ok:#30D158;
     --danger:#FF6B6B;
+
+    /* 05 판정 등급 색 — 다크 */
+    --vp-rec:#0A84FF; --vp-rec-ink:#6FB6FF; --vp-rec-border:rgba(10,132,255,.38);
+    --vp-ok:#30D158;  --vp-ok-ink:#7FE6A6;  --vp-ok-tint:rgba(48,209,88,.08);   --vp-ok-border:rgba(48,209,88,.30);
+    --vp-cond:#FF9F0A;--vp-cond-ink:#FFB340; --vp-cond-tint:rgba(255,159,10,.10); --vp-cond-border:rgba(255,159,10,.30);
+    --vp-edge:#BF5AF2;--vp-edge-ink:#BF5AF2; --vp-edge-tint:rgba(191,90,242,.09); --vp-edge-border:rgba(191,90,242,.30);
+    --vp-no:#FF6B6B;  --vp-no-ink:#FF6B6B;   --vp-no-tint:rgba(255,107,107,.06);  --vp-no-border:rgba(255,107,107,.22);
 
     --glass-fill:rgba(44,44,46,.58);
     --glass-fill-2:rgba(58,58,60,.5);
@@ -554,135 +568,255 @@ body.printing .previewStage{width:640px!important;height:auto!important}
 .cfgTag{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left;padding:6px 12px;border-radius:12px;background:var(--accent-tint);color:var(--accent);font-size:12px;font-weight:600;line-height:1.4}
 
 /* ── 05 비디오 프로세서 ─────────────────────────────────────────────── */
-.vpAuto{margin-bottom:12px}
-.vpAutoRow{display:flex;flex-wrap:wrap;gap:8px 18px;padding:10px 12px;border-radius:12px;
-  background:var(--accent-tint);font-size:12.5px;color:var(--ink-2)}
-.vpAutoRow b{color:var(--accent);font-weight:700}
-.vpInputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-.vpAdv{margin-top:12px}
-.vpAdv>summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:12.5px}
-.vpChecks{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px}
-.vpResult{display:flex;flex-direction:column;gap:10px;margin-top:14px}
-.vpItem{border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--field-fill)}
-.vpItem.rec{border-color:var(--accent);box-shadow:0 4px 16px -10px var(--accent)}
-.vpItem.no{opacity:.72}
-.vpHead{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.vpName{font-weight:700;font-size:14px;color:var(--ink)}
-.vpBadge{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;
-  background:var(--line);color:var(--ink-2)}
-.vpItem.rec .vpBadge{background:var(--accent);color:#fff}
-.vpItem.ok .vpBadge{background:var(--ok);color:#fff}
-.vpItem.cond .vpBadge{background:var(--warn);color:#fff}
-.vpItem.edge .vpBadge{background:var(--warn-tint);color:var(--warn)}
-.vpItem.no .vpBadge{background:#E5484D;color:#fff}
-.vpVer{font-size:10.5px;color:var(--warn);background:var(--warn-tint);padding:2px 8px;border-radius:999px}
-/* 슬롯·카드 구성 블록(제품 카드 기본 정보). 요청 2026-09-15 */
-.vpSlot{display:flex;gap:10px;margin-top:9px;padding:8px 11px;border-radius:10px;
-  background:var(--accent-tint,rgba(58,90,240,.06));border:1px solid var(--line)}
-.vpSlot.fixed{color:var(--muted)}
-.vpSlotHd{flex:none;font-size:11px;font-weight:800;color:var(--accent,#3A5AF0);letter-spacing:.02em;padding-top:1px}
-.vpSlotBody{display:flex;flex-direction:column;gap:2px;min-width:0}
-.vpSlotChan{font-size:12px;font-weight:700;color:var(--ink-1,var(--ink-2))}
-.vpSlotCap{font-size:12px;color:var(--ink-2);line-height:1.5}
-.vpSlotCap b{font-family:var(--mono);font-weight:700;color:var(--accent,#3A5AF0)}
-.vpSlotRow{font-size:12px;color:var(--ink-2);line-height:1.5}
-.vpSlotRow i{display:inline-block;min-width:2.4em;font-style:normal;font-weight:700;color:var(--muted)}
-.vpSlotRow b{font-family:var(--mono);font-weight:700;color:var(--ink-1,var(--ink-2))}
-.vpShort{color:#E5484D}
-/* 슬롯형 카드 재설계(입력/출력 2열 + 슬롯 시각화 + 상태 칩). 요청 2026-09-15 */
-.vpCards{margin-top:10px}
-.vpCardGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.vpCardCol{padding:9px 11px;border:1px solid var(--line);border-radius:11px;background:var(--field-fill);min-width:0}
-.vpColHd{margin:0 0 5px;font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent,#3A5AF0)}
-.vpColLine{font-size:12.5px;color:var(--ink-1,var(--ink-2));line-height:1.5}
-.vpColLine b{font-family:var(--mono);font-weight:800}
-.vpColChan{font-size:11.5px;color:var(--muted);margin-top:1px}
-.vpColRem{font-size:12px;color:var(--ink-2);margin-top:2px;font-weight:600}
-.vpColRem b{font-family:var(--mono);font-weight:800;color:var(--ink-1,var(--ink-2))}
+
+/* 섹션 헤더 — 인덱스 칩 · 제목 · 부제 · 우측 자동추천 pill (05 전용 스코프, 공통 h2 미영향) */
+.vpSection>summary.vpSectionHead{align-items:flex-start;gap:10px}
+.vpHeadMain{display:flex;flex-direction:column;gap:3px;min-width:0}
+.vpSectionHead h2{display:flex;align-items:center;gap:9px;margin:0;
+  font-size:20px;font-weight:800;letter-spacing:-.015em;text-transform:none;color:var(--ink)}
+.vpSectionHead h2 .idx{display:inline-flex;align-items:center;justify-content:center;
+  min-width:34px;height:26px;padding:0 9px;border-radius:9px;background:var(--accent);
+  color:#fff;font-family:var(--sans);font-size:13px;font-weight:800}
+.vpSubT{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--muted)}
+.vpAutoPill{align-self:center;flex:none;padding:6px 12px;border-radius:999px;
+  background:var(--accent-tint);color:var(--accent-2);font-size:12px;font-weight:700;white-space:nowrap}
+
+/* STEP 구분자 (3회) */
+.vpStep{display:flex;align-items:center;gap:8px;margin:16px 0 10px}
+.vpStepLab{font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted)}
+.vpStepRule{flex:1;height:1px;background:var(--line)}
+
+/* STEP 1 — 산출값 스탯 타일 (#vpAuto 안에 렌더) */
+.vpAuto{margin:0}
+.vpStatGrid{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px}
+.vpStat{padding:14px 16px;border-radius:18px;border:1px solid var(--line);background:var(--field-fill);min-width:0}
+.vpStatLab{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
+.vpStatVal{margin-top:5px;font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.1;
+  color:var(--ink);font-variant-numeric:tabular-nums}
+.vpStatVal .u{font-size:14px;font-weight:600;color:var(--muted)}
+.vpStatVal .x{font-size:17px;font-weight:600;color:var(--muted);padding:0 3px}
+.vpStatSub{margin-top:3px;font-size:11.5px;color:var(--muted)}
+.vpStat.accent{background:rgba(0,122,255,.10);border-color:rgba(0,122,255,.22)}
+.vpStat.accent .vpStatLab,.vpStat.accent .vpStatVal{color:var(--accent-2)}
+.vpStatTag{padding:1px 6px;border-radius:999px;background:var(--accent);color:#fff;
+  font-size:9.5px;font-weight:800;letter-spacing:0}
+.vpStat.manual .vpStatTag{background:var(--line-2);color:var(--ink-2)}
+.vpStat.accent.manual{background:var(--field-fill);border-color:var(--line)}
+.vpStat.accent.manual .vpStatLab,.vpStat.accent.manual .vpStatVal{color:var(--ink)}
+
+/* STEP 2 — 운용 요구 2열 그룹 */
+.vpInputs{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.vpInGroup{padding:15px 16px;border-radius:18px;background:var(--field-fill);border:1px solid var(--line);
+  display:flex;flex-direction:column;gap:10px;min-width:0}
+.vpInHd{margin:0;font-size:11.5px;font-weight:800;letter-spacing:0;text-transform:none;color:var(--ink)}
+.vpFieldGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vpField{display:flex;flex-direction:column;gap:4px;min-width:0;margin:0}
+.vpField .lab{font-size:11px;color:var(--muted)}
+.vpField .lab .auto{display:none;color:var(--accent);font-weight:700}
+.vpField.isAuto .lab .auto{display:inline}
+.vpFieldBox{position:relative;display:flex;align-items:center}
+.vpFieldBox input{width:100%;height:38px;padding:0 32px 0 12px;border-radius:12px;background:var(--panel-solid);
+  border:1px solid var(--line);font-family:var(--sans);font-size:15px;font-weight:700;color:var(--ink);
+  font-variant-numeric:tabular-nums;transition:box-shadow .15s,border-color .15s}
+.vpFieldBox input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-tint);background:var(--panel-solid)}
+.vpFieldBox .unit{position:absolute;right:12px;font-size:11px;color:var(--muted);pointer-events:none}
+.vpField.isAuto .vpFieldBox input{background:var(--field-fill);border:1px dashed var(--line-2);font-weight:600;color:var(--muted)}
+.vpSelect{display:flex;flex-direction:column;gap:4px;margin:0}
+.vpSelect .lab{font-size:11px;color:var(--muted)}
+.vpSelBox{position:relative;display:flex;align-items:center}
+.vpSelBox select{width:100%;height:38px;padding:0 30px 0 12px;border-radius:12px;background:var(--panel-solid);
+  border:1px solid var(--line);font-family:var(--sans);font-size:14px;font-weight:600;color:var(--ink);
+  appearance:none;-webkit-appearance:none;cursor:pointer}
+.vpSelBox select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-tint)}
+.vpSelBox::after{content:'⌄';position:absolute;right:12px;font-size:12px;color:var(--muted);pointer-events:none}
+.vpInHint{font-size:11px;line-height:1.5;color:var(--muted)}
+.vpInHint b{color:var(--ink-2);font-weight:700}
+
+/* 추가 필수 조건 — 칩 토글 (숨긴 체크박스 + label 칩) */
+.vpCondRow{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+.vpCondLab{font-size:11px;color:var(--muted)}
+.vpChipToggles{display:flex;flex-wrap:wrap;gap:6px}
+.vpChipToggle{cursor:pointer;margin:0}
+.vpChipToggle input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.vpChipToggle span{display:inline-flex;align-items:center;gap:4px;padding:6px 11px;border-radius:999px;
+  background:var(--panel-solid);border:1px solid var(--line);color:var(--muted);font-size:11.5px;font-weight:600;
+  transition:background .15s ease,border-color .15s ease,color .15s ease}
+.vpChipToggle span::before{content:'✓';font-size:10px;max-width:0;opacity:0;overflow:hidden;transition:max-width .12s,opacity .12s}
+.vpChipToggle input:checked + span{background:var(--accent);border-color:transparent;color:#fff;font-weight:700}
+.vpChipToggle input:checked + span::before{max-width:1em;opacity:1}
+.vpChipToggle input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.vpChipToggle:hover span{border-color:var(--line-2)}
+
+/* STEP 3 — 등급 레전드 바 */
+.vpLegend{display:flex;flex-wrap:wrap;gap:6px 14px;padding:9px 12px;border-radius:14px;background:var(--field-fill)}
+.vpLegItem{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--ink-2)}
+.vpLegSw{width:9px;height:9px;border-radius:3px;flex:none}
+
+.vpResult{display:flex;flex-direction:column;gap:10px;margin:0}
+
+/* 추천 카드 — 등급 색 시스템. 등급 로컬 변수(--g-*)를 통해 내부 요소가 색을 상속 */
+.vpItem{position:relative;overflow:hidden;border-radius:20px;padding:15px 16px 15px 19px;
+  border:1px solid var(--g-border,var(--line));background:var(--g-tint,var(--field-fill));transition:box-shadow .15s ease}
+.vpItem::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--g-rail,var(--line))}
+.vpItem:hover{box-shadow:0 14px 30px -22px rgba(20,26,40,.55)}
+.vpItem.rec{--g-rail:var(--vp-rec);--g-ink:var(--vp-rec-ink);--g-border:var(--vp-rec-border);
+  background:linear-gradient(180deg,rgba(0,122,255,.13),rgba(0,122,255,.05));box-shadow:0 10px 30px -18px rgba(0,122,255,.9)}
+.vpItem.ok{--g-rail:var(--vp-ok);--g-ink:var(--vp-ok-ink);--g-border:var(--vp-ok-border);--g-tint:var(--vp-ok-tint)}
+.vpItem.cond{--g-rail:var(--vp-cond);--g-ink:var(--vp-cond-ink);--g-border:var(--vp-cond-border);--g-tint:var(--vp-cond-tint)}
+.vpItem.edge{--g-rail:var(--vp-edge);--g-ink:var(--vp-edge-ink);--g-border:var(--vp-edge-border);--g-tint:var(--vp-edge-tint)}
+.vpItem.no{--g-rail:var(--vp-no);--g-ink:var(--vp-no-ink);--g-border:var(--vp-no-border);--g-tint:var(--vp-no-tint)}
+
+.vpHead{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.vpRank{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:8px;
+  font-size:12px;font-weight:800;flex:none;background:var(--g-rail,var(--line));color:#fff}
+.vpName{font-weight:800;font-size:15px;color:var(--ink)}
+.vpBadge{font-size:11.5px;font-weight:800;padding:4px 11px;border-radius:999px;white-space:nowrap;background:var(--line);color:var(--ink-2)}
+.vpItem.rec .vpBadge{background:var(--vp-rec);color:#fff}
+.vpItem.ok .vpBadge{background:var(--vp-ok);color:#fff}
+.vpItem.cond .vpBadge{background:var(--vp-cond);color:#fff}
+.vpItem.edge .vpBadge{background:var(--vp-edge);color:#fff}
+.vpItem.no .vpBadge{background:var(--vp-no);color:#fff}
+.vpVer{font-size:10.5px;font-weight:700;color:var(--warn);background:var(--warn-tint);padding:3px 9px;border-radius:999px}
+
+/* 제품명 + 포트 pill + 이미지 pill */
+.vpNameClickable{cursor:pointer}
+.vpPortHint{display:inline-flex;align-items:center;gap:3px;margin-left:3px;padding:3px 9px;border-radius:999px;
+  border:1px solid var(--g-border,var(--line-2));color:var(--g-ink,var(--accent));
+  font-size:11px;font-weight:700;text-decoration:none;white-space:nowrap;vertical-align:middle}
+.vpImgBtn{border:1px solid var(--line-2);background:transparent;color:var(--ink-2);font:inherit;font-size:11px;
+  font-weight:700;padding:3px 9px;border-radius:999px;cursor:pointer;flex:0 0 auto}
+.vpImgBtn:hover{background:var(--field-fill)}
+
+/* 제품 전면 이미지 플레이트 (고정 박스 + object-fit:contain) */
+.vpPlate{display:flex;align-items:center;gap:12px;margin-top:11px}
+.vpPlateBox{width:168px;height:88px;flex:none;display:flex;align-items:center;justify-content:center;padding:6px;
+  border-radius:14px;background:#fff;border:1px solid var(--line);cursor:pointer}
+.vpPlateBox img{max-width:100%;max-height:100%;object-fit:contain;object-position:center}
+.vpPlateCap{display:flex;flex-direction:column;gap:2px;min-width:0}
+.vpPlateCap .t{font-size:11.5px;font-weight:700;color:var(--ink-2)}
+.vpPlateCap .s{font-size:10.5px;font-weight:600;color:var(--muted)}
+
+/* 슬롯형(customizable) 본문 — 입력/출력 2열 + 슬롯 시각화 + 상태 칩 */
+.vpCards{margin-top:11px}
+.vpCardGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.vpCardCol{padding:11px 12px;border:1px solid var(--g-border,var(--line));border-radius:14px;
+  background:rgba(255,255,255,.75);min-width:0}
+.vpColHd{margin:0 0 5px;font-size:10.5px;font-weight:800;letter-spacing:.04em;color:var(--g-ink,var(--accent))}
+.vpColLine{font-size:13px;color:var(--ink-2);line-height:1.5}
+.vpColLine b{font-weight:800;color:var(--ink)}
+.vpColChan{font-size:11px;color:var(--muted);margin-top:1px}
+.vpColRem{font-size:11.5px;margin-top:3px;font-weight:700;color:var(--ink-2)}
+.vpColRem b{font-weight:800}
+.vpColRem.ok{color:var(--ok)}
+.vpColRem.warn{color:var(--warn)}
+.vpColRem.short{color:var(--danger)}
 .vpSlotViz{display:flex;flex-wrap:wrap;gap:3px;margin-top:7px}
-.slotBlk{width:14px;height:14px;border-radius:3px;background:var(--line)}
-.slotBlk.used{background:var(--accent,#3A5AF0)}
-.slotBlk.free{background:var(--line-2,rgba(16,18,22,.1))}
-.slotBlk.short{background:#E5484D}
+.slotBlk{width:14px;height:9px;border-radius:3px;background:var(--line)}
+.slotBlk.used{background:var(--accent)}
+.vpItem .slotBlk.used{background:var(--g-rail,var(--accent))}
+.slotBlk.free{background:rgba(60,60,67,.16)}
+.slotBlk.short{background:#D70015}
 .vpSlotLegend{font-size:11px;color:var(--muted);margin-top:4px}
-.vpSlotLegend b{font-family:var(--mono)}
-.vpChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-.vpChip{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;border:1px solid var(--line)}
-.vpChip.ok{background:var(--ok-tint,rgba(46,160,67,.12));color:var(--ok);border-color:transparent}
-.vpChip.no{background:#FBE9E9;color:#E5484D;border-color:transparent}
-.vpChip.unk{background:var(--field-fill);color:var(--muted)}
+.vpSlotLegend b{font-weight:700}
+.vpShort{color:var(--danger)}
+.vpChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.vpChip{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+.vpChip.ok{background:rgba(30,158,82,.14);color:var(--ok)}
+.vpChip.no{background:#FBE9E9;color:#D70015}
+.vpChip.unk{background:rgba(118,118,128,.14);color:var(--muted)}
+
 /* 상세 사양 접기 */
-.vpDetail{margin-top:9px}
-.vpDetail>summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:700;padding:4px 0;list-style:none}
+.vpDetail{margin-top:10px}
+.vpDetail>summary{cursor:pointer;color:var(--g-ink,var(--accent));font-size:12px;font-weight:700;padding:4px 0;list-style:none}
 .vpDetail>summary::-webkit-details-marker{display:none}
-.vpDetail>summary::before{content:'▸ ';color:var(--accent,#3A5AF0)}
+.vpDetail>summary::before{content:'▸ '}
 .vpDetail[open]>summary::before{content:'▾ '}
 .vpSpecList{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:3px 16px}
 .vSpec{display:flex;align-items:baseline;gap:8px;font-size:12px;color:var(--ink-2);line-height:1.5}
 .vSpec .cn{flex:none}
 .vSpec .cv{margin-left:auto;font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--ink-1,var(--ink-2));white-space:nowrap}
 .vpDetailSub{font-size:11px;font-weight:700;color:var(--muted);margin:9px 0 2px}
-/* 고정형(preconfigured) 카드 — [입력]/[출력]/[멀티뷰어] 커넥터 그룹. 2026-09-15 */
-.vpFixed{margin-top:10px;display:flex;flex-direction:column;gap:8px}
-.ioGroup{padding:8px 11px;border:1px solid var(--line);border-radius:11px;background:var(--field-fill)}
-.ioHd{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--accent,#3A5AF0);margin-bottom:5px}
+
+/* 고정형(preconfigured) 본문 — [입력]/[출력]/[멀티뷰어] 커넥터 그룹 */
+.vpFixed{margin-top:11px;display:flex;flex-direction:column;gap:8px}
+.ioGroup{padding:10px 12px;border:1px solid var(--g-border,var(--line));border-radius:14px;background:rgba(255,255,255,.7)}
+.ioHd{font-size:10.5px;font-weight:800;letter-spacing:.04em;color:var(--g-ink,var(--accent));margin-bottom:6px}
 .ioHd .ioSub{font-weight:600;color:var(--muted);font-size:10px;margin-left:4px}
 .connRow{display:flex;flex-wrap:wrap;gap:6px}
-.connChip{display:inline-flex;align-items:baseline;gap:5px;padding:3px 9px;border-radius:9px;
-  background:var(--accent-tint,rgba(58,90,240,.08));border:1px solid var(--line)}
-.connChip.mv{background:var(--warn-tint,rgba(240,160,40,.1))}
+.connChip{display:inline-flex;align-items:baseline;gap:5px;padding:4px 10px;border-radius:10px;
+  background:var(--field-fill);border:1px solid var(--line)}
+.connChip.mv{background:var(--warn-tint)}
 .connChip .cLbl{font-size:10.5px;color:var(--muted)}
-.connChip .cCnt{font-size:14px;font-weight:800;font-family:var(--mono);color:var(--ink-1,var(--ink-2))}
+.connChip .cCnt{font-size:14px;font-weight:800;font-family:var(--mono);color:var(--ink)}
 .ioExtra{font-size:11.5px;color:var(--ink-2);margin-top:5px}
 .ioExtra b{font-family:var(--mono);font-weight:800}
 .ioNote{font-size:10.5px;color:var(--muted);line-height:1.45}
-@media (max-width:640px){ .vpCardGrid{grid-template-columns:1fr} }
-.vpChecksList{list-style:none;margin:10px 0 0;padding:0;display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px}
+
+/* 조건부 적합 설명 블록 */
+.vpCondNote{margin-top:11px;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.7);
+  border:1px solid var(--g-border,var(--line));font-size:12.5px;line-height:1.55;color:var(--ink-2)}
+
+.vpChecksList{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px}
 .vc{display:flex;align-items:baseline;gap:7px;font-size:12px;color:var(--ink-2);line-height:1.5}
 .vc .ic{font-weight:800;width:1em;flex:none;text-align:center}
 .vc.ok .ic{color:var(--ok)}
-.vc.no .ic{color:#E5484D}
+.vc.no .ic{color:var(--danger)}
 .vc.unk .ic{color:var(--warn)}
 .vc .cn{flex:none}
 .vc .cv{color:var(--muted);margin-left:auto;font-family:var(--mono);font-size:11px;white-space:nowrap}
-.vpFail{margin-top:2px}
-.vpFail>summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:600;padding:4px 0}
-.vpFail .vpItem{margin-top:10px}
+@media (max-width:640px){ .vpCardGrid{grid-template-columns:1fr} }
+
+/* 하단 접이식 행 — 부적합 / 내 장비 검증 */
+.vpFail{margin-top:2px;border-radius:18px;background:rgba(215,0,21,.06);border:1px solid rgba(215,0,21,.22)}
+.vpFail>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:13px 16px;
+  color:var(--danger);font-size:13px;font-weight:700}
+.vpFail>summary::-webkit-details-marker{display:none}
+.vpFail>summary::before{content:'';width:5px;height:22px;border-radius:3px;background:var(--danger);flex:none}
+.vpFail>summary::after{content:'⌄';margin-left:auto;color:var(--muted);font-size:14px}
+.vpFailSub{font-size:11.5px;font-weight:500;color:var(--muted)}
+.vpFail .vpItem{margin:0 12px 12px}
+.vpFail[open]>summary::after{transform:rotate(180deg)}
+
 /* 신규·사양 확인중(이미지만) 목록 */
 .vpPending{margin-top:8px;border-top:1px dashed var(--line);padding-top:6px}
 .vpPending>summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:600;padding:4px 0}
 .vpPendItem{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line-2,rgba(16,18,22,.06))}
 .vpPendName{font-weight:600;color:var(--ink)}
 
-/* 05 섹션 자체를 접이식(details)으로 — 기본 접힘. summary 안의 h2를 그대로 헤더로 사용 + 우측 caret. */
+/* 05 섹션 자체를 접이식(details)으로 — 기본 접힘. summary 안의 헤더를 그대로 사용 + 우측 caret. */
 .vpSection>summary{cursor:pointer;list-style:none;display:flex;align-items:center}
 .vpSection>summary::-webkit-details-marker{display:none}
-.vpSection>summary h2{margin:0}
-.vpSection>summary::after{content:'▾';margin-left:auto;color:var(--muted);font-size:13px;transition:transform .2s ease}
+.vpSection>summary::after{content:'▾';margin-left:auto;align-self:center;color:var(--muted);font-size:13px;transition:transform .2s ease}
 .vpSection:not([open])>summary::after{transform:rotate(-90deg)}
 
-/* 추천 결과를 제조사별로 묶은 접이식 그룹. 접힌 상태에서도 제조사·최상위 등급·대표 모델·개수를 보여줌. */
-.vpMfr{border:1px solid var(--line);border-radius:14px;margin-top:10px;background:var(--field-fill);overflow:hidden}
-.vpMfr.rec{border-color:var(--accent)}
-.vpMfr>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px}
-.vpMfr>summary::-webkit-details-marker{display:none}
-.vpMfr>summary::after{content:'▾';margin-left:auto;color:var(--muted);font-size:13px;transition:transform .2s ease}
-.vpMfr:not([open])>summary::after{transform:rotate(-90deg)}
-.vpMfrName{font-weight:700;font-size:14px;color:var(--ink)}
-.vpMfrTop{color:var(--muted);font-size:12.5px}
-.vpMfrCount{color:var(--muted);font-size:12px}
-.vpMfr>summary .vpBadge{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px;white-space:nowrap;background:var(--field-fill);color:var(--ink-2);border:1px solid var(--line)}
-.vpMfr.rec>summary .vpBadge{background:var(--accent);color:#fff;border-color:transparent}
-.vpMfr.ok>summary .vpBadge{background:var(--ok);color:#fff;border-color:transparent}
-.vpMfr.cond>summary .vpBadge{background:var(--warn);color:#fff;border-color:transparent}
-.vpMfr.edge>summary .vpBadge{background:var(--warn-tint);color:var(--warn);border-color:transparent}
-.vpMfr .vpResult{margin:0 12px 12px}
+/* 내 장비 구성으로 검증 — 하단 행 스타일 */
+.vpAdv#vpBuildBox{margin-top:12px;border-radius:18px;background:var(--field-fill);border:1px solid var(--line);padding:0}
+#vpBuildBox>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:13px 16px;
+  color:var(--ink);font-size:13px;font-weight:700}
+#vpBuildBox>summary::-webkit-details-marker{display:none}
+#vpBuildBox>summary::after{content:'⌄';margin-left:auto;color:var(--muted);font-size:14px;transition:transform .2s ease}
+#vpBuildBox[open]>summary::after{transform:rotate(180deg)}
+.vpBuildSub{font-size:11.5px;font-weight:500;color:var(--muted)}
+#vpBuildBox>*:not(summary){margin-left:16px;margin-right:16px}
+#vpBuildBox>*:last-child{margin-bottom:14px}
+
+/* 05 다크 모드 보정 (사진 플레이트·서브카드 배경·배지 대비) */
+@media (prefers-color-scheme: dark){
+  .vpStat.accent{background:rgba(10,132,255,.16);border-color:rgba(10,132,255,.30)}
+  .vpItem.rec{background:linear-gradient(180deg,rgba(10,132,255,.16),rgba(10,132,255,.06))}
+  .vpItem.ok .vpBadge{color:#08240F}
+  .vpItem.cond .vpBadge{color:#2E1A00}
+  .vpPlateBox{background:rgba(255,255,255,.94);border-color:rgba(84,84,88,.42)}
+  .vpCardCol{background:rgba(44,44,46,.78)}
+  .ioGroup,.vpCondNote{background:rgba(44,44,46,.72)}
+  .slotBlk.free{background:rgba(84,84,88,.45)}
+  .vpChip.no{background:rgba(255,107,107,.16);color:var(--danger)}
+  .vpFail{background:rgba(255,107,107,.07);border-color:rgba(255,107,107,.24)}
+}
 
 /* ── 포트별 입출력 수량 팝업(포트 고정형 프로세서 이름 클릭, 이사 요청) ───────────── */
-.vpNameClickable{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
-.vpNameClickable:hover{color:var(--accent)}
-.vpPortHint{font-size:11px;color:var(--accent);font-weight:700;text-decoration:none;white-space:nowrap}
+/* (.vpNameClickable · .vpPortHint 스타일은 05 재디자인 블록에서 정의) */
 #portPop{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
   background:rgba(20,26,40,.45);backdrop-filter:saturate(140%) blur(4px);padding:16px}
 .portPopCard{width:min(420px,94vw);max-height:86vh;overflow:auto;background:var(--panel-solid);color:var(--ink);
@@ -708,9 +842,7 @@ body.printing .previewStage{width:640px!important;height:auto!important}
   .ppImgWrap img{max-height:200px;object-fit:contain}  /* 이미지 높이 제한 → 아래 포트 표 공간 확보 */
 }
 
-/* 프로세서 카드 '이미지' 버튼 + 앞/뒤 이미지 뷰어 팝업 */
-.vpImgBtn{border:1px solid var(--accent);background:var(--field-fill);color:var(--accent);font:inherit;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;cursor:pointer;flex:0 0 auto}
-.vpImgBtn:hover{background:var(--accent);color:#fff}
+/* 프로세서 카드 '이미지' 버튼 + 앞/뒤 이미지 뷰어 팝업 (.vpImgBtn 스타일은 05 재디자인 블록에서 정의) */
 #procImgPop{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(20,26,40,.55);backdrop-filter:saturate(140%) blur(4px);padding:16px}
 .procImgCard{width:min(860px,96vw);max-height:90vh;overflow:auto;background:var(--panel-solid);color:var(--ink);border-radius:var(--r-card);box-shadow:var(--shadow-pop);border:1px solid var(--line)}
 .procImgHead{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:14px 16px 10px;flex-wrap:wrap}
@@ -1111,3 +1243,4 @@ body.printing #cv3d{height:420px}
   box-shadow:0 2px 8px rgba(30,40,55,.10)}
 /* 핵심 치수(LED 가로·세로)는 어두운 알약 — 정면 뷰와 같은 규칙. */
 .gl3dDim.key{background:rgba(17,21,27,.92);color:#fff;border-color:transparent}
+
