@@ -62,9 +62,26 @@ export const MATERIAL_IDS = Object.freeze([
   'metalFrame', 'fabricChair', 'stageSurface',
 ]);
 
-/** 공간 타입 → 바닥 마감. 강의실만 비닐, 나머지는 카펫. */
+/** 공간 타입 → 바닥 마감. 강의실·아이디에이션은 비닐, 나머지는 카펫. */
 export function floorFinishFor(roomTypeId) {
-  return roomTypeId === 'classroom' ? 'vinylFloor' : 'carpetTile';
+  return (roomTypeId === 'classroom' || roomTypeId === 'ideation') ? 'vinylFloor' : 'carpetTile';
+}
+
+/**
+ * 공간 분위기 — 같은 조명 구성을 쓰되 밝기와 벽 색만 조금 다르게 한다.
+ *   light   조명 세기에 곱하는 값
+ *   wallMix 벽·천장 색을 흰색 쪽으로 섞는 비율(0 = 그대로)
+ * 조명 '구성'은 건드리지 않는다 — 방마다 조명 개수가 달라지면 관리가 안 된다.
+ */
+export const MOODS = Object.freeze({
+  office: Object.freeze({ id: 'office', label: '사무 표준', light: 1.00, wallMix: 0 }),
+  bright: Object.freeze({ id: 'bright', label: '밝고 개방적', light: 1.14, wallMix: 0.45 }),
+  dim: Object.freeze({ id: 'dim', label: '어둡게(화면 강조)', light: 0.82, wallMix: 0 }),
+});
+
+/** 공간 타입 → 분위기. 아이디에이션 공간만 더 밝고 가볍게. */
+export function moodFor(roomTypeId) {
+  return roomTypeId === 'ideation' ? 'bright' : 'office';
 }
 
 /**
@@ -87,6 +104,11 @@ export const PART_MATERIAL = Object.freeze({
   consoleTop: 'woodTable', consoleBase: 'metalFrame', monitorBase: 'metalFrame',
   podium: 'paintedWall', podiumTop: 'woodTable',
   credenzaBody: 'paintedWall', credenzaDoor: 'paintedWall', credenzaTop: 'woodTable', credenzaToe: 'metalFrame',
+  highTop: 'woodTable', highLeg: 'metalFrame',
+  stoolSeat: 'fabricChair', stoolBase: 'metalFrame',
+  loungeSeat: 'fabricChair', loungeBack: 'fabricChair', loungeLeg: 'metalFrame',
+  collabTop: 'woodTable', collabLeg: 'metalFrame',
+  standBase: 'metalFrame', standPole: 'metalFrame',
   rug: 'carpetTile',
   riserTop: 'stageSurface', riserSide: 'stageSurface',
   plantPot: 'paintedWall',
