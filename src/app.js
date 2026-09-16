@@ -1634,47 +1634,31 @@ function slotVizHTML(reqCards, slots) {
 }
 // 슬롯형 카드의 한쪽(입력/출력) 영역. 채널 용량 중심 표기(이사 요청 2026-09-16):
 //   ① 카드 1장 = 4K N채널 · FHD 4N채널(환산)  ② 최대(전체 슬롯 기준) 총 용량  ③ 슬롯 시각화  ④ 남은 슬롯 요약.
+// 슬롯형 카드 한쪽(입력/출력) — 제품 스펙(카드당 4K 채널 · 최대 장착 장수)만 간단히. 이번 구성의 사용 장수·슬롯
+//   시각화는 설계자 재량이라 표시하지 않는다(이사 요청 2026-09-16).
 function slotSideHTML(side, p, need, reqCards, slots, perCard) {
   const kLabel = side === 'in' ? '입력' : '출력';
   const ch4k = cardChan4k(p, perCard);                       // 카드당 4K 채널(숫자) 또는 null
-  // ① 카드당 4K 채널만 표기(FHD 환산 표기 제거 — 이사 요청 2026-09-16).
   const chanLine = ch4k != null
-    ? `카드 1장 = <b>4K ${ch4k}채널</b>`
+    ? `카드당 <b>4K ${ch4k}채널</b>`
     : '카드당 채널 <span class="muted-note">미상</span>';
-  // ② 최대 총 용량(전체 슬롯 × 카드당 채널). 슬롯·채널 중 하나라도 미상이면 생략.
-  const capLine = (ch4k != null && slots != null)
-    ? `<div class="vpColCap">최대 <b>4K ${ch4k * slots}채널</b></div>` : '';
-  // ④ 장착 용량 중심: "이 쪽에 최대 N장 장착 가능". 이번 구성에 필요한 장수는 작게 곁들이고, 부족하면 강조(이사 요청 2026-09-16).
-  let remTxt, remCls = '';
-  if (slots == null) remTxt = `${kLabel} 슬롯 <span class="muted-note">미상</span>`;
-  else if (reqCards != null && reqCards > slots) {
-    remTxt = `${kLabel} 카드 최대 <b>${slots}</b>장 · <b class="vpShort">${reqCards - slots}장 부족</b>`; remCls = 'short';
-  } else {
-    const needTxt = (reqCards > 0) ? ` <span class="muted-note">· 이번 ${reqCards}장</span>` : '';
-    remTxt = `${kLabel} 카드 최대 <b>${slots}</b>장 장착${needTxt}`;
-  }
+  const capLine = (slots != null)
+    ? `<div class="vpColCap">최대 <b>${slots}</b>장 장착${ch4k != null ? ` · 4K <b>${ch4k * slots}</b>채널` : ''}</div>`
+    : '<div class="vpColCap">장착 슬롯 <span class="muted-note">미상</span></div>';
   return `<div class="vpCardCol">
     <h5 class="vpColHd">${kLabel} 카드</h5>
     <div class="vpColChan">${chanLine}</div>
     ${capLine}
-    ${slotVizHTML(reqCards, slots)}
-    <div class="vpColRem ${remCls}">${remTxt}</div>
   </div>`;
 }
-// 슬롯형(customizable) 제품 카드 본문 — 입력/출력 2열 + 슬롯 시각화 + 상태 칩.
+// 슬롯형(customizable) 제품 카드 본문 — 입력/출력 2열(스펙만) + Aquilon/슬롯 안내.
 function vpSlotCardHTML(item) {
   const p = item.proc, cp = item.cardPlan;
   const inS = slotSideHTML('in', p, cp.needIn, cp.reqInCards, cp.inSlots, cp.inPerCard);
   const outS = slotSideHTML('out', p, cp.needOut, cp.reqOutCards, cp.outSlots, cp.outPerCard);
-  const inRem = (cp.inSlots != null && cp.reqInCards != null) ? cp.inSlots - cp.reqInCards : null;
-  const outRem = (cp.outSlots != null && cp.reqOutCards != null) ? cp.outSlots - cp.reqOutCards : null;
-  const short = (inRem != null && inRem < 0) || (outRem != null && outRem < 0);
-  // 장착 용량은 각 열의 '최대 N장' 줄에서 보여주므로, 하단 칩은 전체 구성 가능/부족 상태만 남긴다(여유 칩 제거).
-  const statusChip = short ? '<span class="vpChip no">슬롯 부족</span>' : '<span class="vpChip ok">구성 가능</span>';
   const note = p.slotNote ? `<div class="ioNote">${esc(p.slotNote)}</div>` : '';
   return `<div class="vpCards">
     <div class="vpCardGrid">${inS}${outS}</div>
-    <div class="vpChips">${statusChip}</div>
     ${aquilonCardNote(p)}
     ${note}
   </div>`;
