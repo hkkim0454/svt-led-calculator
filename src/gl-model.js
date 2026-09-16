@@ -9,7 +9,7 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=387';
+import { floorFinishFor, moodFor } from './materials.js?v=388';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -62,7 +62,7 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @param items room-presets의 배치 결과(STEP 1에서는 무대만 읽는다)
  * @returns { room, led, stage }  전부 unit
  */
-export function buildGLModel({ space, led, items, show, person, roomType, sideMonitors }) {
+export function buildGLModel({ space, led, items, show, person, roomType, sideMonitors, ledImage }) {
   // 벽 두께는 '방 바깥쪽'으로 붙인다 — 안쪽 치수(W×H×D)는 계산값 그대로여야 한다.
   const room = {
     W: u(space.W), H: u(space.H), D: u(space.D),
@@ -104,6 +104,8 @@ export function buildGLModel({ space, led, items, show, person, roomType, sideMo
       y: u(led.mount),            // 바닥 ~ LED 아래(하단 높이)
       w: u(led.w), h: u(led.h),   // LED 실제 가로·세로
       depth: u(led.depth || 60),  // 벽에서 튀어나온 캐비닛 깊이
+      // 화면에 넣은 이미지(있으면). 픽셀 데이터라 단위 변환 대상이 아니다 — 그대로 들고 간다.
+      image: ledImage || null,
       cols: Math.max(1, Math.round(led.cols) || 1),   // STEP 1에서는 아직 그리지 않는다
       rows: Math.max(1, Math.round(led.rows) || 1),   //   (다음 단계 캐비닛 격자용)
     },
