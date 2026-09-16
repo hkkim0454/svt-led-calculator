@@ -9,7 +9,7 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=385';
+import { floorFinishFor, moodFor } from './materials.js?v=386';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -212,6 +212,21 @@ const DEG = Math.PI / 180;
 // 평면도를 얼마나 눕힐지(°). 90 = 완전히 수직(납작함), 작을수록 입체감이 커진다.
 //   58°면 바닥 배치가 도면처럼 읽히면서 좌석 등받이·무대·단차 높이가 함께 보인다.
 //   더 세우면(70° 이상) 좌석이 납작한 띠로 뭉쳐 안 읽힌다.
+// 화각(FOV) 조절 범위. 좁을수록 망원(원근이 약해 도면처럼), 넓을수록 광각(공간이 넓어 보인다).
+//   24° 아래는 왜곡 없이 납작해지고, 75°를 넘으면 가장자리가 휘어 제안서에 쓰기 어렵다.
+export const FOV_RANGE = Object.freeze({ min: 24, max: 75, step: 1, default: FOV_DEG });
+
+/**
+ * 화각 값을 허용 범위로 자른다. 값이 없으면(null·undefined·빈 문자열) 기본값을 쓴다.
+ *   `Number(null)`은 0이라 그냥 Number로 바꾸면 '값 없음'이 하한으로 잘려 버린다 — 먼저 걸러낸다.
+ */
+export function clampFov(deg, fallback = FOV_DEG) {
+  if (deg === null || deg === undefined || deg === '') return fallback;
+  const v = Number(deg);
+  if (!Number.isFinite(v)) return fallback;
+  return Math.min(FOV_RANGE.max, Math.max(FOV_RANGE.min, v));
+}
+
 export const TOP_PITCH_DEG = 58;
 
 /**
@@ -298,7 +313,7 @@ const INSIDE = {
  *   fov:number|null, orthoHeight:number|null
  * }}  길이 단위는 전부 unit(1 = 1 m)
  */
-export function presetPose(id, model, aspect = 16 / 9) {
+export function presetPose(id, model, aspect = 16 / 9, opts = {}) {
   const p = cameraPreset(id);
   const { room, led } = model;
   const a = Math.max(0.3, aspect);
@@ -312,6 +327,25 @@ export function presetPose(id, model, aspect = 16 / 9) {
     const pitch = TOP_PITCH_DEG * DEG;
     // 방 한가운데를 본다 — 그래야 담을 범위 계산과 화면 중심이 정확히 맞는다.
     const target = [room.W / 2, room.H / 2, room.D / 2];
+    // 원근 평면도 — 같은 각도에서 보되 원근이 들어간다(멀리 있는 줄이 작아진다).
+    //   정사투영은 도면처럼 폭을 그대로 비교할 수 있고, 원근은 공간감이 산다. 화면에서 고른다.
+    if (opts.topPerspective) {
+      const fov = clampFov(opts.fov);
+      // 방을 감싸는 구로 거리를 잡는다. 위에서 내려다보는 그림은 높이 방향이 눌려 보여
+      //   구 반지름이 실제보다 넉넉하다 — 그만큼 당겨(0.92) 화면을 덜 비운다.
+      const R = 0.5 * Math.hypot(room.W, room.H, room.D);
+      const minFov = Math.min(fov * DEG, hFovOf(fov, a));
+      const dist = (R / Math.sin(minFov / 2)) * 0.92;
+      return {
+        id: p.id, ortho: false,
+        position: [
+          target[0],
+          target[1] + dist * Math.sin(pitch),
+          target[2] + dist * Math.cos(pitch),
+        ],
+        target, up: [0, 1, 0], fov, orthoHeight: null,
+      };
+    }
     const dist = Math.max(room.W, room.D, room.H) * 4;   // 정사투영이라 거리는 크기에 영향 없음
     return {
       id: p.id, ortho: true,
@@ -327,7 +361,8 @@ export function presetPose(id, model, aspect = 16 / 9) {
 
   // ── 아이소메트릭 — 방 전체를 한눈에. 카메라는 방 밖에 선다 ──
   if (p.id === 'iso') {
-    const fov = 30;                            // 좁은 화각 = 원근이 약해 아이소메트릭처럼 보인다
+    // 기본 30°(좁은 화각 = 원근이 약해 아이소메트릭처럼). 사용자가 화각을 바꾸면 같은 비율로 따라간다.
+    const fov = clampFov(30 * (clampFov(opts.fov) / FOV_DEG), 30);
     const yaw = 34 * DEG, pitch = 30 * DEG;    // 30° — 지나친 top-down을 피한다
     // 방을 감싸는 구의 반지름으로 거리를 잡으면 어느 방 모양에서도 전체가 들어온다.
     const R = 0.5 * Math.hypot(room.W, room.H, room.D);
@@ -351,7 +386,10 @@ export function presetPose(id, model, aspect = 16 / 9) {
   const yaw = s.yaw * DEG;
   const target = [cx, Math.min(s.look, room.H * 0.8), led.depth];
   // 거리는 LED 크기로 정하고, 방보다 뒤로는 못 간다(뒷벽 밖으로 나가면 벽이 사라진다).
-  let want = fitDistance(led.w * s.padW, led.h * s.padH, s.fov, a);
+  // 프리셋마다 정해진 화각에, 사용자가 고른 화각의 비율을 곱한다
+  //   (실내 시점끼리의 성격 차이는 유지하면서 전체를 넓거나 좁게 볼 수 있다).
+  const fov = clampFov(s.fov * (clampFov(opts.fov) / FOV_DEG), s.fov);
+  let want = fitDistance(led.w * s.padW, led.h * s.padH, fov, a);
   // 실내 시점(Reference A)은 '관람자가 객석에서 보는' 그림이어야 한다.
   //   좌석 한가운데에 서면 앞줄 좌석이 화면 아래로 빠지고 무대도 잘린다.
   //   그래서 좌석이 놓인 범위보다 뒤로 물러난다(방 안에서 갈 수 있는 만큼만).
@@ -362,5 +400,5 @@ export function presetPose(id, model, aspect = 16 / 9) {
     clamp(s.eye, 0.6, room.H - 0.2),
     clamp(led.depth + dist * Math.cos(yaw), 0.8, Math.max(0.8, room.D - 0.3)),
   ];
-  return { id: p.id, ortho: false, position, target, up: [0, 1, 0], fov: s.fov, orthoHeight: null };
+  return { id: p.id, ortho: false, position, target, up: [0, 1, 0], fov, orthoHeight: null };
 }

@@ -7,7 +7,7 @@ import {
   FOV_DEG, EYE_MM, LOOK_MM, START_YAW_DEG, LED_FIT,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, INTERIOR_PRESETS,
-  showCeiling, cameraInsideRoom, LIGHTS, keyShare, shadowMapSize,
+  showCeiling, cameraInsideRoom, LIGHTS, keyShare, shadowMapSize, FOV_RANGE, clampFov,
 } from '../src/gl-model.js';
 import { computeConfig } from '../src/engine.js';
 import { MODELS } from '../src/models.js';
@@ -457,4 +457,66 @@ test('그림자 해상도 — 무작정 키우지 않는다(화면 배율이 높
   assert.equal(shadowMapSize(3), 1024);
   assert.equal(shadowMapSize(), 2048, '기본값');
   assert.ok(shadowMapSize(1) <= 2048, '4096은 메모리 낭비다');
+});
+
+
+// ── 화각 조절 · 평면도 원근 (기능 D) ────────────────────────────────────────
+
+const VIEW_MODEL = {
+  room: { W: 10, H: 3.5, D: 11 },
+  led: { x: 3, y: 1, w: 4, h: 2.2, depth: 0.08, cols: 1, rows: 1 },
+  items: [], show: {}, person: null,
+};
+
+test('화각 — 범위를 벗어난 값은 잘리고, 숫자가 아니면 기본값', () => {
+  assert.ok(FOV_RANGE.min >= 20 && FOV_RANGE.max <= 90, '실용 범위를 벗어난 화각은 제안서에 못 쓴다');
+  assert.ok(FOV_RANGE.default >= FOV_RANGE.min && FOV_RANGE.default <= FOV_RANGE.max);
+  assert.equal(clampFov(1), FOV_RANGE.min);
+  assert.equal(clampFov(999), FOV_RANGE.max);
+  assert.equal(clampFov(40), 40);
+  assert.equal(clampFov('abc'), FOV_RANGE.default);
+  assert.equal(clampFov(undefined), FOV_RANGE.default);
+  assert.equal(clampFov(null, 33), 33, '기본값을 따로 줄 수 있다');
+});
+
+test('화각 — 실내 시점이 사용자 화각을 따라가되 시점끼리의 성격 차이는 유지된다', () => {
+  const at = (id, fov) => presetPose(id, VIEW_MODEL, 1.5, { fov }).fov;
+  assert.ok(at('interior', 24) < at('interior', 40), '좁게 고르면 좁아진다');
+  assert.ok(at('interior', 75) > at('interior', 40), '넓게 고르면 넓어진다');
+  // 아이소는 원래 좁은 화각(30°)이라 같은 비율을 곱해도 실내보다 좁다.
+  assert.ok(at('iso', 60) < at('interior', 60), '아이소가 실내보다 좁아야 아이소메트릭처럼 보인다');
+  // 어떤 화각을 골라도 허용 범위를 벗어나지 않는다.
+  for (const f of [FOV_RANGE.min, 40, FOV_RANGE.max]) {
+    for (const id of ['interior', 'corner-l', 'front', 'corner-r', 'iso']) {
+      const v = presetPose(id, VIEW_MODEL, 1.5, { fov: f }).fov;
+      assert.ok(v >= FOV_RANGE.min && v <= FOV_RANGE.max, `${id} @${f} → ${v}`);
+    }
+  }
+});
+
+test('평면도 — 원근을 켜면 원근 카메라, 끄면 정사투영이고 각도는 같다', () => {
+  const ortho = presetPose('top', VIEW_MODEL, 1.5, {});
+  const persp = presetPose('top', VIEW_MODEL, 1.5, { topPerspective: true, fov: 40 });
+
+  assert.equal(ortho.ortho, true);
+  assert.equal(ortho.fov, null);
+  assert.ok(ortho.orthoHeight > 0);
+
+  assert.equal(persp.ortho, false);
+  assert.equal(persp.fov, 40);
+  assert.equal(persp.orthoHeight, null);
+
+  // 바라보는 점은 둘 다 방 한가운데 — 켜고 꺼도 중심이 흔들리지 않는다.
+  assert.deepEqual(persp.target, ortho.target);
+  // 내려다보는 각도도 같다(원근만 더해질 뿐 시점이 바뀌지 않는다).
+  const pitchOf = p => {
+    const dy = p.position[1] - p.target[1], dz = p.position[2] - p.target[2];
+    return Math.round(Math.atan2(dy, dz) * 180 / Math.PI);
+  };
+  assert.equal(pitchOf(persp), pitchOf(ortho));
+  // 원근 평면도는 방 밖·위에 선다.
+  assert.ok(persp.position[1] > VIEW_MODEL.room.H, '천장보다 위에서 내려다본다');
+  // 화각이 좁을수록 멀리서 본다(같은 크기로 담으려면).
+  const narrow = presetPose('top', VIEW_MODEL, 1.5, { topPerspective: true, fov: 24 });
+  assert.ok(narrow.position[1] > persp.position[1]);
 });

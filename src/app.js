@@ -9,11 +9,12 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=385';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=385';
-import { createViewerGL } from './render3d-gl.js?v=385';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=385';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=385';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=386';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=386';
+import { createViewerGL } from './render3d-gl.js?v=386';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=386';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=386';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=386';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -266,6 +267,8 @@ let cubeViewId = DEFAULT_CUBE_VIEW;   // (구 Canvas 뷰의 시점 id — 구성
 let presetId = DEFAULT_PRESET;        // 3D 카메라 시점 프리셋
 let customViews = [];                 // 사용자가 저장한 시점(구성과 함께 저장된다)
 let viewEditMode = false;             // 시점 편집 모드 — 켜면 '+'(저장)와 '×'(삭제)가 보인다
+// 시점 옵션 — 화각(도)과 평면도 원근 여부. 3D 뷰 전용이라 구성 저장에는 넣지 않는다.
+let view3dOpts = { fov: FOV_RANGE.default, topPerspective: true };
 const pv3dShow = {
   person: true, dims: true, grid: true, accentWall: true, viewAngle: false,
   // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 2면 —
@@ -829,6 +832,8 @@ function renderPreview3D() {
       onError: e => { gl3dFailed = true; console.error('[3D] WebGL 초기화 실패 —', e); },
     });
     if (!viewer3d) gl3dFailed = true;
+    // 시점 옵션(화각·평면도 원근)을 뷰어에 알려 준다 — 첫 배치 전에 걸어 둬야 첫 화면부터 반영된다.
+    viewer3d?.setViewOptions(view3dOpts, { animate: false });
     // 자동 검증(헤드리스 브라우저)에서 카메라 상태를 읽기 위한 손잡이.
     //   읽기 전용 정보만 노출한다 — 화면 동작에는 영향이 없다.
     if (viewer3d) window.__svtViewer3d = viewer3d;
@@ -991,6 +996,43 @@ function buildWallThkField() {
   return lab;
 }
 
+// 시점 옵션 — 화각 슬라이더 + 평면도 원근 토글.
+//   화각을 바꾸면 각 시점이 정해 둔 화각에 같은 비율이 곱해진다(시점끼리의 성격 차이는 유지).
+function buildViewOptionFields() {
+  const wrap = document.createDocumentFragment();
+
+  const lab = document.createElement('label');
+  lab.className = 'pv3dField pv3dFov';
+  const t = document.createElement('span');
+  t.textContent = `화각 ${view3dOpts.fov}°`;
+  const inp = document.createElement('input');
+  inp.type = 'range'; inp.id = 'view3dFov';
+  inp.min = String(FOV_RANGE.min); inp.max = String(FOV_RANGE.max); inp.step = String(FOV_RANGE.step);
+  inp.value = String(view3dOpts.fov);
+  inp.title = '좁을수록 망원(원근이 약해 도면처럼) · 넓을수록 광각(공간이 넓어 보임)';
+  inp.addEventListener('input', () => {
+    view3dOpts.fov = clampFov(inp.value);
+    t.textContent = `화각 ${view3dOpts.fov}°`;
+    viewer3d?.setViewOptions(view3dOpts, { animate: false });
+  });
+  lab.append(t, inp);
+  wrap.appendChild(lab);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'pvTog' + (view3dOpts.topPerspective ? ' on' : '');
+  btn.id = 'view3dTopPersp';
+  btn.title = '평면도를 원근이 있는 3D로 봅니다. 끄면 폭을 그대로 비교할 수 있는 정사투영(도면)입니다';
+  btn.innerHTML = '<span class="dot"></span>평면도 원근';
+  btn.addEventListener('click', () => {
+    view3dOpts.topPerspective = !view3dOpts.topPerspective;
+    btn.classList.toggle('on', view3dOpts.topPerspective);
+    viewer3d?.setViewOptions(view3dOpts);
+  });
+  wrap.appendChild(btn);
+  return wrap;
+}
+
 // 대리 입력칸을 원본 값에 맞춘다(01 카드에서 바꿨을 때 따라오도록).
 function syncSizeProxy() {
   for (const inp of document.querySelectorAll('.pv3dSize input[data-proxy]')) {
@@ -1026,6 +1068,10 @@ function buildInspector() {
     if (el) s3.body.appendChild(el);
   }
 
+  // [시점] 화각 · 평면도 원근
+  const s4 = inspectorSection('시점');
+  s4.body.appendChild(buildViewOptionFields());
+
   // 좁은 화면에서 패널을 접었다 펴는 버튼(넓은 화면에서는 CSS가 숨긴다).
   const toggle = document.createElement('button');
   toggle.type = 'button';
@@ -1037,7 +1083,7 @@ function buildInspector() {
   });
   box.appendChild(toggle);
 
-  box.append(s1, s2, s3);
+  box.append(s1, s2, s3, s4);
 
   // 시점 프리셋 — 캔버스 아래 가운데. 기존 선택칸(#cubeView)은 숨기고 값만 공유한다.
   if (presetBar) {
