@@ -134,7 +134,9 @@ body{
     radial-gradient(50vw 50vw at 92% 4%, rgba(191,90,242,.22), transparent 60%),
     radial-gradient(60vw 60vw at 78% 96%, rgba(48,209,196,.20), transparent 62%),
     radial-gradient(46vw 46vw at 6% 92%, rgba(255,149,0,.16), transparent 60%);
-  filter:blur(6px) saturate(120%);
+  /* 고정 배경에 blur 필터가 있으면 유리(backdrop-filter) 카드가 스크롤 중 흰 사각형으로 깨지는
+     크롬 합성 버그가 생김 → blur 제거(그라디언트가 이미 부드러워 외형 차이 거의 없음). 2026-09-16 */
+  filter:saturate(120%);
 }
 @media (prefers-color-scheme: dark){
   .bg-orbs{
@@ -143,7 +145,7 @@ body{
       radial-gradient(50vw 50vw at 92% 4%, rgba(191,90,242,.24), transparent 60%),
       radial-gradient(60vw 60vw at 78% 96%, rgba(48,209,196,.18), transparent 62%),
       radial-gradient(46vw 46vw at 6% 92%, rgba(255,159,10,.14), transparent 60%);
-    filter:blur(10px) saturate(130%);
+    filter:saturate(130%);
   }
 }
 
