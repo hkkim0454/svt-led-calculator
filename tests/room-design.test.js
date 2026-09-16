@@ -17,7 +17,7 @@ import {
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, layoutRoom, defaultOptions } from '../src/room-presets.js';
 import { computeConfig } from '../src/engine.js';
 import { MODELS } from '../src/models.js';
-import { MATERIAL_PRESETS, floorFinishFor, moodFor } from '../src/materials.js';
+import { MATERIAL_PRESETS, MATERIAL_IDS, resolveMaterialId, floorFinishFor, moodFor } from '../src/materials.js';
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
 const ROOM_TYPE_IDS = ROOM_TYPES.map(t => t.id);
@@ -288,4 +288,28 @@ test('불변 데이터 — 디자인·변형 표를 밖에서 고칠 수 없다'
   for (const id of DESIGN_IDS) assert.ok(Object.isFrozen(resolveDesign(id)), `resolveDesign(${id})`);
   assert.ok(Object.isFrozen(layoutPlan('corporateMeeting', 'meeting')));
   assert.ok(Object.isFrozen(designsFor('meeting')));
+});
+
+// ── PHASE 1-b.1 · 이름 계약 ────────────────────────────────────────────────
+test('재질 이름 계약 — 디자인이 적어 둔 재질 이름이 전부 실재하는 재질로 풀린다', () => {
+  // 디자인 선언의 `materials` 칸에 적힌 이름(planned 표시 포함)은 PHASE 2에서 그대로 쓰인다.
+  //   그때 가서 "그런 재질 없음"이 되면 조용히 기본 재질로 빠진다 — 지금 막아 둔다.
+  const names = [];
+  const walk = v => {
+    if (!v) return;
+    if (isPlanned(v)) { names.push(v.planned); return; }
+    if (typeof v === 'string') { names.push(v); return; }
+    if (typeof v === 'object') for (const x of Object.values(v)) walk(x);
+  };
+  for (const id of DESIGN_IDS) walk(ROOM_DESIGNS[id].materials);
+  assert.ok(names.length >= 12, `검사할 재질 이름이 너무 적다 (${names.length})`);
+  for (const n of names) {
+    const canonical = resolveMaterialId(n);
+    assert.ok(canonical, `디자인이 가리키는 재질 '${n}' 이 없다`);
+    assert.ok(MATERIAL_IDS.includes(canonical), `'${n}' 이 정식 재질로 풀리지 않는다`);
+    assert.ok(MATERIAL_PRESETS[canonical], `'${n}' → '${canonical}' 프리셋 없음`);
+  }
+  // paintedWallWhite 는 **별칭**이어야 한다 — 같은 질감의 재질을 두 벌 만들지 않는다.
+  assert.equal(resolveMaterialId('paintedWallWhite'), 'paintedWall');
+  assert.ok(!MATERIAL_IDS.includes('paintedWallWhite'), '별칭이 정식 재질이 되어 버렸다');
 });

@@ -9,11 +9,24 @@
 //
 // 재질은 **토큰 + 색 + 반복 횟수**가 같으면 하나를 돌려 쓴다(캐시).
 //   같은 재질을 여러 번 만들면 그리기 호출이 쪼개져 성능이 떨어진다.
+//
+// 이름은 **반드시 materials.js의 해석기를 통과시킨다.**
+//   `lightOak`는 `woodTable`의 다른 이름일 뿐이다. 해석하지 않고 그대로 조회하면
+//   프리셋을 못 찾아 회색 기본 재질로 빠지고, 설령 찾더라도 캐시 열쇠가 갈라져
+//   **같은 재질이 두 벌** 만들어진다(그리기 호출이 늘어난다).
+//   그래서 조회도 캐시 열쇠도 전부 **정식 id 기준**으로 맞춘다.
+//
+// 재질에 넣을 값과 **물체(Mesh)의 성질**을 섞지 않는다.
+//   transparent·opacity·doubleSided → 재질 객체로 (여기서 처리)
+//   castsShadow·renderOrder 등        → 물체의 성질. `semantics()`로 꺼내 쓰고,
+//                                       재질 객체에는 넣지 않는다(Three.js가 무시한다).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { MATERIAL_PRESETS, tileRepeat } from './materials.js?v=391';
-import { MM_PER_UNIT } from './gl-model.js?v=391';
+import {
+  tileRepeat, resolveMaterialId, materialPreset, materialParams, renderSemantics,
+} from './materials.js?v=399';
+import { MM_PER_UNIT } from './gl-model.js?v=399';
 
 const TEX_SIZE = 256;
 
@@ -109,12 +122,19 @@ export function createMaterialLibrary({ textureScale = 1 } = {}) {
     return texCache.get(kind);
   };
 
-  function build(presetId, color, repeat, extra) {
-    const p = MATERIAL_PRESETS[presetId];
+  // canonicalId 는 이미 해석을 마친 **정식 id**다(별칭이 여기까지 오지 않는다).
+  function build(canonicalId, color, repeat, extra) {
+    const p = materialPreset(canonicalId);
     if (!p) return new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0 });
-    const m = new THREE.MeshStandardMaterial({
-      color, roughness: p.roughness, metalness: p.metalness, ...extra,
-    });
+    // 재질 값은 순수 명세가 정한다 — 어댑터는 Three.js 이름으로 옮기기만 한다.
+    const prm = materialParams(canonicalId);
+    const base = { color, roughness: prm.roughness, metalness: prm.metalness };
+    // 아래 두 줄은 **그렇게 표시된 재질에만** 걸린다. 표시가 없으면 아무것도 넣지 않으므로
+    //   기존 재질은 예전과 완전히 같은 인자로 만들어진다(결과가 달라질 수 없다).
+    if (prm.transparent) { base.transparent = true; base.opacity = prm.opacity; }
+    if (prm.doubleSided) base.side = THREE.DoubleSide;
+    // 호출한 쪽이 준 값(extra)이 마지막 — 벽처럼 면 방향을 직접 지정하는 경우가 있다.
+    const m = new THREE.MeshStandardMaterial({ ...base, ...extra });
     const src = (p.normalScale * textureScale > 0) ? baseTex(p.texture) : null;
     const nScale = p.normalScale * textureScale;   // 표현 방식(심플/실사)이 무늬 세기를 정한다
     if (src && nScale > 0) {
@@ -130,26 +150,38 @@ export function createMaterialLibrary({ textureScale = 1 } = {}) {
     return m;
   }
 
+  // 이름 → 정식 id. 캐시 열쇠도 이 값으로 만들어 `lightOak`와 `woodTable`이
+  //   같은 재질 하나를 나눠 쓰게 한다. 모르는 이름은 그대로 둔다(기본 회색 재질로 빠진다).
+  const canonical = name => resolveMaterialId(name) || String(name);
+
   return {
-    /** 반복 무늬 없이(가구 부품처럼 작은 면) 재질 하나. */
-    get(presetId, color, extra) {
-      const key = `${presetId}|${color}|${extra ? JSON.stringify(extra) : ''}`;
-      if (!matCache.has(key)) matCache.set(key, build(presetId, color, [2, 2], extra));
+    /** 반복 무늬 없이(가구 부품처럼 작은 면) 재질 하나. 이름은 정식 id든 별칭이든 된다. */
+    get(name, color, extra) {
+      const id = canonical(name);
+      const key = `${id}|${color}|${extra ? JSON.stringify(extra) : ''}`;
+      if (!matCache.has(key)) matCache.set(key, build(id, color, [2, 2], extra));
       return matCache.get(key);
     },
     /**
      * 바닥·벽처럼 **실제 크기가 있는 면**용. 무늬 간격을 실제 치수에 맞춰 반복한다.
      * @param wUnits,dUnits 면의 가로·세로(unit = m)
      */
-    surface(presetId, color, wUnits, dUnits, extra) {
-      const p = MATERIAL_PRESETS[presetId];
-      const rep = tileRepeat(p, wUnits, dUnits, MM_PER_UNIT);
-      const key = `${presetId}|${color}|${rep ? rep.map(n => n.toFixed(2)).join('x') : '-'}|${extra ? JSON.stringify(extra) : ''}`;
-      if (!matCache.has(key)) matCache.set(key, build(presetId, color, rep, extra));
+    surface(name, color, wUnits, dUnits, extra) {
+      const id = canonical(name);
+      const rep = tileRepeat(materialPreset(id), wUnits, dUnits, MM_PER_UNIT);
+      const key = `${id}|${color}|${rep ? rep.map(n => n.toFixed(2)).join('x') : '-'}|${extra ? JSON.stringify(extra) : ''}`;
+      if (!matCache.has(key)) matCache.set(key, build(id, color, rep, extra));
       return matCache.get(key);
     },
-    /** 프리셋 수치 그대로(디버깅·검증용). */
-    preset(id) { return MATERIAL_PRESETS[id] || null; },
+    /** 프리셋 수치 그대로(디버깅·검증용). 별칭도 받는다. */
+    preset(name) { return materialPreset(name); },
+    /** 이름 → 정식 id(디버깅·검증용). */
+    canonical,
+    /**
+     * 이 재질을 입은 **물체**를 어떻게 다뤄야 하는가 — 그림자·그리기 순서.
+     * 재질 객체에는 들어가지 않는다. 물체를 만드는 쪽이 꺼내 쓴다(아직 아무도 쓰지 않는다).
+     */
+    semantics(name) { return renderSemantics(canonical(name)); },
     dispose() {
       for (const o of owned) o.dispose?.();
       for (const t of texCache.values()) t.dispose();
