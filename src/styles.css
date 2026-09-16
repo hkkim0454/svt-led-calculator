@@ -750,8 +750,14 @@ body.printing .previewStage{width:640px!important;height:auto!important}
 .vpColHd{margin:0 0 5px;font-size:10.5px;font-weight:800;letter-spacing:.04em;color:var(--g-ink,var(--accent))}
 .vpColLine{font-size:13px;color:var(--ink-2);line-height:1.5}
 .vpColLine b{font-weight:800;color:var(--ink)}
-.vpColChan{font-size:11px;color:var(--muted);margin-top:1px}
-.vpColRem{font-size:11.5px;margin-top:3px;font-weight:700;color:var(--ink-2)}
+/* 카드당 채널(핵심 줄): 4K는 진하게, FHD는 환산 회색 */
+.vpColChan{font-size:12px;color:var(--ink-2);margin-top:1px;line-height:1.45}
+.vpColChan b{font-weight:800;color:var(--g-ink,var(--ink))}
+.vpConv{font-size:9px;font-weight:700;color:var(--muted);background:var(--field-fill);padding:1px 5px;border-radius:999px;margin-left:2px;vertical-align:middle}
+/* 최대 총 용량 줄 */
+.vpColCap{font-size:11px;color:var(--muted);margin-top:3px}
+.vpColCap b{font-weight:700;color:var(--ink-2)}
+.vpColRem{font-size:11.5px;margin-top:6px;font-weight:700;color:var(--ink-2)}
 .vpColRem b{font-weight:800}
 .vpColRem.ok{color:var(--ok)}
 .vpColRem.warn{color:var(--warn)}
