@@ -3,13 +3,16 @@
 //            (3) 배치 결과(room-presets)와 자산이 빠짐없이 연결된다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   FURNITURE_ASSETS, FURNITURE_COLORS, DIMS, V1_ASSET_IDS,
   assetFor, assetParts, assetKey,
   createConferenceChair, createAuditoriumChair, createTrainingChair,
-  createTrainingDesk, createConferenceTable, createAvCredenza,
+  createTrainingDesk, createConferenceTable, createAvCredenza, createCorporateChair,
 } from '../src/furniture-assets.js';
 import { layoutRoom, ROOM_TYPES, defaultOptions } from '../src/room-presets.js';
+import { PART_FINISH, finishForPart } from '../src/materials.js';
+import { FURNITURE_CONTRACTS } from '../src/furniture-contracts.js';
 
 // 부품 하나가 차지하는 y 구간 [아래, 위]. 기울기가 있으면 회전 후 높이로 계산한다.
 function yRange(p) {
@@ -24,8 +27,11 @@ function yRange(p) {
 function assertSaneParts(parts, label) {
   assert.ok(Array.isArray(parts) && parts.length > 0, `${label}: 부품이 있어야 한다`);
   for (const p of parts) {
-    assert.ok(FURNITURE_COLORS[p.kind], `${label}: 색이 없는 부품 kind=${p.kind}`);
-    assert.ok(['box', 'cyl', 'sph'].includes(p.shape), `${label}: 원시 도형은 box/cyl/sph만`);
+    // 색은 팔레트(기존 가구) 또는 새 마감 표(기업 AV 가구) 중 한 곳에서 온다.
+    assert.ok(FURNITURE_COLORS[p.kind] || PART_FINISH[p.kind]?.color,
+      `${label}: 색이 없는 부품 kind=${p.kind}`);
+    // star = 5발 캐스터 받침(허브+다리+바퀴를 한 덩어리로 구운 것). w/h/d 로 공간을 차지한다.
+    assert.ok(['box', 'cyl', 'sph', 'star'].includes(p.shape), `${label}: 원시 도형은 box/cyl/sph/star만`);
     const nums = p.shape === 'cyl' ? [p.r, p.h] : p.shape === 'sph' ? [p.r] : [p.w, p.h, p.d];
     for (const n of [...nums, p.dx, p.y, p.dz]) {
       assert.ok(Number.isFinite(n), `${label}: 숫자가 아닌 치수 (kind=${p.kind})`);
@@ -266,4 +272,144 @@ test('비례 일관성 — 모든 자산이 사람 키(1,700mm)를 넘지 않는
   }
   // 교탁(1,080)·이동식 디스플레이(약 1,820)만 예외적으로 높다 — 화면은 서서 보는 물건이다.
   assert.deepEqual(tall.map(s => s.split(' ')[0]), ['mobileStand'], tall.join(', '));
+});
+
+// ── PHASE 2-a · 대기업 회의용 인체공학 의자 ─────────────────────────────────
+// 핵심 규칙
+//   (1) 치수의 기준은 **계약 하나뿐**이다 — 도형 코드가 다른 값을 쓰면 안 된다.
+//   (2) 기존 회의 의자는 한 글자도 바뀌지 않는다.
+//   (3) 실루엣이 기존 의자와 **확실히 다르다**(5발 받침·휜 메시 등받이·지지 구조).
+//   (4) 부품 수가 좌석 수와 무관하게 고정된다(그리기 호출 폭증 금지).
+
+test('대기업 의자 — 런타임 자산으로 등록되었고 계약 치수를 그대로 쓴다', () => {
+  const a = FURNITURE_ASSETS.corporateChair;
+  assert.ok(a, '런타임 카탈로그에 없다');
+  assert.equal(a.id, 'corporateChair');
+  assert.equal(a.instanced, true, '여러 개 깔리는 가구다');
+  assert.equal(a.sized, false, '크기가 물건마다 다르지 않다');
+  // **치수를 두 곳에 적지 않는다** — 값이 같아야 하고,
+  //   소스에서도 계약을 '읽어' 써야 한다(숫자를 베껴 적으면 언젠가 어긋난다).
+  assert.deepEqual({ ...DIMS.corporateChair }, { ...FURNITURE_CONTRACTS.corporateChair.dimensions },
+    '계약과 다른 치수를 쓰고 있다');
+  const src = readFileSync(new URL('../src/furniture-assets.js', import.meta.url), 'utf8');
+  assert.ok(/corporateChair:\s*FURNITURE_CONTRACTS\.corporateChair\.dimensions/.test(src),
+    'DIMS.corporateChair 가 계약을 읽지 않고 숫자를 따로 적고 있다');
+});
+
+test('대기업 의자 — 실제 도형이 계약 치수 안에 들어가고 바닥에 닿는다', () => {
+  const parts = createCorporateChair();
+  const S = DIMS.corporateChair;
+  assertSaneParts(parts, 'corporateChair');
+  // 부품이 차지하는 공간을 실제로 재서 계약과 대조한다(기울어진 등받이까지 반영).
+  const zRange = p => {
+    const a = Math.abs((p.tiltX || 0) * Math.PI / 180);
+    const d = p.shape === 'cyl' ? p.r * 2 : p.d;
+    const half = (d * Math.cos(a) + p.h * Math.sin(a)) / 2;
+    return [p.dz - half, p.dz + half];
+  };
+  const bottom = Math.min(...parts.map(p => yRange(p)[0]));
+  const top = Math.max(...parts.map(p => yRange(p)[1]));
+  const width = Math.max(...parts.map(p => Math.abs(p.dx) + (p.shape === 'cyl' ? p.r : p.w / 2))) * 2;
+  const depth = Math.max(...parts.map(p => zRange(p)[1])) - Math.min(...parts.map(p => zRange(p)[0]));
+
+  // 바닥 접지 — 바퀴가 바닥에 정확히 닿아야 한다(뜨거나 박히면 안 된다).
+  assert.ok(Math.abs(bottom) < 1, `바닥에서 ${bottom.toFixed(1)}mm 떠 있거나 박혀 있다`);
+  // 계약이 선언한 크기를 넘지 않는다(±1mm 허용).
+  assert.ok(top <= S.overallH + 1, `전체 높이 ${top.toFixed(1)} > 계약 ${S.overallH}`);
+  assert.ok(top >= S.overallH - 5, `전체 높이 ${top.toFixed(1)} 가 계약보다 너무 낮다`);
+  assert.ok(width <= S.overallW + 1, `전체 폭 ${width} > 계약 ${S.overallW}`);
+  assert.ok(depth <= S.overallD + 1, `전체 깊이 ${depth.toFixed(1)} > 계약 ${S.overallD}`);
+  // 좌판 윗면이 계약대로다 — 테이블 높이와 맞물리는 값이라 특히 중요하다.
+  const seat = parts.find(p => p.kind === 'chairCushion');
+  assert.equal(Math.round(yRange(seat)[1]), S.seatTop, '좌판 높이가 계약과 다르다');
+  assert.equal(seat.w, S.seatW);
+  assert.equal(seat.d, S.seatD);
+  // 등받이 꼭대기가 좌판 위 계약값에 온다.
+  assert.ok(Math.abs((top - S.seatTop) - S.backAboveSeat) <= 1,
+    `등받이 높이 ${(top - S.seatTop).toFixed(1)} ≠ 계약 ${S.backAboveSeat}`);
+});
+
+test('대기업 의자 — 부품이 계약의 semantic 과 정확히 일치한다', () => {
+  const parts = createCorporateChair();
+  const used = [...new Set(parts.map(p => p.kind))].sort();
+  assert.deepEqual(used, [...FURNITURE_CONTRACTS.corporateChair.parts].sort(),
+    '계약에 없는 부품을 쓰거나, 계약의 부품을 빠뜨렸다');
+  // 모든 부품이 새 마감 표로 풀린다 — 하나라도 빠지면 그 부품만 기본 회색이 된다.
+  for (const kind of used) {
+    assert.ok(PART_FINISH[kind]?.color, `${kind}: 마감 표에 색이 없다`);
+    const fin = finishForPart(kind);
+    assert.ok(fin && fin.material, `${kind}: 마감이 풀리지 않는다`);
+  }
+  // 색은 전부 어두운 계열이되 **완전한 검정 하나가 아니다** — 새까맣게 칠하면 형태가 죽는다.
+  const hex = k => PART_FINISH[k].color.toLowerCase();
+  const lum = k => parseInt(hex(k).slice(1, 3), 16) + parseInt(hex(k).slice(3, 5), 16) + parseInt(hex(k).slice(5, 7), 16);
+  for (const k of used) {
+    assert.ok(lum(k) < 3 * 110, `${k}: 기업 의자 색이 너무 밝다 (${hex(k)})`);
+    assert.ok(lum(k) > 3 * 20, `${k}: 순수 검정에 가까워 형태가 죽는다 (${hex(k)})`);
+  }
+  assert.ok(new Set(used.map(hex)).size >= 4, '부품 색이 전부 같으면 덩어리 하나로 보인다');
+});
+
+test('대기업 의자 — 기존 회의 의자와 실루엣이 확실히 다르다', () => {
+  const co = createCorporateChair(), legacy = createConferenceChair();
+  // ① 5발 캐스터 받침 — 원판 하나가 아니다. 이것 하나로 멀리서도 갈린다.
+  const base = co.find(p => p.shape === 'star');
+  assert.ok(base, '5발 받침이 없다');
+  assert.equal(base.legs, 5, '다섯 발이어야 한다');
+  assert.equal(base.kind, 'chairCaster');
+  assert.ok(base.reach * 2 <= DIMS.corporateChair.overallW, '받침이 의자 폭을 넘는다');
+  assert.equal(legacy.find(p => p.shape === 'star'), undefined, '기존 의자는 그대로여야 한다');
+  // ② 휜 메시 등받이 — 평평한 판이 아니다.
+  const mesh = co.find(p => p.kind === 'chairMesh');
+  assert.ok(mesh && mesh.sag > 0, '등받이가 휘어 있지 않다');
+  assert.ok(mesh.tiltX > 0, '등받이가 젖혀져 있지 않다');
+  // ③ 등받이 테두리 — 메시보다 크고 두껍다(프레임이 감싸는 구조).
+  const frame = co.filter(p => p.kind === 'chairFrame' && p.sag > 0)
+    .sort((a, b) => b.h - a.h)[0];
+  assert.ok(frame && frame.w > mesh.w && frame.d > mesh.d, '메시를 감싸는 테두리가 없다');
+  // ④ 등받이가 좌판에 바로 붙지 않는다 — 지지 구조를 거친다.
+  assert.ok(co.filter(p => p.kind === 'chairFrame').length >= 4, '등받이 지지 구조가 부족하다');
+  // ⑤ 기존 의자와 부품 이름이 하나도 겹치지 않는다(재질이 섞이지 않는다).
+  const legacyKinds = new Set(legacy.map(p => p.kind));
+  for (const p of co) assert.ok(!legacyKinds.has(p.kind), `부품 이름이 겹친다: ${p.kind}`);
+});
+
+test('대기업 의자 — 부품 수가 고정이라 그리기 호출이 좌석 수를 따라가지 않는다', () => {
+  // 그리기 호출은 **부품 종류 수**에 비례한다. 좌석이 12개든 40개든 같아야 한다.
+  assert.equal(createCorporateChair().length, createCorporateChair().length);
+  const n = createCorporateChair().length;
+  assert.ok(n <= 14, `부품 ${n}종 — 기존 의자(9종) 대비 과하게 늘었다`);
+  // 5발 받침은 조각 11개(허브 1 + 다리 5 + 바퀴 5)를 **한 덩어리**로 굽는다.
+  //   따로 그리면 이 의자 하나 때문에 그리기 호출이 10개 늘어난다.
+  assert.equal(createCorporateChair().filter(p => p.shape === 'star').length, 1);
+});
+
+test('기존 회의 의자 — PHASE 2-a 에서 한 글자도 바뀌지 않았다', () => {
+  const p = createConferenceChair();
+  assert.equal(p.length, 9);
+  assert.deepEqual(p.map(x => x.kind),
+    ['chairBase', 'chairBase', 'chairSeat', 'chairBase', 'chairBack', 'chairArm', 'chairArm', 'chairArm', 'chairArm']);
+  const S = DIMS.conferenceChair;
+  assert.deepEqual({ ...S }, {
+    seatTop: 450, seatThk: 70, seatW: 480, seatD: 470,
+    backH: 480, backThk: 55, backTilt: 12, backTopY: 1005,
+    baseR: 310, baseThk: 22, columnR: 35, armY: 660, armSpan: 575,
+  });
+  assert.equal(assetFor({ type: 'chair' }), 'conferenceChair', '기본 의자는 그대로다');
+});
+
+test('대기업 의자 — 휜 판의 둥글림이 두께를 넘지 않는다(부푸는 것 방지)', () => {
+  // 휜 판(등받이)의 `r`은 가장자리를 **사방으로 밀어내는** 값이다.
+  //   두께보다 크게 잡으면 얇은 프레임이 두툼한 쿠션 덩어리처럼 부풀어
+  //   계약 치수와 실제 화면이 어긋난다(실제로 한 번 그렇게 보였다).
+  for (const p of createCorporateChair()) {
+    if (!p.sag) continue;
+    assert.ok(p.r <= p.d, `${p.kind}: 둥글림 ${p.r} > 두께 ${p.d} — 판이 부푼다`);
+  }
+  // 메시는 테두리보다 얇고 좁아야 안쪽에 들어앉는다.
+  const parts = createCorporateChair();
+  const mesh = parts.find(p => p.kind === 'chairMesh');
+  const frame = parts.filter(p => p.kind === 'chairFrame' && p.sag).sort((a, b) => b.h - a.h)[0];
+  assert.ok(mesh.d < frame.d && mesh.w < frame.w && mesh.h < frame.h,
+    '메시가 테두리보다 크면 테두리가 안 보인다');
 });

@@ -31,10 +31,13 @@ test('기존 경로 무변경 — assetFor / assetKey / assetParts 결과가 그
   assert.equal(assetFor({ type: 'chair', asset: 'trainingChair' }), 'trainingChair');
   assert.equal(assetFor({ type: 'rug' }), null);
   // **아직 없는 계약 이름을 가리켜도** 기존 함수는 예전 그대로 안전하게 되돌아간다.
-  for (const id of CONTRACT_IDS.filter(x => x !== 'avCredenza')) {
+  for (const id of CONTRACT_IDS.filter(x => !FURNITURE_ASSETS[x])) {
     assert.equal(assetFor({ type: 'chair', asset: id }), 'conferenceChair', id);
     assert.equal(assetKey({ type: 'chair', asset: id }), 'conferenceChair', id);
   }
+  // 만들어진 자산을 가리키면 그것을 쓴다 — 기존 함수의 원래 동작이다(의미가 바뀐 것이 아니다).
+  assert.equal(assetFor({ type: 'chair', asset: 'corporateChair' }), 'corporateChair');
+  assert.equal(assetKey({ type: 'chair', asset: 'corporateChair' }), 'corporateChair');
   assert.equal(assetKey({ type: 'chair' }), 'conferenceChair');
   assert.equal(assetKey({ type: 'desk', w: 1400, d: 600 }), 'trainingDesk:1400x600');
   assert.equal(assetParts({ type: 'chair' }).length, 9);
@@ -62,20 +65,30 @@ test('구현 여부 — 런타임 목록만이 답한다(계약이 있다고 있
     const runtime = hasRuntimeFurnitureAsset(id);
     // 진실의 출처는 하나뿐 — FURNITURE_ASSETS.
     assert.equal(runtime, !!FURNITURE_ASSETS[id], `${id}: 판정 근거가 어긋난다`);
-    if (FURNITURE_CONTRACTS[id].status === CONTRACT_STATUS.EXISTING) {
-      assert.equal(runtime, true, `${id}: 이미 있다고 했는데 런타임에 없다`);
-    } else {
-      assert.equal(runtime, false, `${id}: 아직 만들지 않았는데 런타임에 있다`);
-    }
+    // 계약 상태와 런타임이 어긋나면 안 된다 — 상태는 설명이고 런타임이 진실이다.
+    const built = FURNITURE_CONTRACTS[id].status !== CONTRACT_STATUS.CONTRACT_READY;
+    assert.equal(runtime, built, `${id}: 상태(${FURNITURE_CONTRACTS[id].status})와 런타임이 어긋난다`);
   }
   for (const bad of ['없는자산', '', null, undefined, 0, {}]) {
     assert.equal(hasRuntimeFurnitureAsset(bad), false, String(bad));
   }
 });
 
-test('의자 4종 — 계약은 있고 도형은 아직 없다(기존 의자로 대신 그린다)', () => {
+test('대기업 회의 의자 — PHASE 2-a 에서 실제로 만들어져 대체 없이 쓰인다', () => {
+  // **PHASE 1-d 구조가 실제로 작동한다는 첫 증명.** 라우터를 고치지 않았는데
+  //   도형이 생기자마자 저절로 그것을 고른다.
+  assert.equal(hasRuntimeFurnitureAsset('corporateChair'), true);
+  const r = resolveFurnitureForDesign({ type: 'chair' }, 'corporateMeeting');
+  assert.equal(r.requestedAsset, 'corporateChair');
+  assert.equal(r.runtimeAsset, 'corporateChair');
+  assert.equal(r.implemented, true);
+  assert.equal(r.fallbackUsed, false, '있는 것을 대체하면 안 된다');
+  assert.equal(r.renderable, true);
+  assert.equal(r.category, 'chair');
+});
+
+test('나머지 의자 3종 — 아직 도형이 없다(기존 의자로 대신 그린다)', () => {
   const CASES = [
-    ['corporateMeeting', 'corporateChair'],
     ['executiveBoardroom', 'executiveChair'],
     ['largeConference', 'conferenceErgoChair'],
     ['controlRoom', 'taskChair'],
@@ -195,7 +208,7 @@ test('avCredenza — 계약과 런타임에 모두 있어 대체 없이 그대�
 
 test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한다', () => {
   assert.deepEqual({ ...requestedFurnitureForDesign('corporateMeeting') },
-    { chair: null, table: null, console: null, av: [] });
+    { chair: 'corporateChair', table: null, console: null, av: [] });
   assert.deepEqual({ ...requestedFurnitureForDesign('executiveBoardroom') },
     { chair: 'executiveChair', table: 'boardroomTable', console: null, av: ['avCredenza'] });
   assert.deepEqual({ ...requestedFurnitureForDesign('largeConference') },
@@ -212,29 +225,30 @@ test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한�
       assert.equal(s.runtimeAsset, s.implemented ? s.requested : null, d);
     }
   }
-  // 지금 구현된 것은 avCredenza 하나뿐이다.
+  // 지금 구현된 것 — PHASE 2-a 에서 대기업 회의 의자가 하나 늘었다.
   const done = DESIGN_IDS.flatMap(d => furnitureStatusForDesign(d))
     .filter(s => s.implemented).map(s => s.requested);
-  assert.deepEqual([...new Set(done)], ['avCredenza']);
+  assert.deepEqual([...new Set(done)].sort(), ['avCredenza', 'corporateChair']);
 });
 
-test('대기업 회의실 — 여전히 지금 화면 그대로다(디자인이 가구를 정하지 않는다)', () => {
-  // **PHASE 1-d 의 핵심 안전장치.** 계약도 라우터도 생겼지만 회의실은 아직 그대로다.
-  assert.equal(ROOM_DESIGNS.corporateMeeting.furniture, null, 'INHERIT 가 아니다');
-  const req = requestedFurnitureForDesign('corporateMeeting');
-  assert.equal(req.chair, null);
-  assert.equal(req.table, null);
-  assert.deepEqual([...req.av], []);
-  // 회의실 배치의 모든 물건이 기존 자산 그대로 선택된다.
+test('대기업 회의실 — 바뀌는 것은 의자뿐이다(테이블·수납장·러그는 그대로)', () => {
   const res = layoutRoom('meeting', defaultOptions('meeting'), { W: 8000, D: 7000 });
+  const changed = [], same = [];
   for (const it of res.items) {
     const r = resolveFurnitureForDesign(it, 'corporateMeeting');
-    assert.equal(r.runtimeAsset, assetFor(it), `${it.type}: 기존 선택과 다르다`);
-    assert.equal(r.fallbackUsed, false, `${it.type}: 대체가 일어났다`);
+    (r.runtimeAsset !== assetFor(it) ? changed : same).push(it.type);
   }
-  // 계약은 준비돼 있지만 아직 고르지 않는다.
-  assert.ok(FURNITURE_CONTRACTS.corporateChair && FURNITURE_CONTRACTS.corporateTable);
-  assert.equal(hasRuntimeFurnitureAsset('corporateChair'), false);
+  // 의자만 달라진다. 그 외 물건은 기존 선택 그대로여야 한다.
+  assert.deepEqual([...new Set(changed)], ['chair'], '의자 말고 다른 것도 바뀌었다');
+  assert.ok(same.includes('table') && same.includes('credenza'), '테이블·수납장은 그대로여야 한다');
+  for (const it of res.items.filter(i => i.type !== 'chair')) {
+    assert.equal(resolveFurnitureForDesign(it, 'corporateMeeting').runtimeAsset, assetFor(it), it.type);
+  }
+  // 테이블은 아직 PHASE 2-b — 계약만 있고 도형은 없다.
+  assert.ok(FURNITURE_CONTRACTS.corporateTable);
+  assert.equal(hasRuntimeFurnitureAsset('corporateTable'), false);
+  assert.equal(resolveFurnitureForDesign({ type: 'table' }, 'corporateMeeting').runtimeAsset,
+    'conferenceTable');
 });
 
 // ── N·O. 순수성과 불변성 ────────────────────────────────────────────────────
@@ -265,10 +279,18 @@ test('불변 — 라우터 결과와 표를 밖에서 고칠 수 없다', () => 
     'conferenceChair');
 });
 
-test('렌더러 미연결 — 이 단계에서는 아무도 라우터를 쓰지 않는다', () => {
-  // 화면을 바꾸지 않는다는 약속을 구조로 확인한다.
-  for (const f of ['furniture-gl', 'render3d-gl', 'app']) {
+test('렌더러 연결 범위 — 라우터를 쓰는 곳은 가구를 세우는 한 곳뿐이다', () => {
+  // PHASE 2-a 에서 처음으로 연결했다. **연결 지점을 한 곳으로 묶어 둔다** —
+  //   여러 곳에서 각자 라우팅하면 어디서 가구가 바뀌었는지 추적할 수 없게 된다.
+  const uses = [];
+  for (const f of ['furniture-gl', 'render3d-gl', 'app', 'gl-model', 'room-presets', 'engine']) {
     const src = readFileSync(new URL(`../src/${f}.js`, import.meta.url), 'utf8');
-    assert.equal(src.includes('furniture-routing'), false, `${f}.js 가 라우터를 연결했다`);
+    if (src.includes('furniture-routing')) uses.push(f);
+  }
+  assert.deepEqual(uses, ['furniture-gl'], '라우터 연결 지점이 흩어졌다');
+  // 배치·계산 계층은 여전히 디자인을 모른다.
+  for (const f of ['room-presets', 'engine']) {
+    const src = readFileSync(new URL(`../src/${f}.js`, import.meta.url), 'utf8');
+    assert.equal(src.includes('room-design'), false, `${f}.js 가 디자인을 알게 됐다`);
   }
 });

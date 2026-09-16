@@ -81,6 +81,68 @@ function extrude(shape, depth, bevel, d) {
   return geo;
 }
 
+// 여러 도형을 **하나로 합친다.** 5발 받침처럼 조각이 많은 물건을 부품마다 따로 그리면
+//   그리기 호출이 조각 수만큼(허브 1 + 다리 5 + 바퀴 5 = 11개) 늘어난다. 합쳐 두면 한 번에 그린다.
+//   (Three.js의 병합 유틸은 addons에 있어 동봉본에 없다 — 속성 배열을 직접 이어 붙인다.)
+function mergeGeometries(list) {
+  const flat = list.map(g => (g.index ? g.toNonIndexed() : g));
+  const attrs = ['position', 'normal', 'uv'];
+  const total = flat.reduce((n, g) => n + g.attributes.position.count, 0);
+  const out = new THREE.BufferGeometry();
+  for (const name of attrs) {
+    const size = flat[0].attributes[name]?.itemSize;
+    if (!size) continue;
+    const arr = new Float32Array(total * size);
+    let at = 0;
+    for (const g of flat) {
+      const a = g.attributes[name];
+      if (!a) { at += g.attributes.position.count * size; continue; }
+      arr.set(a.array.subarray(0, a.count * size), at);
+      at += a.count * size;
+    }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, size));
+  }
+  for (let i = 0; i < flat.length; i++) {
+    flat[i].dispose();
+    if (flat[i] !== list[i]) list[i].dispose();   // toNonIndexed()로 새로 만든 경우 원본도 반납
+  }
+  out.computeBoundingSphere();
+  return out;
+}
+
+/**
+ * 오피스 체어 5발 받침 — 허브 + 방사형 다리 + 바퀴를 **한 덩어리**로 만든다.
+ *   실제 의자에서 이 부분은 하나로 움직이고 색도 같다. 조각마다 따로 그릴 이유가 없다.
+ *   다리는 **낮고 길게** 뻗어야 한다 — 굵고 짧으면 장난감처럼 보인다.
+ * 만든 도형은 위아래 가운데를 원점으로 맞춰 돌려준다(부품 위치 규칙과 맞추기 위해).
+ */
+function starBase({ legs = 5, reach, hubR, hubH, legW, legH, casterR, casterH }, d) {
+  const parts = [];
+  const hub = new THREE.CylinderGeometry(hubR, hubR * 1.1, hubH, d.radial);
+  hub.translate(0, casterH + hubH / 2, 0);
+  parts.push(hub);
+
+  for (let i = 0; i < legs; i++) {
+    const a = (i / legs) * Math.PI * 2;
+    // 다리 — 눕힌 판. 모서리를 둥글려 위에서 볼 때 날카로운 막대가 아니게 한다.
+    const leg = extrude(roundedRectShape(legW, reach, legW * 0.42), legH, legH * 0.3, d);
+    leg.rotateX(-Math.PI / 2);                         // 세운 판 → 눕힌 판
+    leg.translate(0, casterH + legH / 2, reach / 2);   // 허브 앞쪽으로 밀어 낸다
+    leg.rotateY(a);                                    // 제자리에서 돌려 방사형으로
+    parts.push(leg);
+
+    // 바퀴 — 다리 끝. 낮은 원기둥 하나면 '바퀴 달린 의자' 실루엣이 산다.
+    //   여기서 분할 수를 올려 봐야 멀리서는 안 보이고 삼각형만 는다.
+    const cas = new THREE.CylinderGeometry(casterR, casterR, casterH, Math.max(8, Math.round(d.radial / 2)));
+    cas.translate(0, casterH / 2, reach - casterR);
+    cas.rotateY(a);
+    parts.push(cas);
+  }
+  const geo = mergeGeometries(parts);
+  geo.translate(0, -(casterH + hubH) / 2, 0);   // 부품 중심이 원점에 오도록
+  return geo;
+}
+
 /**
  * 도형 캐시를 하나 만든다. 치수·모양이 같으면 같은 도형을 돌려 쓴다.
  * 방을 다시 지을 때마다 새로 만들고, 버릴 때 dispose()한다.
@@ -148,6 +210,16 @@ export function createGeometryCache() {
       const seg = q(detail).radial;
       return take(`c|${rTop}|${rBottom}|${h}|${seg}`,
         () => new THREE.CylinderGeometry(rTop, rBottom, h, seg));
+    },
+
+    /**
+     * 오피스 체어 5발 받침(허브 + 다리 + 바퀴)을 **한 덩어리**로.
+     * 부품 하나 = 그리기 호출 하나이므로, 조각 11개를 합쳐 1개로 만든다.
+     */
+    star(spec, { detail = 'high' } = {}) {
+      const dd = q(detail);
+      const key = `t|${Object.values(spec).join('|')}|${detail}`;
+      return take(key, () => starBase(spec, dd));
     },
 
     /** 구 — 머리처럼 둥근 것. */

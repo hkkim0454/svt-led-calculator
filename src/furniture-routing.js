@@ -22,9 +22,9 @@
 //   `hasRuntimeFurnitureAsset('corporateChair')`가 true가 되면서 저절로 그것을 고른다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_ASSETS, assetFor } from './furniture-assets.js?v=401';
-import { furnitureContract, hasFurnitureContract } from './furniture-contracts.js?v=401';
-import { roomDesign, isPlanned } from './room-design.js?v=401';
+import { FURNITURE_ASSETS, assetFor } from './furniture-assets.js?v=402';
+import { furnitureContract, hasFurnitureContract } from './furniture-contracts.js?v=402';
+import { roomDesign, isPlanned } from './room-design.js?v=402';
 
 /**
  * 지금 실제로 세울 수 있는 가구의 갈래.
@@ -32,7 +32,7 @@ import { roomDesign, isPlanned } from './room-design.js?v=401';
  * 모니터 자리에 테이블을 그리면 제안서가 통째로 틀린 그림이 된다.
  */
 export const RUNTIME_CATEGORY = Object.freeze({
-  conferenceChair: 'chair', auditoriumChair: 'chair', trainingChair: 'chair',
+  conferenceChair: 'chair', corporateChair: 'chair', auditoriumChair: 'chair', trainingChair: 'chair',
   loungeChair: 'chair', stool: 'chair',
   conferenceTable: 'table', trainingDesk: 'table', highTable: 'table', collabTable: 'table',
   controlConsole: 'console',

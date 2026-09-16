@@ -17,7 +17,7 @@
 //   · 아직 만들지 않은 가구·재질은 `planned('이름')`으로 **'아직 없음'이라고 표시**한다.
 //     해석기(resolveDesign)가 그것을 전부 INHERIT로 떨어뜨리므로 **절대 화면에 적용되지 않는다.**
 //     (CLAUDE.md 규칙 2 '가짜 스펙 금지' — 없는 값을 있는 척 적지 않는다.)
-//   · `corporateMeeting`은 모든 항목이 INHERIT다 = **지금 회의실 화면과 100% 같다.**
+//   · `corporateMeeting`은 PHASE 2-a에서 **의자만** 실제 자산으로 올라갔다(그 외는 여전히 INHERIT).
 //
 // 용어 한 줄 설명
 //   INHERIT(null)  "지금 동작 그대로". 용도(roomType)와 기존 상수가 정하던 값을 그대로 쓴다.
@@ -103,8 +103,11 @@ export const ROOM_DESIGNS = Object.freeze({
     roomType: 'meeting',
     layoutVariant: 'corporate-standard',
     status: DESIGN_STATUS.READY,
-    phase: 1,
-    furniture: INHERIT,
+    phase: 2,
+    // PHASE 2-a — **여기서 처음으로 화면이 바뀐다.** 의자만 새 자산으로 올린다.
+    //   `table`은 일부러 적지 않는다 = INHERIT = 기존 회의 테이블 그대로(PHASE 2-b에서 다룬다).
+    //   `planned(...)`가 아니라 **맨 문자열**이라는 점이 중요하다 — 실제로 만들었다는 뜻이다.
+    furniture: Object.freeze({ chair: 'corporateChair' }),
     palette: INHERIT,
     materials: INHERIT,
     wallTreatment: INHERIT,

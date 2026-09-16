@@ -65,19 +65,26 @@ test('앉는 면과 등받이는 모두 둥글다(각진 상자로 남으면 안
   }
 });
 
-test('다리·프레임은 상자로 둔다 — 둥글려도 안 보이고 삼각형만 는다', () => {
-  // 실제로 아낄 수 있는 곳은 '구조재'다. 앉거나 손이 닿는 면(좌판·등받이·팔걸이·상판)은
-  //   둥글려야 하고, 그것을 받치는 다리·프레임·굽은 상자로 남긴다.
+test('가는 구조재는 상자로 둔다 — 둥글려도 안 보이고 삼각형만 는다', () => {
+  // 실제로 아낄 수 있는 곳은 **가는 구조재**다 — 다리·각관·가로대·굽·팔걸이 기둥처럼
+  //   짧은 변이 손가락 두께쯤인 것들. 이런 것은 둥글려도 화면에서 보이지 않는다.
+  // 반대로 **눈에 보이는 구조**는 둥글려야 한다. 인체공학 의자의 등받이 테두리·기구부는
+  //   그 곡선 자체가 형태이고, 각지게 두면 다시 상자 의자로 읽힌다.
+  //   그래서 규칙의 기준은 '이름'이 아니라 **크기와 휨**이다.
   const STRUCTURAL = /(Leg|Frame|Base|Rail|Toe|Pole|Beam|Stem)$/;
+  const THIN_MM = 120;          // 이보다 얇은 면은 둥글려도 안 보인다
   const rounded = [];
   for (const [id, a] of Object.entries(FURNITURE_ASSETS)) {
     if (!a.instanced) continue;
     for (const p of a.build({ w: 1800, d: 900 })) {
       if (p.shape !== 'box' || !p.r) continue;
-      if (STRUCTURAL.test(p.kind)) rounded.push(`${id}/${p.kind}`);
+      if (p.sag) continue;                       // 휜 판은 곡면이 곧 형태다
+      if (!STRUCTURAL.test(p.kind)) continue;
+      if (minSide(p) > THIN_MM) continue;        // 넓은 구조는 둥근 것이 맞다
+      rounded.push(`${id}/${p.kind}(${minSide(p)}mm)`);
     }
   }
-  assert.deepEqual(rounded, [], `구조재를 둥글렸다: ${rounded.join(', ')}`);
+  assert.deepEqual(rounded, [], `가는 구조재를 둥글렸다: ${rounded.join(', ')}`);
 
   // 반대로, 아주 좁은 면(40mm 이하)은 둥글려 봐야 형태만 뭉개진다.
   for (const [id, a] of Object.entries(FURNITURE_ASSETS)) {
