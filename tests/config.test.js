@@ -6,6 +6,7 @@ import { CONFIG_VERSION, CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalize
 test('정상 구성은 값이 그대로 왕복(roundtrip)된다', () => {
   const cfg = {
     spaceW: 6000, spaceH: 3400, baseHeight: 800, ledW: 3200, ledH: 1800,
+    spaceD: 7000, roomType: 'classroom', roomOpts: { rows: 5, cols: 4, aisle: true },
     mode: 'manual', manCols: 8, manRows: 6,
     redundancy: true, cs4b: true, gbicFB: false, highWork: true,
     spareRate: '7', spareEdited: true, sboxSpare: 2, signalMode: 'uhd',
@@ -132,4 +133,18 @@ test('mergeRecords: 덮어쓰지 않고 이름 충돌은 개명', () => {
   // 원본 '공용'(100)은 그대로 남고, 가져온 것은 '공용 (2)'(200)
   assert.equal(list.find(r => r.name === '공용').data.spaceW, 100);
   assert.equal(list.find(r => r.name === '공용 (2)').data.spaceW, 200);
+});
+
+test('3D 뷰 값(공간 깊이·공간 타입·옵션)도 저장·복원된다', () => {
+  const out = normalizeConfig({ spaceD: 9000, roomType: 'hall_m', roomOpts: { rows: 8, stage: false } });
+  assert.equal(out.spaceD, 9000);
+  assert.equal(out.roomType, 'hall_m');
+  assert.deepEqual(out.roomOpts, { rows: 8, stage: false });
+});
+
+test('3D 뷰 값이 없거나 잘못되면 기본값(깊이 0=자동)', () => {
+  const out = normalizeConfig({ spaceD: 'abc', roomType: 42, roomOpts: ['x'] });
+  assert.equal(out.spaceD, 0);                    // 0 = 비움 → 공간 타입별 자동
+  assert.equal(out.roomType, CONFIG_DEFAULTS.roomType);
+  assert.equal(out.roomOpts, null);               // 배열은 옵션 객체가 아님
 });

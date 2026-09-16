@@ -8,7 +8,7 @@
 - **Current Phase**: INCEPTION
 - **Current Stage**: Requirements Analysis 완료 · Application Design 진행(프로토타입 검증) · Units Generation 승인 대기
 - **Project Owner**: 김현규 (서울영상테크 SI사업본부)
-- **Last Updated**: 2026-07-24
+- **Last Updated**: 2026-09-16
 
 ## Objectives and Scope
 
@@ -21,7 +21,8 @@
 - 공간 치수 입력 → 모델별 최대 충진(cols/rows) 자동 계산
 - 산출 지표: 실제 크기, 총 해상도·화소수, 대각(inch), 면적(m²), 총 중량, 밝기, 최대·평균 소비전력, 발열(BTU), 여백(dead space)
 - 모델별 비교 테이블(같은 공간에 대해 전 모델 동시 비교)
-- 캐비닛 배열 시각 미리보기
+- 캐비닛 배열 시각 미리보기 (정면 뷰 + 3D 아이소메트릭 뷰)
+- 3D 공간 렌더 — 공간 타입 프리셋(회의실·강의실·소/중/대강당·상황실)과 가구 옵션으로 설치 이미지 생성, PNG 내보내기 (DEC-056, 2026-09-16)
 - 모델 스펙 라이브러리 편집(CRUD) 및 JSON import/export
 - BOM 산출(캐비닛 + 스페어, S-Box, Jig 등 부자재)
 - 인쇄/PDF·엑셀 내보내기
@@ -31,7 +32,8 @@
 - 삼성 공식 configurator의 대체 또는 재배포(본 도구는 사내 보조용, 공식 견적은 삼성·설치 파트너 확인 필요)
 - 실시간 삼성 가격/재고/납기 연동
 - 곡면(Curved) 배열 정밀 계산 — 1차 범위 제외, 후속 검토
-- 3D 렌더링, 콘텐츠 시뮬레이션, 조도/시야각 시뮬레이션
+- 콘텐츠 시뮬레이션, 조도/시야각 시뮬레이션
+- 사진 수준의 사실적 렌더링(재질·조명·그림자 시뮬레이션) — 현재 3D 뷰는 도형 기반 아이소메트릭
 
 ## Execution Plan Summary
 

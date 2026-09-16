@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>Seoul AV LED Configurator</title>
-<link rel="stylesheet" href="./styles.css?v=349"/>
+<link rel="stylesheet" href="./styles.css?v=350"/>
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"></div>
@@ -58,6 +58,11 @@
           <label class="field"><span class="lab">가로 W (m)</span><input type="number" id="spaceW" value="8" min="0.5" step="0.2"/></label>
           <label class="field"><span class="lab">세로 H (m)</span><input type="number" id="spaceH" value="3.4" min="0.5" step="0.2"/></label>
         </div>
+        <label class="field">
+          <span class="lab">공간 깊이 D (m) — 3D 뷰 전용</span>
+          <input type="number" id="spaceD" min="0" step="0.5" placeholder="비우면 자동"/>
+          <div class="hint">앞뒤 깊이(벽에서 반대편 벽까지). <b>비워두면 공간 타입에 맞춰 자동</b>으로 잡습니다(회의실은 가로의 0.85배, 강당은 더 깊게). 03 미리보기의 <b>3D 뷰</b>에서만 쓰입니다.</div>
+        </label>
         <div class="lab" id="ledSizeLabel" style="margin:10px 0 4px">② LED 설치 크기 — 가로 × 세로 (mm)</div>
         <div class="two" id="ledBox">
           <label class="field"><span class="lab">LED 가로 (mm)</span><input type="number" id="ledW" value="4000" min="0" step="200"/></label>
@@ -126,6 +131,10 @@
       <div class="card previewCard">
         <h2><span class="idx">03</span> 배열 미리보기 · <span id="pvModelName" class="pvname">—</span></h2>
         <div class="pvHeadRow">
+          <div class="seg viewseg" id="pvViewMode">
+            <button data-view="2d" class="on">정면 뷰</button>
+            <button data-view="3d">3D 뷰</button>
+          </div>
           <div class="seg sigseg" id="signalMode">
             <button data-sig="off" class="on">미선택</button>
             <button data-sig="fhd">FHD</button>
@@ -173,7 +182,27 @@
           <span class="svSummary" id="svSummary"></span>
         </div>
         <div class="svBar" id="ledFitBar" hidden></div>
+        <div class="pv3dBar" id="pv3dBar" hidden>
+          <span class="pv3dGroup">
+            <label class="pv3dField"><span>공간 타입</span><select id="roomType"></select></label>
+            <span class="pv3dOpts" id="roomOpts"></span>
+          </span>
+          <span class="pv3dGroup">
+            <button class="pvTog on" data-t3d="dims"><span class="dot"></span>치수</button>
+            <button class="pvTog" data-t3d="grid"><span class="dot"></span>바닥 격자</button>
+            <button class="pvTog on" data-t3d="accentWall"><span class="dot"></span>포인트 벽</button>
+          </span>
+          <span class="pv3dGroup pv3dViewCtl">
+            <button class="tiny ghost" id="btn3dRotL" type="button" title="왼쪽으로 한 칸 돌리기">◀</button>
+            <label class="pv3dField"><span>시점</span><select id="cubeView"></select></label>
+            <button class="tiny ghost" id="btn3dRotR" type="button" title="오른쪽으로 한 칸 돌리기">▶</button>
+            <button class="tiny ghost" id="btn3dReset" type="button" title="확대·위치 초기화">맞춤</button>
+            <button class="tiny primary" id="btn3dPng" type="button">PNG 저장</button>
+          </span>
+          <span class="pv3dNote" id="room3dNote"></span>
+        </div>
         <div class="previewStage" id="stage"><div class="previewEmpty">모델을 선택하세요</div></div>
+        <div class="stage3d" id="stage3d" hidden><canvas id="cv3d"></canvas></div>
       </div>
 
       <div class="card">
@@ -286,7 +315,7 @@
         Gbic(광 컨버터, QSFP-LR4) — CS4B 계열 컨트롤러(MMF 기본 CS4BPGS는 자동, 그 외 라인은 'CS4B(광전송)' 선택) 시 1920×2160 영역마다 1 SET(SBOX측 1 + LED측 1 = 2 EA) = ⌈가로/1920⌉ × ⌈세로/2160⌉ SET. 표기 수량은 총 EA(=SET×2), 포워드/백워드 이중화 시 ×2.
         중량·전력이 <code>—</code>인 모델은 데이터시트 실측값 입력이 필요합니다.<br>
         <strong>⚠ 사내 견적 보조용</strong> — 공식 견적은 삼성/설치 파트너 확인이 필요합니다.
-        <span class="verTag">화면 버전 v349</span>
+        <span class="verTag">화면 버전 v350</span>
       </div>
     </div>
   </div>
@@ -381,6 +410,6 @@
 
 <!-- 자산 변경 시 v= 숫자를 올려 캐시 무효화(브라우저가 옛 파일을 쓰지 않도록).
      app.js가 import하는 모든 모듈의 v=, 그리고 모듈끼리의 내부 import(processor-validator.js → processor-limits.js)의 v=도 함께 올릴 것. -->
-<script type="module" src="./app.js?v=349"></script>
+<script type="module" src="./app.js?v=350"></script>
 </body>
 </html>
