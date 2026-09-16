@@ -1644,13 +1644,14 @@ function slotSideHTML(side, p, need, reqCards, slots, perCard) {
   // ② 최대 총 용량(전체 슬롯 × 카드당 채널). 슬롯·채널 중 하나라도 미상이면 생략.
   const capLine = (ch4k != null && slots != null)
     ? `<div class="vpColCap">최대 <b>4K ${ch4k * slots}채널</b> · FHD ${ch4k * slots * 4}채널</div>` : '';
-  // ④ 남은 슬롯 요약(전체 · 사용 · 남은). 부족하면 강조.
+  // ④ 장착 용량 중심: "이 쪽에 최대 N장 장착 가능". 이번 구성에 필요한 장수는 작게 곁들이고, 부족하면 강조(이사 요청 2026-09-16).
   let remTxt, remCls = '';
-  if (slots == null || reqCards == null) remTxt = `슬롯 <span class="muted-note">미상</span>`;
-  else {
-    const rem = slots - reqCards;
-    if (rem < 0) remTxt = `전체 <b>${slots}</b>슬롯 · <b class="vpShort">${-rem}개 부족</b>`, remCls = 'short';
-    else { remTxt = `전체 <b>${slots}</b>슬롯 · 사용 <b>${reqCards}</b> · 남은 슬롯 <b>${rem}</b>`; remCls = rem >= 2 ? 'ok' : 'warn'; }
+  if (slots == null) remTxt = `${kLabel} 슬롯 <span class="muted-note">미상</span>`;
+  else if (reqCards != null && reqCards > slots) {
+    remTxt = `${kLabel} 카드 최대 <b>${slots}</b>장 · <b class="vpShort">${reqCards - slots}장 부족</b>`; remCls = 'short';
+  } else {
+    const needTxt = (reqCards > 0) ? ` <span class="muted-note">· 이번 ${reqCards}장</span>` : '';
+    remTxt = `${kLabel} 카드 최대 <b>${slots}</b>장 장착${needTxt}`;
   }
   return `<div class="vpCardCol">
     <h5 class="vpColHd">${kLabel} 카드</h5>
@@ -1668,13 +1669,12 @@ function vpSlotCardHTML(item) {
   const inRem = (cp.inSlots != null && cp.reqInCards != null) ? cp.inSlots - cp.reqInCards : null;
   const outRem = (cp.outSlots != null && cp.reqOutCards != null) ? cp.outSlots - cp.reqOutCards : null;
   const short = (inRem != null && inRem < 0) || (outRem != null && outRem < 0);
-  const remChip = (label, rem) => rem == null ? `<span class="vpChip unk">${label} 미상</span>`
-    : (rem >= 0 ? `<span class="vpChip ok">${label} 여유 ${rem}</span>` : `<span class="vpChip no">${label} ${-rem} 부족</span>`);
+  // 장착 용량은 각 열의 '최대 N장' 줄에서 보여주므로, 하단 칩은 전체 구성 가능/부족 상태만 남긴다(여유 칩 제거).
   const statusChip = short ? '<span class="vpChip no">슬롯 부족</span>' : '<span class="vpChip ok">구성 가능</span>';
   const note = p.slotNote ? `<div class="ioNote">${esc(p.slotNote)}</div>` : '';
   return `<div class="vpCards">
     <div class="vpCardGrid">${inS}${outS}</div>
-    <div class="vpChips">${statusChip}${remChip('입력', inRem)}${remChip('출력', outRem)}</div>
+    <div class="vpChips">${statusChip}</div>
     ${aquilonCardNote(p)}
     ${note}
   </div>`;
@@ -1683,7 +1683,7 @@ function vpSlotCardHTML(item) {
 //   4K60p를 single·double·quad(기본 4K 4채널)로 구성. 4K 출력 1개는 독립 FHD 4개로 분할 가능(브로셔 명시).
 function aquilonCardNote(p) {
   return (p.manufacturer === 'Analog Way' && p.family === 'Aquilon')
-    ? '<div class="ioNote">입출력 카드는 커넥터(HDMI · DP · 3G/12G-SDI · SFP+/NDI 등)를 고르는 <b>필드 스왑형</b>이며, 4K60p를 1·2·4채널(기본 <b>4K 4채널</b>)로 구성합니다.</div>'
+    ? '<div class="ioNote">입출력 카드는 커넥터(HDMI · DP · 3G/12G-SDI · Fiber(SFP+/광) · NDI 등)를 고르는 <b>필드 스왑형</b>이며, 4K60p를 1·2·4채널(기본 <b>4K 4채널</b>)로 구성합니다.</div>'
     : '';
 }
 // 고정형(preconfigured) 제품 카드 본문 — 입력 커넥터 구성 + 입출력 수량.
