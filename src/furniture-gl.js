@@ -15,14 +15,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=389';
-import { createMaterialLibrary } from './materials-gl.js?v=389';
-import { PART_MATERIAL } from './materials.js?v=389';
-import { GRADE_COLORS } from './viewangle.js?v=389';
+import { u } from './gl-model.js?v=390';
+import { createMaterialLibrary } from './materials-gl.js?v=390';
+import { PART_MATERIAL } from './materials.js?v=390';
+import { GRADE_COLORS } from './viewangle.js?v=390';
+import { createGeometryCache } from './geometry-gl.js?v=390';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=389';
+} from './furniture-assets.js?v=390';
 
 const DEG = Math.PI / 180;
 
@@ -32,20 +33,33 @@ export { FURNITURE_COLORS, DIMS, FURNITURE_ASSETS };
 // 물건 중심에서 회전시킨 뒤 부품 자리로 옮기고, 거기서 부품을 기울인다.
 //   T(물건) · Ry(물건 방향) · T(부품 위치) · Rx(부품 기울기) · S(부품 크기)
 // 부품을 '자기 중심에서' 돌려야 등받이가 좌판을 뚫고 나가지 않는다.
-const _m = new THREE.Matrix4(), _r = new THREE.Matrix4(), _t = new THREE.Matrix4(), _s = new THREE.Matrix4();
+const _r = new THREE.Matrix4(), _t = new THREE.Matrix4();
 
 function partMatrix(item, part, out) {
   // item.y = 그 물건이 올라앉은 바닥 높이(계단식 객석의 단차). 없으면 0.
   _t.makeTranslation(u(item.x), u(item.y || 0), u(item.z));
   _r.makeRotationY(-(item.rotY || 0) * DEG);   // faceTowards와 부호가 반대 — 파일 머리말 참고
-  _m.multiplyMatrices(_t, _r);
+  out.multiplyMatrices(_t, _r);
   _t.makeTranslation(u(part.dx || 0), u(part.y), u(part.dz || 0));
-  _m.multiply(_t);
-  if (part.tiltX) { _r.makeRotationX(part.tiltX * DEG); _m.multiply(_r); }
-  if (part.shape === 'cyl') _s.makeScale(u(part.r) * 2, u(part.h), u(part.r) * 2);
-  else if (part.shape === 'sph') { const d = u(part.r) * 2; _s.makeScale(d, d, d); }
-  else _s.makeScale(u(part.w), u(part.h), u(part.d));
-  return out.multiplyMatrices(_m, _s);
+  out.multiply(_t);
+  if (part.tiltX) { _r.makeRotationX(part.tiltX * DEG); out.multiply(_r); }
+  // 크기는 곱하지 않는다 — 도형을 **실제 치수로 구워** 쓰기 때문이다(geometry-gl.js).
+  //   단위 도형을 늘려 쓰면 가로로 긴 부품에서 모서리 반지름까지 늘어나 한쪽만 뭉툭해진다.
+  return out;
+}
+
+/**
+ * 부품 하나의 도형. 모양·치수가 같으면 캐시에서 같은 것을 돌려받는다.
+ * @param detail 'high' 가까이서 보는 가구 / 'low' 수백 개가 깔리는 객석(삼각형 절약)
+ */
+function partGeometry(geoCache, part, detail) {
+  if (part.shape === 'cyl') return geoCache.cyl(u(part.r), u(part.r), u(part.h), { detail });
+  if (part.shape === 'sph') return geoCache.sph(u(part.r), { detail });
+  const w = u(part.w), h = u(part.h), d = u(part.d);
+  // 살짝 휜 판(등받이) → 모서리가 둥근 판 → 각진 상자 순으로 고른다.
+  if (part.sag > 0) return geoCache.arc(w, h, d, { sag: u(part.sag), r: u(part.r || 0), detail });
+  if (part.r > 0) return geoCache.slab(w, h, d, { mode: part.mode || 'plan', r: u(part.r), detail });
+  return geoCache.box(w, h, d);
 }
 
 // ── 회의 테이블 ─────────────────────────────────────────────────────────────
@@ -68,7 +82,7 @@ function boatShape(w, d) {
   return s;
 }
 
-function tableMesh(item, mat) {
+function tableMesh(item, mat, geoCache) {
   const S = createConferenceTable(item);
   const g = new THREE.Group();
 
@@ -76,16 +90,23 @@ function tableMesh(item, mat) {
   let top;
   if (S.shape === 'round') {
     const r = u(Math.min(S.w, S.d) / 2);
-    top = new THREE.Mesh(new THREE.CylinderGeometry(r, r, u(S.topThk), 40), mat.tableTop);
+    top = new THREE.Mesh(geoCache.cyl(r, r, u(S.topThk)), mat.tableTop);
     top.position.y = u(S.topBottom + S.topThk / 2);
   } else if (S.shape === 'boat') {
-    const geo = new THREE.ExtrudeGeometry(boatShape(S.w, S.d), { depth: u(S.topThk), bevelEnabled: false });
+    // 가장자리에 작은 경사를 준다 — 날카로운 판때기가 아니라 상판처럼 보이게.
+    const bev = u(6);
+    const geo = new THREE.ExtrudeGeometry(boatShape(S.w, S.d), {
+      depth: u(S.topThk) - bev * 2, bevelEnabled: true,
+      bevelThickness: bev, bevelSize: bev, bevelSegments: 2, curveSegments: 6,
+    });
     geo.rotateX(-Math.PI / 2);            // XY 평면에 만든 뒤 눕힌다
-    geo.translate(0, u(S.topThk), 0);     // 두께만큼 올려 윗면이 surfaceY가 되게
+    geo.translate(0, u(S.topThk) - bev, 0);   // 윗면이 surfaceY가 되게
     top = new THREE.Mesh(geo, mat.tableTop);
     top.position.y = u(S.topBottom);
   } else {
-    top = new THREE.Mesh(new THREE.BoxGeometry(u(S.w), u(S.topThk), u(S.d)), mat.tableTop);
+    // 사각 상판도 모서리를 둥글린다 — 실제 회의 테이블은 각지지 않는다.
+    top = new THREE.Mesh(
+      geoCache.slab(u(S.w), u(S.topThk), u(S.d), { mode: 'plan', r: u(90) }), mat.tableTop);
     top.position.y = u(S.topBottom + S.topThk / 2);
   }
   g.add(top);
@@ -93,25 +114,27 @@ function tableMesh(item, mat) {
   if (S.post && S.foot) {
     // 원형 테이블: 가운데 기둥 + 원판 발.
     const h = S.post.y1 - S.post.y0;
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(u(S.post.r), u(S.post.r), u(h), 16), mat.tableBase);
+    const post = new THREE.Mesh(geoCache.cyl(u(S.post.r), u(S.post.r), u(h)), mat.tableBase);
     post.position.y = u(S.post.y0 + h / 2);
-    const foot = new THREE.Mesh(new THREE.CylinderGeometry(u(S.foot.r), u(S.foot.r), u(S.foot.h), 20), mat.tableBase);
+    const foot = new THREE.Mesh(geoCache.cyl(u(S.foot.r), u(S.foot.r), u(S.foot.h)), mat.tableBase);
     foot.position.y = u(S.foot.h / 2);
     g.add(post, foot);
   } else {
     // 사각·보트형: T자 받침 2개(기둥 + 바닥 발).
     for (const leg of S.legs) {
       const h = leg.post.y1 - leg.post.y0;
-      const post = new THREE.Mesh(new THREE.BoxGeometry(u(leg.post.w), u(h), u(leg.post.d)), mat.tableBase);
+      const post = new THREE.Mesh(
+        geoCache.slab(u(leg.post.w), u(h), u(leg.post.d), { mode: 'face', r: u(16) }), mat.tableBase);
       post.position.set(u(leg.dx), u(leg.post.y0 + h / 2), 0);
-      const foot = new THREE.Mesh(new THREE.BoxGeometry(u(leg.foot.w), u(leg.foot.h), u(leg.foot.d)), mat.tableBase);
+      const foot = new THREE.Mesh(
+        geoCache.slab(u(leg.foot.w), u(leg.foot.h), u(leg.foot.d), { mode: 'plan', r: u(18) }), mat.tableBase);
       foot.position.set(u(leg.dx), u(leg.foot.h / 2), 0);
       g.add(post, foot);
     }
     if (S.beam) {
       // 상판 아래 보강대 — 다리 2개가 허공에 떠 보이지 않게 이어 준다.
       const beam = new THREE.Mesh(
-        new THREE.BoxGeometry(u(S.beam.w), u(S.beam.h), u(S.beam.d)), mat.tableBeam);
+        geoCache.slab(u(S.beam.w), u(S.beam.h), u(S.beam.d), { mode: 'face', r: u(20) }), mat.tableBeam);
       beam.position.y = u(S.beam.y);
       g.add(beam);
     }
@@ -119,11 +142,11 @@ function tableMesh(item, mat) {
   return g;
 }
 
-function plantMesh(mat) {
+function plantMesh(mat, geoCache) {
   const S = DIMS.plant;
   const g = new THREE.Group();
   const pot = new THREE.Mesh(
-    new THREE.CylinderGeometry(u(S.potR), u(S.potR * 0.78), u(S.potH), 14), mat.plantPot);
+    geoCache.cyl(u(S.potR), u(S.potR * 0.78), u(S.potH)), mat.plantPot);
   pot.position.y = u(S.potH / 2);
   g.add(pot);
   // 둥글게 뭉친 잎 — 아래→위 지름 곡선을 돌려 만든다(막대를 쌓으면 기계 부품처럼 보인다).
@@ -132,7 +155,7 @@ function plantMesh(mat) {
     Math.max(0.001, u(S.potR * 1.15 * f)),
     u(S.potH - 40 + (i * S.leafH) / (profile.length - 1)),
   ));
-  const leaf = new THREE.Mesh(new THREE.LatheGeometry(pts, 16), mat.plantLeaf);
+  const leaf = new THREE.Mesh(new THREE.LatheGeometry(pts, 28), mat.plantLeaf);
   g.add(leaf);
   return g;
 }
@@ -175,9 +198,8 @@ export function buildFurnitureGroup(items, opts = {}) {
     } else singles.push(it);
   }
 
-  const boxGeo = new THREE.BoxGeometry(1, 1, 1);
-  const cylGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 12);
-  const sphGeo = new THREE.SphereGeometry(0.5, 12, 8);   // 머리 — 저폴리 구 하나를 공유한다
+  // 도형은 치수·모양이 같으면 하나를 돌려 쓴다. 좌석이 수백 개여도 도형은 한 벌이다.
+  const geoCache = createGeometryCache();
   const m4 = new THREE.Matrix4();
 
   for (const list of buckets.values()) {
@@ -189,8 +211,10 @@ export function buildFurnitureGroup(items, opts = {}) {
     const grade = list[0].grade;   // 바깥 g(Group)를 가리지 않도록 이름을 따로 쓴다
     const gradeMat = grade && GRADE_COLORS[grade] ? lib.get('fabricChair', GRADE_COLORS[grade]) : null;
     const FABRIC = new Set(['seatFabric', 'chairSeat', 'chairBack']);
+    // 수백 개가 깔리는 자산(강당 객석)은 분할 수를 낮춘다 — 멀리서 보므로 티가 나지 않는다.
+    const detail = list.length > 120 ? 'low' : 'high';
     for (const part of parts) {
-      const geo = part.shape === 'cyl' ? cylGeo : part.shape === 'sph' ? sphGeo : boxGeo;
+      const geo = partGeometry(geoCache, part, detail);
       const pm = (gradeMat && FABRIC.has(part.kind)) ? gradeMat : (mat[part.kind] || mat.chairSeat);
       const im = new THREE.InstancedMesh(geo, pm, list.length);
       im.name = `${id}:${part.kind}${grade ? ':' + grade : ''}`;
@@ -204,8 +228,8 @@ export function buildFurnitureGroup(items, opts = {}) {
   // ── 하나씩 놓는 가구 ──
   for (const it of singles) {
     let obj = null;
-    if (it.type === 'table') obj = tableMesh(it, mat);
-    else if (it.type === 'plant') obj = plantMesh(mat);
+    if (it.type === 'table') obj = tableMesh(it, mat, geoCache);
+    else if (it.type === 'plant') obj = plantMesh(mat, geoCache);
     else if (it.type === 'riser') {
       // 객석 단 — 윗면과 옆면 색을 나눠 낮고 얇은 단으로 읽히게 한다.
       const h = u(it.h || 200);
@@ -218,7 +242,7 @@ export function buildFurnitureGroup(items, opts = {}) {
     }
     else if (it.type === 'rug') {
       obj = new THREE.Mesh(
-        new THREE.BoxGeometry(u(it.w || 4000), u(DIMS.rug.h), u(it.d || 3000)), mat.rug);
+        geoCache.slab(u(it.w || 4000), u(DIMS.rug.h), u(it.d || 3000), { mode: 'plan', r: u(70) }), mat.rug);
       obj.position.y = u(DIMS.rug.h / 2);
     }
     if (!obj) continue;
@@ -231,17 +255,22 @@ export function buildFurnitureGroup(items, opts = {}) {
   }
 
   // 공용 자원은 Group에 매달아 두었다가 버릴 때 함께 반납한다.
-  g.userData.shared = { boxGeo, cylGeo, sphGeo, materials: Object.values(mat), lib };
+  g.userData.shared = { geoCache, materials: Object.values(mat), lib };
   return g;
 }
 
 /** buildFurnitureGroup()이 만든 Group의 GPU 자원을 반납한다. */
 export function disposeFurniture(g) {
   if (!g) return;
-  g.traverse(o => { if (o.isInstancedMesh) o.dispose?.(); else o.geometry?.dispose?.(); });
+  // 캐시가 소유한 도형(userData.cached)은 여기서 없애지 않는다 — 여러 부품이 나눠 쓰고,
+  //   캐시가 한 번에 반납한다. 보트 상판·잎처럼 그 자리에서 만든 것만 개별로 버린다.
+  g.traverse(o => {
+    if (o.isInstancedMesh) { o.dispose?.(); return; }
+    if (o.geometry && !o.geometry.userData?.cached) o.geometry.dispose();
+  });
   const sh = g.userData.shared;
   if (sh) {
-    sh.boxGeo.dispose(); sh.cylGeo.dispose(); sh.sphGeo?.dispose();
+    sh.geoCache?.dispose();
     for (const m of sh.materials) m.dispose();
     sh.lib?.dispose();   // 재질 라이브러리가 만든 무늬(normal map)까지 반납
   }

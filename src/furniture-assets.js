@@ -104,9 +104,15 @@ export const DIMS = Object.freeze({
   rug: Object.freeze({ h: 14 }),
 });
 
-const box = (kind, dx, y, dz, w, h, d, tiltX) => {
+// 부품 만들기.
+//   opts.r     모서리 반지름(mm). 주면 각진 상자가 아니라 **둥근 판**이 된다.
+//   opts.mode  'plan' 눕힌 판(좌판·상판) / 'face' 세운 판(등받이·문)
+//   opts.sag   0보다 크면 살짝 휜 판(등받이) — 가운데가 뒤로 물러난다
+// 얇은 다리·프레임처럼 둥글려도 안 보이는 곳은 옵션 없이 두어 상자로 남긴다(가장 싸다).
+const box = (kind, dx, y, dz, w, h, d, tiltX, opts) => {
   const p = { kind, shape: 'box', dx, y, dz, w, h, d };
   if (tiltX) p.tiltX = tiltX;
+  if (opts) Object.assign(p, opts);
   return p;
 };
 const cyl = (kind, dx, y, dz, r, h) => ({ kind, shape: 'cyl', dx, y, dz, r, h });
@@ -127,18 +133,19 @@ export function createConferenceChair() {
     cyl('chairBase', 0, S.baseThk / 2, 0, S.baseR, S.baseThk),
     // 가스실린더. 지름 70mm — 굵은 기둥이 되지 않게 얇게 유지한다.
     cyl('chairBase', 0, (S.baseThk + seatBottom) / 2, 0, S.columnR, seatBottom - S.baseThk),
-    // 좌판: 실제 쿠션 두께 70mm.
-    box('chairSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD),
+    // 좌판: 실제 쿠션 두께 70mm. 모서리를 넉넉히 둥글려 쿠션처럼 보이게 한다.
+    box('chairSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD, 0,
+      { r: 60, mode: 'plan' }),
     // 좌판과 등받이를 잇는 지지대 — 등받이가 허공에 뜨지 않게 한다.
     box('chairBase', 0, S.seatTop + 57, S.seatD / 2 - 45, 90, 115, 70),
-    // 등받이: 12° 뒤로 젖힘.
+    // 등받이: 12° 뒤로 젖히고 **몸을 감싸듯 45mm 휜다**. 평평한 판이면 칸막이로 보인다.
     box('chairBack', 0, S.backTopY - S.backH / 2, S.seatD / 2 - 35,
-      S.seatW - 40, S.backH, S.backThk, S.backTilt),
+      S.seatW - 40, S.backH, S.backThk, S.backTilt, { sag: 45, r: 75 }),
     // 팔걸이 = 수직 지지대 + 수평 패드 (좌·우).
     box('chairArm', -armDx, (S.seatTop + S.armY) / 2 + 20, 60, 30, S.armY - S.seatTop - 40, 30),
     box('chairArm', armDx, (S.seatTop + S.armY) / 2 + 20, 60, 30, S.armY - S.seatTop - 40, 30),
-    box('chairArm', -armDx, S.armY, -10, 55, 22, 250),
-    box('chairArm', armDx, S.armY, -10, 55, 22, 250),
+    box('chairArm', -armDx, S.armY, -10, 55, 22, 250, 0, { r: 11, mode: 'plan' }),
+    box('chairArm', armDx, S.armY, -10, 55, 22, 250, 0, { r: 11, mode: 'plan' }),
   ];
 }
 
@@ -151,14 +158,15 @@ export function createAuditoriumChair() {
   return [
     box('seatFrame', -legDx, seatBottom / 2, 0, S.legW, seatBottom, S.legD),
     box('seatFrame', legDx, seatBottom / 2, 0, S.legW, seatBottom, S.legD),
-    box('seatFabric', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD),
+    box('seatFabric', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD, 0,
+      { r: 55, mode: 'plan' }),
     // 좌판 뒤 연결부 — 등받이 아래를 막아 극장 의자처럼 닫힌 형태로 읽히게 한다.
     box('seatFrame', 0, S.seatTop + 45, S.seatD / 2 - 30, S.seatW - 80, 90, 60),
     box('seatFabric', 0, S.backTopY - S.backH / 2, S.seatD / 2 - 25,
-      S.seatW - 30, S.backH, S.backThk, S.backTilt),
+      S.seatW - 30, S.backH, S.backThk, S.backTilt, { sag: 42, r: 80 }),
     // 옆 팔걸이 판 — 줄줄이 늘어설 때 좌석 경계를 만들어 준다.
-    box('seatArm', -armDx, S.armY, 20, 45, 110, 400),
-    box('seatArm', armDx, S.armY, 20, 45, 110, 400),
+    box('seatArm', -armDx, S.armY, 20, 45, 110, 400, 0, { r: 22, mode: 'plan' }),
+    box('seatArm', armDx, S.armY, 20, 45, 110, 400, 0, { r: 22, mode: 'plan' }),
   ];
 }
 
@@ -173,13 +181,14 @@ export function createTrainingChair() {
       parts.push(box('seatFrame', sx, seatBottom / 2, sz, S.legW, seatBottom, S.legW));
     }
   }
-  parts.push(box('chairSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD));
+  parts.push(box('chairSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD, 0,
+    { r: 45, mode: 'plan' }));
   // 등받이 지지 기둥 2개 — 좌판 뒤에서 위로 뻗는다.
   for (const sx of [-150, 150]) {
     parts.push(box('seatFrame', sx, S.seatTop + 65, S.seatD / 2 - 40, 40, 130, 40));
   }
   parts.push(box('chairBack', 0, S.backTopY - S.backH / 2, S.seatD / 2 - 25,
-    S.seatW - 40, S.backH, S.backThk, S.backTilt));
+    S.seatW - 40, S.backH, S.backThk, S.backTilt, { sag: 32, r: 60 }));
   return parts;
 }
 
@@ -188,7 +197,7 @@ export function createTrainingDesk(w = 1400, d = 600) {
   const S = DIMS.trainingDesk;
   const top = S.surfaceY - S.topThk;                 // 상판 아랫면
   const lx = w / 2 - 90, lz = d / 2 - 80;
-  const parts = [box('deskTop', 0, top + S.topThk / 2, 0, w, S.topThk, d)];
+  const parts = [box('deskTop', 0, top + S.topThk / 2, 0, w, S.topThk, d, 0, { r: 18, mode: 'plan' })];
   for (const sx of [-lx, lx]) {
     for (const sz of [-lz, lz]) {
       parts.push(box('deskLeg', sx, top / 2, sz, S.legW, top, S.legW));
@@ -199,7 +208,7 @@ export function createTrainingDesk(w = 1400, d = 600) {
   // 가림판(modesty panel)은 LED 쪽(-Z)에 매달린다. 상판 아래 20mm 띄운다.
   const panelTop = top - S.panelTopGap;
   parts.push(box('deskPanel', 0, panelTop - S.panelH / 2, -d / 2 + 60,
-    w - 200, S.panelH, S.panelThk));
+    w - 200, S.panelH, S.panelThk, 0, { r: 12, mode: 'face' }));
   return parts;
 }
 
@@ -247,12 +256,12 @@ export function createAvCredenza(w = 1800, d = 450) {
   return [
     // 굽 — 안쪽으로 들여 그림자를 만든다(바닥에 딱 붙은 상자로 보이지 않게).
     box('credenzaToe', 0, S.toeH / 2, 0, w - 120, S.toeH, d - 80),
-    box('credenzaBody', 0, bodyY, 0, w, bodyH, d),
+    box('credenzaBody', 0, bodyY, 0, w, bodyH, d, 0, { r: 14, mode: 'face' }),
     // 문 2짝 — 몸통보다 12mm 앞으로(LED 벽 반대쪽 = -Z가 방 안쪽이다).
-    box('credenzaDoor', -(doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12),
-    box('credenzaDoor', (doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12),
+    box('credenzaDoor', -(doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12, 0, { r: 9, mode: 'face' }),
+    box('credenzaDoor', (doorW + S.doorGap) / 2, bodyY, -d / 2 - 6, doorW, bodyH - 30, 12, 0, { r: 9, mode: 'face' }),
     // 상판 — 테이블과 같은 옅은 오크. 사방으로 살짝 내민다.
-    box('credenzaTop', 0, S.h - S.topThk / 2, 0, w + 30, S.topThk, d + 20),
+    box('credenzaTop', 0, S.h - S.topThk / 2, 0, w + 30, S.topThk, d + 20, 0, { r: 12, mode: 'plan' }),
   ];
 }
 
@@ -261,7 +270,7 @@ export function createHighTable(w = 1800, d = 900) {
   const S = DIMS.highTable;
   const top = S.surfaceY - S.topThk;
   const lx = w / 2 - 110, lz = d / 2 - 110;
-  const parts = [box('highTop', 0, top + S.topThk / 2, 0, w, S.topThk, d)];
+  const parts = [box('highTop', 0, top + S.topThk / 2, 0, w, S.topThk, d, 0, { r: 45, mode: 'plan' })];
   for (const sx of [-lx, lx]) {
     for (const sz of [-lz, lz]) parts.push(box('highLeg', sx, top / 2, sz, S.legW, top, S.legW));
     parts.push(box('highLeg', sx, S.railY, 0, S.legW * 0.6, S.legW * 0.6, lz * 2));
@@ -291,9 +300,10 @@ export function createLoungeChair() {
   for (const sx of [-lx, lx]) {
     for (const sz of [-lz, lz]) parts.push(box('loungeLeg', sx, seatBottom / 2, sz, S.legW, seatBottom, S.legW));
   }
-  parts.push(box('loungeSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD));
+  parts.push(box('loungeSeat', 0, seatBottom + S.seatThk / 2, 0, S.seatW, S.seatThk, S.seatD, 0,
+    { r: 80, mode: 'plan' }));
   parts.push(box('loungeBack', 0, S.seatTop + S.backH / 2, S.seatD / 2 - S.backThk / 2,
-    S.seatW, S.backH, S.backThk, S.backTilt));
+    S.seatW, S.backH, S.backThk, S.backTilt, { sag: 70, r: 95 }));
   return parts;
 }
 
@@ -335,9 +345,11 @@ export function createSeatedPerson(seatTop = 440) {
     // 정강이 — 무릎에서 바닥까지. 발이 바닥에 닿아야 떠 보이지 않는다.
     box('bodyLeg', 0, (seatTop + 40) / 2, -S.thighL + 80, S.legW * 2.1, seatTop + 40, S.legW),
     // 몸통 — 등받이에 기대 살짝 젖혀 앉는다.
-    box('bodyTop', 0, base + S.torsoH / 2, 40, S.torsoW, S.torsoH, S.torsoD, 8),
+    box('bodyTop', 0, base + S.torsoH / 2, 40, S.torsoW, S.torsoH, S.torsoD, 8,
+      { r: 90, mode: 'face' }),
     // 어깨 — 몸통보다 넓고 납작하게. 이것이 있어야 '통'이 아니라 사람으로 읽힌다.
-    box('bodyTop', 0, torsoTop - S.shoulderH / 2 + 20, 55, S.shoulderW, S.shoulderH, S.torsoD - 20, 8),
+    box('bodyTop', 0, torsoTop - S.shoulderH / 2 + 20, 55, S.shoulderW, S.shoulderH, S.torsoD - 20, 8,
+      { r: 52, mode: 'face' }),
     // 목
     cyl('bodySkin', 0, torsoTop + S.neckH / 2, 70, S.neckR, S.neckH),
     // 머리 — 구. 원기둥으로 만들면 드럼통처럼 보인다.
