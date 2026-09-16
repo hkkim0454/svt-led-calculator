@@ -9,12 +9,13 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=386';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=386';
-import { createViewerGL } from './render3d-gl.js?v=386';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=386';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=386';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=386';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=387';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=387';
+import { createViewerGL } from './render3d-gl.js?v=387';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=387';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=387';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=387';
+import { sideMonitorLayout } from './monitors.js?v=387';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -859,6 +860,13 @@ function renderPreview3D() {
     items = ann.items; viewSummary = ann.summary;
   }
 
+  // LED 옆 보조 모니터 — 회의실 옵션에서 고른 위치·인치로 남은 벽 자리에 건다.
+  //   크기는 '대각 인치 → 16:9' 순수 기하다(제품 스펙을 지어내지 않는다).
+  const sm = sideMonitorLayout({
+    roomW: sW, ledX: r.marginW, ledW: r.actualW, ledCY: mount + r.actualH / 2,
+    side: roomOpts.sideMonitor || 'none', inches: Number(roomOpts.sideMonitorIn) || 55,
+  });
+
   // 계산 결과를 '읽기만' 해서 넘긴다 — 크기·배열·하단 높이 모두 engine / room-presets 값 그대로.
   viewer3d.setModel(buildGLModel({
     space: { W: sW, H: sH, D, wallThk: num($('#wallThk')?.value) },
@@ -869,6 +877,7 @@ function renderPreview3D() {
     items,
     show: { ...pv3dShow },
     roomType: roomTypeId,   // 바닥 마감(카펫/비닐)을 공간 타입에서 고른다
+    sideMonitors: sm.monitors,
     person: personFor3D(r, mount, sW, D, items),
   }));
 
@@ -892,6 +901,7 @@ function renderPreview3D() {
       seats ? `배치 ${seats}석${rowInfo ? ` (${rowInfo})` : ''}` : '',
       vs,
       ...lay.notes,
+      ...sm.notes,
       '끌기=회전 · 휠=확대 · ‘맞춤’=시점 복귀',
     ].filter(Boolean).join(' · ');
   }
