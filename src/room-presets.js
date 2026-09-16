@@ -134,6 +134,9 @@ export const ROOM_TYPES = Object.freeze([
     options: [
       { key: 'consoleRows', label: '콘솔 줄 수', type: 'number', default: 2, min: 1, max: 8 },
       { key: 'perRow', label: '줄당 콘솔 수', type: 'number', default: 4, min: 1, max: 12 },
+      { key: 'tiers', label: '콘솔 단 수', type: 'number', default: 1, min: 1, max: 8 },
+      { key: 'riserH', label: '한 단 높이(mm)', type: 'number', default: 200, min: 0, max: 900 },
+      { key: 'tierStartRow', label: '단 시작 줄 (0=자동)', type: 'number', default: 0, min: 0, max: 8 },
       { key: 'backTable', label: '뒤쪽 회의 테이블', type: 'toggle', default: true },
       { key: 'plant', label: '화분', type: 'toggle', default: false },
     ],
@@ -152,6 +155,7 @@ function hallOptions(rows, perRow, twoAisles) {
     //   뒷줄로 갈수록 한 단씩 올라가 앞사람 머리에 시야가 가리지 않게 한다.
     { key: 'tiers', label: '객석 단 수', type: 'number', default: 1, min: 1, max: 20 },
     { key: 'riserH', label: '한 단 높이(mm)', type: 'number', default: 200, min: 0, max: 900 },
+    { key: 'tierStartRow', label: '단 시작 줄 (0=자동)', type: 'number', default: 0, min: 0, max: 40 },
     { key: 'plant', label: '화분', type: 'toggle', default: false },
   ];
 }
@@ -399,6 +403,67 @@ function layoutClassroom(o, W, D) {
   };
 }
 
+/**
+ * 계단식 단 계획 — 줄을 단에 나눈다. (순수 계산, 강당·상황실 공용)
+ *
+ * @param rows      전체 줄 수
+ * @param tiersReq  요청 단 수
+ * @param riserReq  한 단 높이(mm)
+ * @param startRow  **단이 올라가기 시작하는 줄 번호(1부터)**. 0이면 줄을 단에 고르게 나눈다.
+ *                  예: 6줄 2단에 startRow=4 → 1~3줄은 바닥, 4~6줄이 한 단 위.
+ * @returns {{tiers, riserH, tierRows, tierStart, tierOf, notes}}
+ */
+export function tierPlan(rows, tiersReq, riserReq, startRow = 0) {
+  const notes = [];
+  const want = Math.max(1, int(tiersReq, 1));
+  const tiers = clamp(want, 1, Math.max(1, rows));
+  const riserH = Math.max(0, int(riserReq, 0));
+  if (tiers < want) notes.push(`줄 수(${rows})보다 많은 단은 만들 수 없어 ${tiers}단으로 줄였습니다.`);
+
+  let tierRows;
+  const askStart = clamp(int(startRow, 0), 0, rows);
+  if (tiers > 1 && askStart > 0) {
+    // 첫 단(바닥)이 몇 줄인가 = 시작 줄 − 1. 뒤 단들이 최소 한 줄씩은 가져야 하므로 그만큼 남긴다.
+    const first = clamp(askStart - 1, 1, rows - (tiers - 1));
+    const rest = rows - first;
+    tierRows = [first, ...Array.from({ length: tiers - 1 },
+      (_, t) => Math.floor(rest / (tiers - 1)) + (t < rest % (tiers - 1) ? 1 : 0))];
+    if (first !== askStart - 1) {
+      notes.push(`단 시작 줄을 ${first + 1}줄로 조정했습니다(뒤 단마다 최소 1줄이 필요).`);
+    }
+  } else {
+    // 줄을 단에 고르게 나눈다. ceil로 나누면 뒷단이 비어 요청한 단 수가 안 나온다
+    //   (예: 5줄 4단 → ceil(5/4)=2 → 3단만 생김). 남는 줄은 앞단부터 하나씩 더 준다.
+    tierRows = Array.from({ length: tiers },
+      (_, t) => Math.floor(rows / tiers) + (t < rows % tiers ? 1 : 0));
+  }
+  const tierStart = [];                       // 각 단의 첫 줄 번호
+  for (let t = 0, acc = 0; t < tiers; t++) { tierStart.push(acc); acc += tierRows[t]; }
+  const tierOf = r => {
+    for (let t = tiers - 1; t >= 0; t--) if (r >= tierStart[t]) return t;
+    return 0;
+  };
+  return { tiers, riserH, tierRows, tierStart, tierOf, notes };
+}
+
+/**
+ * 단(플랫폼) 상자를 items에 넣는다. 뒤쪽 단이 더 높아 앞 단을 덮으면서 계단 모양이 된다.
+ * 각 단은 '그 단의 첫 줄 앞'부터 맨 뒤 줄 뒤까지 깔린다.
+ */
+function addRisers(items, { W, plan, rows, rowZ, pitchZ, platW }) {
+  const { tiers, riserH, tierStart } = plan;
+  if (!(riserH > 0 && tiers > 1 && rows > 0)) return;
+  const zBackEdge = rowZ(rows - 1) + pitchZ * 0.75;
+  for (let t = 1; t < tiers; t++) {
+    const zFront = rowZ(tierStart[t]) - pitchZ * 0.55;
+    if (zFront >= zBackEdge) break;
+    items.push({
+      type: 'riser', x: W / 2, z: (zFront + zBackEdge) / 2, rotY: 0,
+      w: platW, d: zBackEdge - zFront, h: t * riserH, tier: t,
+    });
+  }
+}
+
 // ── 강당(소·중·대) ──────────────────────────────────────────────────────────
 function layoutHall(o, W, D) {
   const F = FURNITURE;
@@ -429,35 +494,16 @@ function layoutHall(o, W, D) {
   // ── 객석 단차(계단식 좌석) ──
   //   단 수(tiers)만큼 객석을 나누고, 뒤쪽 단일수록 한 단(riserH)씩 올라간다.
   //   첫 단은 바닥(높이 0)이다 — 단 수 1이면 기존과 똑같이 평평하다.
-  const tiers = clamp(int(o.tiers, 1), 1, Math.max(1, rows));
-  const riserH = Math.max(0, int(o.riserH, 0));
-  if (tiers < int(o.tiers, 1)) notes.push(`줄 수(${rows})보다 많은 단은 만들 수 없어 ${tiers}단으로 줄였습니다.`);
-  // 줄을 단에 고르게 나눈다. ceil로 나누면 뒷단이 비어 요청한 단 수가 안 나온다
-  //   (예: 5줄 4단 → ceil(5/4)=2 → 3단만 생김). 남는 줄은 앞단부터 하나씩 더 준다.
-  const tierRows = Array.from({ length: tiers },
-    (_, t) => Math.floor(rows / tiers) + (t < rows % tiers ? 1 : 0));
-  const tierStart = [];                       // 각 단의 첫 줄 번호
-  for (let t = 0, acc = 0; t < tiers; t++) { tierStart.push(acc); acc += tierRows[t]; }
-  const tierOf = r => {
-    for (let t = tiers - 1; t >= 0; t--) if (r >= tierStart[t]) return t;
-    return 0;
-  };
+  //   '단 시작 줄'을 주면 그 줄부터 올라간다(0이면 고르게 나눈다). 계산은 tierPlan에 있다.
+  const plan = tierPlan(rows, o.tiers, o.riserH, o.tierStartRow);
+  const { tiers, riserH, tierStart, tierOf } = plan;
+  notes.push(...plan.notes);
   const seatZ = r => zStart + r * F.seatPitchZ;
 
-  // 단(플랫폼) — 뒤쪽 단이 더 높으므로 앞 단을 덮어 계단 모양이 된다.
-  //   각 단은 '그 단의 첫 줄 앞'부터 객석 맨 뒤까지 깔린다.
-  if (riserH > 0 && tiers > 1) {
-    const platW = Math.min(W, perRow * F.seatPitchX + aisleTotal + F.seatPitchX);
-    const zBackEdge = seatZ(rows - 1) + F.seatPitchZ * 0.75;
-    for (let t = 1; t < tiers; t++) {
-      const zFront = seatZ(tierStart[t]) - F.seatPitchZ * 0.55;
-      if (zFront >= zBackEdge) break;
-      items.push({
-        type: 'riser', x: W / 2, z: (zFront + zBackEdge) / 2, rotY: 0,
-        w: platW, d: zBackEdge - zFront, h: t * riserH, tier: t,
-      });
-    }
-  }
+  addRisers(items, {
+    W, plan, rows, rowZ: seatZ, pitchZ: F.seatPitchZ,
+    platW: Math.min(W, perRow * F.seatPitchX + aisleTotal + F.seatPitchX),
+  });
 
   for (let r = 0; r < rows; r++) {
     const z = seatZ(r);
@@ -559,17 +605,31 @@ function layoutControl(o, W, D) {
   const perRow = clamp(o.perRow, 1, maxPerRow), rows = clamp(o.consoleRows, 1, maxRows);
   if (perRow < o.perRow || rows < o.consoleRows) notes.push(`방 크기에 맞춰 콘솔 ${perRow}대 × ${rows}줄로 줄였습니다.`);
 
+  // ── 콘솔 단차 ── 강당 객석과 같은 규칙(tierPlan)을 쓴다.
+  //   뒷줄 운용자가 앞줄 너머로 대형 화면을 봐야 해서 실제 상황실에도 단이 흔하다.
+  const plan = tierPlan(rows, o.tiers, o.riserH, o.tierStartRow);
+  const { riserH, tierOf } = plan;
+  notes.push(...plan.notes);
   const span = (perRow - 1) * F.consolePitchX;
+  const rowZ = r => F.frontClear + F.consolePitchZ / 2 + r * F.consolePitchZ;
+
+  addRisers(items, {
+    W, plan, rows, rowZ, pitchZ: F.consolePitchZ,
+    platW: Math.min(W, perRow * F.consolePitchX + F.consolePitchX * 0.6),
+  });
+
   for (let r = 0; r < rows; r++) {
-    const z = F.frontClear + F.consolePitchZ / 2 + r * F.consolePitchZ;
+    const z = rowZ(r);
+    const y = riserH > 0 ? tierOf(r) * riserH : 0;   // 그 줄이 올라앉은 단 높이
     for (let c = 0; c < perRow; c++) {
       const x = W / 2 - span / 2 + c * F.consolePitchX;
-      items.push({ type: 'console', x, z, rotY: 0, w: F.consoleW, d: F.consoleD });
-      items.push(chairAt(x, z + 1000, x, z));   // 콘솔 뒤에 앉아 콘솔(과 LED)을 바라본다
+      items.push({ type: 'console', x, z, rotY: 0, w: F.consoleW, d: F.consoleD, y });
+      items.push({ ...chairAt(x, z + 1000, x, z), y });   // 콘솔 뒤에 앉아 콘솔(과 LED)을 바라본다
     }
   }
   if (o.backTable) {
     const z = D - F.wallClear - backD / 2;
+    // 뒤쪽 테이블은 단 바깥(맨 뒤)이라 바닥 높이를 그대로 쓴다 — 단은 콘솔 구역까지만 깔린다.
     const tW = clamp(W - F.wallClear * 2 - F.chairClear * 2, 1600, 6000);
     items.push({ type: 'table', shape: 'rect', x: W / 2, z, rotY: 0, w: tW, d: 1200 });
     const n = fitCount(tW - 400, F.chairPitch);
