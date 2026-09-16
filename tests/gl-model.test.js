@@ -7,7 +7,7 @@ import {
   FOV_DEG, EYE_MM, LOOK_MM, START_YAW_DEG, LED_FIT,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, INTERIOR_PRESETS,
-  showCeiling, cameraInsideRoom,
+  showCeiling, cameraInsideRoom, LIGHTS, keyShare, shadowMapSize,
 } from '../src/gl-model.js';
 import { computeConfig } from '../src/engine.js';
 import { MODELS } from '../src/models.js';
@@ -433,4 +433,28 @@ test('바닥 격자 토글 — 격자를 꺼도 방 크기·벽 설정은 그대
   assert.deepEqual(off.room, on.room);
   assert.deepEqual(off.show.walls, on.show.walls);
   assert.equal(off.show.accentWall, on.show.accentWall);
+});
+
+
+// ── 조명 ────────────────────────────────────────────────────────────────────
+
+test('조명 — 그림자가 게임처럼 진해지지 않는 비중(주광 20~30%)', () => {
+  const share = keyShare();
+  assert.ok(share >= 0.20 && share <= 0.30, `주광 비중 ${(share * 100).toFixed(1)}%`);
+  // 모든 세기가 양수여야 한다 — 0이면 그 조명이 아예 없는 것과 같다.
+  for (const [k, v] of Object.entries(LIGHTS)) assert.ok(v > 0, `${k} = ${v}`);
+  // LED 스필광은 '아주 약하게'. 주광보다 세면 네온사인이 된다.
+  assert.ok(LIGHTS.ledSpill < LIGHTS.key, 'LED 스필광이 주광보다 세면 안 된다');
+  // 환경광이 가장 커야 부드러운 실내가 된다(주광이 가장 크면 야외 햇빛처럼 보인다).
+  assert.ok(LIGHTS.hemi > LIGHTS.key, '환경광이 주광보다 커야 한다');
+  assert.equal(keyShare({ hemi: 0, ceiling: 0, key: 0, fill: 0 }), 0, '0으로 나누지 않는다');
+});
+
+test('그림자 해상도 — 무작정 키우지 않는다(화면 배율이 높으면 오히려 낮춘다)', () => {
+  assert.equal(shadowMapSize(1), 2048);
+  assert.equal(shadowMapSize(1.5), 2048);
+  assert.equal(shadowMapSize(2), 1024);
+  assert.equal(shadowMapSize(3), 1024);
+  assert.equal(shadowMapSize(), 2048, '기본값');
+  assert.ok(shadowMapSize(1) <= 2048, '4096은 메모리 낭비다');
 });

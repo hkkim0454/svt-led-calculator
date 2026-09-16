@@ -9,7 +9,7 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor } from './materials.js?v=378';
+import { floorFinishFor } from './materials.js?v=379';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -129,6 +129,33 @@ export const BASEBOARD_MM = Object.freeze({
   h: 70,      // 걸레받이 높이 — 실제 시공값 60~80mm의 가운데
   thk: 18,    // 벽에서 방 안쪽으로 나온 두께
 });
+// ── 조명 ────────────────────────────────────────────────────────────────────
+// 합이 너무 크면 벽이 하얗게 날아가고, 주광 비중이 크면 그림자가 게임처럼 진해진다.
+//   주광 비중 = key / 전체 ≈ 25% — '있는 듯 없는 듯한' 접촉 그림자가 나오는 지점이다.
+//   그림자를 만드는 조명은 주광 하나뿐이다(둘 이상이면 그림자가 겹쳐 지저분해지고 비용도 배가 된다).
+export const LIGHTS = Object.freeze({
+  hemi: 1.85,      // 부드러운 환경광(하늘/바닥)
+  ceiling: 1.15,   // 천장등 — 바로 아래를 고르게 비춘다
+  key: 1.15,       // 주광 — 그림자를 만드는 유일한 조명
+  fill: 0.40,      // 보조광 — 그림자 속이 새까매지지 않게
+  ledSpill: 0.55,  // LED가 벽에 번지는 푸른 빛(네온이 되면 안 된다)
+});
+
+/** 주광이 전체 빛에서 차지하는 비중 = 그림자의 진하기. */
+export function keyShare(lights = LIGHTS) {
+  const total = lights.hemi + lights.ceiling + lights.key + lights.fill;
+  return total > 0 ? lights.key / total : 0;
+}
+
+/**
+ * 그림자 지도 한 변(픽셀). 무작정 키우면 메모리만 먹는다.
+ *   장면이 정적이라 매 프레임 다시 굽지 않으므로 2048이면 충분하고,
+ *   화면 배율이 높은(=픽셀이 이미 많은) 기기에서는 1024로 낮춘다.
+ */
+export function shadowMapSize(dpr = 1) {
+  return dpr > 1.5 ? 1024 : 2048;
+}
+
 export const CEILING_THK_MM = 120;   // 천장 슬래브 두께(보이는 건 아랫면뿐)
 export const GRID_LIFT_MM = 3;       // 바닥 격자를 바닥에서 띄우는 높이(지글거림 방지)
 
