@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=370';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=370';
-import { createViewerGL } from './render3d-gl.js?v=370';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=370';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=371';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=371';
+import { createViewerGL } from './render3d-gl.js?v=371';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=371';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -3329,6 +3329,26 @@ $('#caseList')?.addEventListener('click', async e => {
 });
 
 window.addEventListener('resize', renderPreview);
+
+// 미리보기는 '칸의 실제 폭'(#stage.clientWidth)에 맞춰 그림을 통째로 축소한다.
+//   그런데 window의 resize는 폭이 바뀌는 모든 경우에 오지 않는다 —
+//   모바일 주소창 접힘·화면 회전·글꼴 늦게 로딩·옆 카드 높이 변화·브라우저 확대 등.
+//   그때 그림이 '이전 폭 기준'으로 남아 프레임 밖으로 삐져나오거나 잘려 보인다.
+//   칸 자체의 크기를 지켜보면 원인이 무엇이든 확실히 다시 그린다.
+(function watchStageWidth() {
+  const stage = $('#stage');
+  if (!stage || typeof ResizeObserver === 'undefined') return;
+  let lastW = 0;
+  const ro = new ResizeObserver(() => {
+    if (stage.hidden) return;                       // 3D 뷰를 보는 중이면 할 일 없음
+    const w = Math.round(stage.clientWidth);
+    // 높이만 바뀐 경우는 무시한다 — 다시 그린 결과로 높이가 바뀌므로 무한 반복이 된다.
+    if (!w || w === lastW) return;
+    lastW = w;
+    renderPreview();
+  });
+  ro.observe(stage);
+})();
 
 // 인쇄 시 03 미리보기를 A4 폭(styles.css의 body.printing 고정폭)에 맞춰 다시 그린다.
 // beforeprint에서 클래스 추가 후 재렌더 → 화면 폭과 무관하게 그림이 페이지 안에 들어온다.
