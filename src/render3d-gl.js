@@ -18,11 +18,12 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=405';
-import { createMaterialLibrary } from './materials-gl.js?v=405';
-import { MOODS } from './materials.js?v=405';
-import { ledImageFit } from './led-image.js?v=405';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=405';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=411';
+import { createMaterialLibrary } from './materials-gl.js?v=411';
+import { MOODS } from './materials.js?v=411';
+import { roomFinishForDesign } from './design-finish.js?v=411';
+import { ledImageFit } from './led-image.js?v=411';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=411';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -30,7 +31,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=405';
+} from './gl-model.js?v=411';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -191,12 +192,20 @@ function buildRoomGroup(model, shared) {
   const lighten = hex => (mood.wallMix > 0
     ? '#' + new THREE.Color(hex).lerp(new THREE.Color(0xffffff), mood.wallMix).getHexString()
     : hex);
-  const matWallFront = mats.surface('paintedWall', lighten(GL_PALETTE.wallFront), room.W, room.H, { side: THREE.FrontSide });
-  const matWallSide = mats.surface('paintedWall', lighten(GL_PALETTE.wallSide), room.D, room.H, { side: THREE.FrontSide });
-  // 바닥 재질 — 격자를 켜든 끄든 **항상 같다**. 격자는 별도의 덧판이다.
-  const floorFinish = model.finish?.floor || 'carpetTile';
-  const matFloor = mats.surface(floorFinish, GL_PALETTE.floor, room.W, room.D, { side: THREE.FrontSide });
-  const matBaseboard = mats.get('paintedWall', GL_PALETTE.baseboard);
+  // 이 공간 디자인이 마감을 정했는가. **정하지 않았으면 null**이고, 그러면 지금 하던 그대로다 —
+  //   대기업 회의실 말고 다른 공간이 한 픽셀도 바뀌지 않는 이유가 이 한 줄이다.
+  const fin = roomFinishForDesign(model.design);
+  const finMat = (role, fallback) => fin?.[role]?.material || fallback;
+  const finCol = (role, fallback) => (fin?.[role]?.color ? lighten(fin[role].color) : fallback);
+
+  const matWallFront = mats.surface(finMat('wallFront', 'paintedWall'),
+    finCol('wallFront', lighten(GL_PALETTE.wallFront)), room.W, room.H, { side: THREE.FrontSide });
+  const matWallSide = mats.surface(finMat('wallSide', 'paintedWall'),
+    finCol('wallSide', lighten(GL_PALETTE.wallSide)), room.D, room.H, { side: THREE.FrontSide });
+  // 바닥 재질 — 격자를 켜든 끄든 **항상 같다**. 격자는 별도의 덧판이다(기술 오버레이).
+  const floorFinish = finMat('floor', model.finish?.floor || 'carpetTile');
+  const matFloor = mats.surface(floorFinish, finCol('floor', GL_PALETTE.floor), room.W, room.D, { side: THREE.FrontSide });
+  const matBaseboard = mats.get(finMat('baseboard', 'paintedWall'), finCol('baseboard', GL_PALETTE.baseboard));
 
   // ① 바닥 — 방 치수(W×D)와 정확히 같다. PlaneGeometry는 XY 평면에 서 있으므로 눕힌다.
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.D), matFloor);
@@ -263,9 +272,13 @@ function buildRoomGroup(model, shared) {
   const accentOn = model.show?.accentWall !== false;
   // 벽 색에 포인트 색을 ACCENT_ALPHA 만큼 섞는다(반투명 겹치기 대신 색을 미리 섞어
   //   두면 어느 각도에서도 같은 색으로 보이고 그리기 순서 문제도 없다).
-  const accentColor = '#' + new THREE.Color(GL_PALETTE.wallSide)
-    .lerp(new THREE.Color(GL_PALETTE.wallAccent), ACCENT_ALPHA).getHexString();
-  const matAccent = mats.surface('paintedWall', accentColor, room.D, room.H, { side: THREE.FrontSide });
+  //   디자인이 포인트 벽 색을 정했으면 그것을 쓴다(기업 기본은 **절제된** 색이다).
+  //   **어느 벽이 포인트인지는 바꾸지 않는다** — 그것은 방 좌표가 정하는 기존 동작이다.
+  const accentColor = fin?.wallAccent?.color
+    ? lighten(fin.wallAccent.color)
+    : '#' + new THREE.Color(GL_PALETTE.wallSide)
+      .lerp(new THREE.Color(GL_PALETTE.wallAccent), ACCENT_ALPHA).getHexString();
+  const matAccent = mats.surface(finMat('wallAccent', 'paintedWall'), accentColor, room.D, room.H, { side: THREE.FrontSide });
   // 두께 있는 벽(상자)은 '방 안쪽을 향한 면'에만 포인트 색을 칠한다.
   //   윗면·바깥면까지 칠하면 흰 벽과 만나는 모서리에서 색이 끊겨 보인다(기존 3D 뷰 DEC-058과 같은 이유).
   //   BoxGeometry 면 순서: +X, −X, +Y, −Y, +Z, −Z

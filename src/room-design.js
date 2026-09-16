@@ -106,10 +106,19 @@ export const ROOM_DESIGNS = Object.freeze({
     phase: 2,
     // PHASE 2-a·2-b — 의자와 테이블을 새 자산으로 올렸다.
     //   `planned(...)`가 아니라 **맨 문자열**이라는 점이 중요하다 — 실제로 만들었다는 뜻이다.
-    //   재질·조명·화각은 여전히 INHERIT다(PHASE 2-c).
     furniture: Object.freeze({ chair: 'corporateChair', table: 'corporateTable' }),
-    palette: INHERIT,
-    materials: INHERIT,
+    // PHASE 2-c — 바닥·벽·AV 수납장 마감을 켠다.
+    //   이름은 전부 **기존 13종 또는 그 별칭**이다(정식 재질을 새로 만들지 않았다).
+    //   색은 팔레트가 따로 정한다 — 같은 질감에 공간마다 다른 색을 입히는 방식이다.
+    //   조명·화각·벽 구성은 여전히 INHERIT다(PHASE 2-d).
+    palette: 'corporateNeutral',
+    materials: Object.freeze({
+      floor: 'carpetTileLight',     // → carpetTile (별칭)
+      wall: 'paintedWallWhite',     // → paintedWall (별칭)
+      tableTop: 'neutralLaminate',  // PHASE 2-b에서 이미 상판에 붙어 있다(기록용)
+      chair: 'darkGraphite',        // PHASE 2-a에서 이미 의자에 붙어 있다(기록용)
+      credenza: 'blackEquipment',
+    }),
     wallTreatment: INHERIT,
     lighting: INHERIT,
     camera: INHERIT,
