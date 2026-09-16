@@ -18,17 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=385';
-import { createMaterialLibrary } from './materials-gl.js?v=385';
-import { MOODS } from './materials.js?v=385';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=386';
+import { createMaterialLibrary } from './materials-gl.js?v=386';
+import { MOODS } from './materials.js?v=386';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
-  BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize,
-} from './gl-model.js?v=385';
+  BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
+} from './gl-model.js?v=386';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -679,6 +679,8 @@ export function createViewerGL(canvas, { onError } = {}) {
   let needsRender = false;
   let raf = 0;
   let disposed = false;
+  // 시점 옵션 — 화각(도)과 평면도 원근 여부. 화면(app.js)이 정하고 프리셋 계산에 넘긴다.
+  let viewOpts = { fov: FOV_DEG, topPerspective: false };
 
   const size = () => ({
     w: Math.max(1, canvas.clientWidth || canvas.parentElement?.clientWidth || 800),
@@ -889,7 +891,7 @@ export function createViewerGL(canvas, { onError } = {}) {
     const p = cameraPreset(id);
     presetId = p.id;
     const aspect = Math.max(0.3, camera.aspect || 16 / 9);
-    const pose = presetPose(p.id, model, aspect);
+    const pose = presetPose(p.id, model, aspect, viewOpts);
     const wantCam = pose.ortho ? orthoCam : perspCam;
 
     // 카메라 종류가 바뀌는 전환(원근 ↔ 정사)은 중간 모습을 만들 수 없다.
@@ -1069,6 +1071,19 @@ export function createViewerGL(canvas, { onError } = {}) {
     stepPreset(step) { applyPreset(stepPreset(presetId, step)); },
     /** 지금 프리셋 id. */
     getPreset() { return presetId; },
+    /**
+     * 시점 옵션 — 화각(도)과 평면도 원근 여부.
+     * 값이 실제로 바뀌었을 때만 카메라를 다시 앉힌다(같은 값으로 부르면 화면이 안 흔들린다).
+     */
+    setViewOptions(next = {}, { animate = true } = {}) {
+      const fov = clampFov(next.fov ?? viewOpts.fov);
+      const topPerspective = next.topPerspective ?? viewOpts.topPerspective;
+      if (fov === viewOpts.fov && topPerspective === viewOpts.topPerspective) return false;
+      viewOpts = { fov, topPerspective };
+      if (model) applyPreset(presetId, { animate });
+      return true;
+    },
+    getViewOptions() { return { ...viewOpts, range: FOV_RANGE }; },
     /** 맞춤(Fit) — 지금 프리셋은 그대로 두고, 그 프리셋의 framing 으로 되돌린다. */
     fitView() { applyPreset(presetId); },
     /** 초기화(Reset) — 기본 시점(실내)으로 돌아간다. */

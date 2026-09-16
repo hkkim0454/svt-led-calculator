@@ -1254,3 +1254,8 @@ body.printing #cv3d{height:420px}
 /* 핵심 치수(LED 가로·세로)는 어두운 알약 — 정면 뷰와 같은 규칙. */
 .gl3dDim.key{background:rgba(17,21,27,.92);color:#fff;border-color:transparent}
 
+
+/* 시점 옵션 — 화각 슬라이더. 다른 입력칸과 같은 줄 높이를 유지한다. */
+.pv3dField.pv3dFov{align-items:center}
+.pv3dField.pv3dFov > span{white-space:nowrap}
+.pv3dField.pv3dFov input[type=range]{width:100%;min-width:0;accent-color:#007AFF;cursor:pointer}
