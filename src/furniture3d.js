@@ -9,7 +9,7 @@
 // kind 값은 render3d.js의 색 팔레트 키와 1:1로 맞춘다(예: chairSeat, tableTop).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { boxQuads, prismQuads, polyPrismQuads, frustumQuads, rotateQuadsY } from './scene3d.js?v=377';
+import { boxQuads, prismQuads, polyPrismQuads, frustumQuads, rotateQuadsY } from './scene3d.js?v=378';
 
 // 가구 기준 치수(mm). 실제 사무가구 표준에 맞춘 값.
 export const SIZES = Object.freeze({

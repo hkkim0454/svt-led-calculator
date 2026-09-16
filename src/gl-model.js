@@ -9,6 +9,8 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
+import { floorFinishFor } from './materials.js?v=378';
+
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
 export const toMm = units => (Number(units) || 0) * MM_PER_UNIT;   // unit → mm (되돌리기용)
@@ -60,7 +62,7 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @param items room-presets의 배치 결과(STEP 1에서는 무대만 읽는다)
  * @returns { room, led, stage }  전부 unit
  */
-export function buildGLModel({ space, led, items, show, person }) {
+export function buildGLModel({ space, led, items, show, person, roomType }) {
   // 벽 두께는 '방 바깥쪽'으로 붙인다 — 안쪽 치수(W×H×D)는 계산값 그대로여야 한다.
   const room = {
     W: u(space.W), H: u(space.H), D: u(space.D),
@@ -85,6 +87,9 @@ export function buildGLModel({ space, led, items, show, person }) {
         right: !!show?.walls?.right,
       },
     },
+    // 바닥 마감 — 공간 타입이 정한다(강의실만 비닐, 나머지는 카펫).
+    //   재질 수치는 materials.js에 있고 여기서는 '어떤 마감인지'만 고른다.
+    finish: { floor: floorFinishFor(roomType) },
     // 배치 목록은 mm 그대로 들고 간다 — 가구를 세우는 쪽(furniture-gl.js)에서 환산한다.
     //   여기서 미리 바꾸면 room-presets 결과와 대조하기 어려워진다.
     items: items || [],

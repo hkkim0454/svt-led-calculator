@@ -18,7 +18,8 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=377';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=378';
+import { createMaterialLibrary } from './materials-gl.js?v=378';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -26,7 +27,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling,
-} from './gl-model.js?v=377';
+} from './gl-model.js?v=378';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -153,19 +154,15 @@ function buildRoomGroup(model, shared) {
   const g = new THREE.Group();
   g.name = 'roomGroup';
 
-  const matWallFront = new THREE.MeshStandardMaterial({
-    color: GL_PALETTE.wallFront, roughness: 0.96, metalness: 0, side: THREE.FrontSide,
-  });
-  const matWallSide = new THREE.MeshStandardMaterial({
-    color: GL_PALETTE.wallSide, roughness: 0.96, metalness: 0, side: THREE.FrontSide,
-  });
+  // 재질은 materials.js의 프리셋에서 가져온다 — 거칠기·금속성·무늬 간격이 한곳에 모여 있다.
+  //   무늬(요철)는 실제 마감재 규격대로 반복한다: 카펫 타일 500mm · 비닐 600mm · 도장 벽 1500mm.
+  const mats = createMaterialLibrary();
+  const matWallFront = mats.surface('paintedWall', GL_PALETTE.wallFront, room.W, room.H, { side: THREE.FrontSide });
+  const matWallSide = mats.surface('paintedWall', GL_PALETTE.wallSide, room.D, room.H, { side: THREE.FrontSide });
   // 바닥 재질 — 격자를 켜든 끄든 **항상 같다**. 격자는 별도의 덧판이다.
-  const matFloor = new THREE.MeshStandardMaterial({
-    color: GL_PALETTE.floor, roughness: 0.92, metalness: 0, side: THREE.FrontSide,
-  });
-  const matBaseboard = new THREE.MeshStandardMaterial({
-    color: GL_PALETTE.baseboard, roughness: 0.85, metalness: 0,
-  });
+  const floorFinish = model.finish?.floor || 'carpetTile';
+  const matFloor = mats.surface(floorFinish, GL_PALETTE.floor, room.W, room.D, { side: THREE.FrontSide });
+  const matBaseboard = mats.get('paintedWall', GL_PALETTE.baseboard);
 
   // ① 바닥 — 방 치수(W×D)와 정확히 같다. PlaneGeometry는 XY 평면에 서 있으므로 눕힌다.
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.D), matFloor);
@@ -230,12 +227,11 @@ function buildRoomGroup(model, shared) {
   //     '카메라에서 보이는 옆벽'에 칠하면 시점을 돌릴 때 벽이 좌↔우로 옮겨 다닌다 —
   //     실제로 칠해 둔 벽은 그럴 수 없다. 여기서 카메라를 참조하지 않는 것이 핵심이다.
   const accentOn = model.show?.accentWall !== false;
-  const matAccent = new THREE.MeshStandardMaterial({
-    // 벽 색에 포인트 색을 ACCENT_ALPHA 만큼 섞는다(반투명 겹치기 대신 색을 미리 섞어
-    //   두면 어느 각도에서도 같은 색으로 보이고 그리기 순서 문제도 없다).
-    color: new THREE.Color(GL_PALETTE.wallSide).lerp(new THREE.Color(GL_PALETTE.wallAccent), ACCENT_ALPHA),
-    roughness: 0.96, metalness: 0, side: THREE.FrontSide,
-  });
+  // 벽 색에 포인트 색을 ACCENT_ALPHA 만큼 섞는다(반투명 겹치기 대신 색을 미리 섞어
+  //   두면 어느 각도에서도 같은 색으로 보이고 그리기 순서 문제도 없다).
+  const accentColor = '#' + new THREE.Color(GL_PALETTE.wallSide)
+    .lerp(new THREE.Color(GL_PALETTE.wallAccent), ACCENT_ALPHA).getHexString();
+  const matAccent = mats.surface('paintedWall', accentColor, room.D, room.H, { side: THREE.FrontSide });
   // 두께 있는 벽(상자)은 '방 안쪽을 향한 면'에만 포인트 색을 칠한다.
   //   윗면·바깥면까지 칠하면 흰 벽과 만나는 모서리에서 색이 끊겨 보인다(기존 3D 뷰 DEC-058과 같은 이유).
   //   BoxGeometry 면 순서: +X, −X, +Y, −Y, +Z, −Z
@@ -300,8 +296,7 @@ function buildRoomGroup(model, shared) {
   //   (STEP 3에서 실내 조명이 들어오면 이 보정은 걷어낼 수 있다.)
   const ceiling = new THREE.Mesh(
     new THREE.BoxGeometry(room.W + thk * 2, ceilThk, room.D + thk * 2),
-    new THREE.MeshStandardMaterial({
-      color: GL_PALETTE.ceiling, roughness: 0.95, metalness: 0,
+    mats.get('paintedWall', GL_PALETTE.ceiling, {
       emissive: new THREE.Color(GL_PALETTE.ceiling), emissiveIntensity: 0.62,
     }),
   );
@@ -350,8 +345,8 @@ function buildRoomGroup(model, shared) {
   // ⑥ 무대 — 강당류에서 배치 계산(room-presets)이 무대를 놓았을 때만 그린다.
   //    크기·위치는 전부 그 계산 결과를 그대로 쓴다(여기서 새로 정하지 않는다).
   if (stage) {
-    const top = new THREE.MeshStandardMaterial({ color: GL_PALETTE.stageTop, roughness: 0.9 });
-    const side = new THREE.MeshStandardMaterial({ color: GL_PALETTE.stageSide, roughness: 0.92 });
+    const top = mats.surface('stageSurface', GL_PALETTE.stageTop, stage.w, stage.d);
+    const side = mats.get('stageSurface', GL_PALETTE.stageSide);
     // BoxGeometry 면 순서: +X, −X, +Y(윗면), −Y, +Z, −Z
     const box = new THREE.Mesh(
       new THREE.BoxGeometry(stage.w, stage.h, stage.d),
@@ -361,6 +356,9 @@ function buildRoomGroup(model, shared) {
     box.name = 'stage';
     g.add(box);
   }
+
+  // 재질 라이브러리는 이 Group의 것이다 — 버릴 때 텍스처까지 함께 반납한다.
+  g.userData.materials = mats;
 
   g.add(furniture);
 
@@ -874,10 +872,12 @@ export function createViewerGL(canvas, { onError } = {}) {
     gr.getObjectByName('person')?.userData.tex?.dispose();
     gr.traverse(o => {
       o.geometry?.dispose?.();
-      const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
-      // 텍스처는 공용(shared)이라 여기서 없애지 않는다 — dispose()에서 한 번에 정리한다.
-      for (const mt of mats) mt.dispose?.();
+      const ms = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      // 공용 텍스처(화면·헤일로·격자)는 여기서 없애지 않는다 — dispose()에서 한 번에 정리한다.
+      for (const mt of ms) mt.dispose?.();
     });
+    // 재질 라이브러리가 만든 무늬(normal map)는 이 Group 전용이므로 여기서 반납한다.
+    gr.userData.materials?.dispose();
     scene.remove(gr);
   }
 
