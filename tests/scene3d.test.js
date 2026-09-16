@@ -3,12 +3,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  autoRoomDepthMm, roomDepthMm, clampView, VIEW_LIMITS, defaultDistanceMm,
+  autoRoomDepthMm, roomDepthMm, clampView, VIEW_LIMITS,
   makeCamera, toCameraSpace, projectPoint,
   buildScene, cabinetQuads, floorGridLines, isFacing, cullAndSort,
   fitTransform, toScreen, fitAnchors, NEAR_MM,
-  CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView, rotateCubeView, ISO_PITCH,
-  boxQuads, prismQuads, rotateQuadsY, roomShellQuads, visibleWallSides,
+  CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView, rotateCubeView,
+  viewCamera, viewDistanceMm, EYE_MM, LOOK_MM, FOV_DEG, MIN_PITCH_DEG,
+  boxQuads, prismQuads, frustumQuads, rotateQuadsY, roomShellQuads, visibleWallSides,
 } from '../src/scene3d.js';
 
 // 테스트 기준 장면: 8.0 × 3.4 m 벽, MP012F 7×6 = 42캐비닛 (삼성 검증 구성과 같은 형상)
@@ -108,13 +109,10 @@ test('투영 — 화면 y는 아래가 +(위쪽 점이 더 작은 y)', () => {
 });
 
 test('컷어웨이 — 카메라 쪽 벽은 잘라내고 반대편 벽만 그린다', () => {
-  const far = defaultDistanceMm(scene) * 4;
-  // 우측 코너에서 보면: LED 벽(front)과 좌측 벽이 남고, 가까운 우측·정면 벽은 잘린다
-  const camR = makeCamera({ target: scene.target, yaw: 45, pitch: ISO_PITCH, distance: far, ortho: true });
-  const vR = visibleWallSides(camR, scene);
-  assert.deepEqual(vR, { floor: true, front: true, back: false, left: true, right: false });
-  // 좌측 코너에서는 좌우가 뒤바뀐다
-  const camL = makeCamera({ target: scene.target, yaw: -45, pitch: ISO_PITCH, distance: far, ortho: true });
+  // 우측에서 보면: LED 벽(front)과 좌측 벽이 남고, 가까운 우측·정면 벽은 잘린다
+  const camR = viewCamera(scene, 'side-r');
+  assert.deepEqual(visibleWallSides(camR, scene), { floor: true, front: true, back: false, left: true, right: false });
+  const camL = viewCamera(scene, 'side-l');
   const vL = visibleWallSides(camL, scene);
   assert.equal(vL.left, false);
   assert.equal(vL.right, true);
@@ -132,7 +130,7 @@ test('방 껍데기 — 바닥·벽 4개가 두께를 가진 상자로 만들어
 });
 
 test('정렬 — 먼 면부터(painter) 나오고, LED 앞면이 벽보다 나중에(위에) 그려진다', () => {
-  const cam = makeCamera({ target: scene.target, yaw: 45, pitch: ISO_PITCH, distance: defaultDistanceMm(scene) * 4, ortho: true });
+  const cam = viewCamera(scene, 'corner-r');
   const wallFront = roomShellQuads(scene).filter(q => q.side === 'front');
   const vis = cullAndSort(cam, [...wallFront, ...scene.ledQuads]);
   assert.ok(vis.length > 0);
@@ -142,18 +140,17 @@ test('정렬 — 먼 면부터(painter) 나오고, LED 앞면이 벽보다 나�
   assert.ok(iLed >= 0 && iWall >= 0 && iLed > iWall);
 });
 
-test('자동 맞춤 — 어느 각도로 돌려도 장면 전체가 화면 안에 들어온다', () => {
+test('자동 맞춤 — 어느 시점에서도 장면 전체가 화면 안에 들어온다', () => {
   const width = 900, height = 520, pad = 18;
-  for (const yaw of [-90, -45, 0, 45, 90]) {
-    for (const pitch of [0, ISO_PITCH, 60, 90]) {
-      const cam = makeCamera({ target: scene.target, yaw, pitch, distance: defaultDistanceMm(scene) * 4, ortho: true });
-      const pts = fitAnchors(scene).map(p => projectPoint(cam, p));
-      const t = fitTransform(pts, { width, height, pad });
-      for (const p of pts.filter(p => p.ok)) {
-        const s = toScreen(t, p);
-        assert.ok(s.x >= pad - 0.5 && s.x <= width - pad + 0.5, `x=${s.x} (yaw ${yaw}, pitch ${pitch})`);
-        assert.ok(s.y >= pad - 0.5 && s.y <= height - pad + 0.5, `y=${s.y} (yaw ${yaw}, pitch ${pitch})`);
-      }
+  for (const v of CUBE_VIEWS) {
+    const cam = viewCamera(scene, v.id);
+    const pts = fitAnchors(scene).map(p => projectPoint(cam, p));
+    assert.ok(pts.every(p => p.ok), `${v.id}: 방 모서리가 카메라 뒤로 넘어감`);
+    const t = fitTransform(pts, { width, height, pad });
+    for (const p of pts) {
+      const s2 = toScreen(t, p);
+      assert.ok(s2.x >= pad - 0.5 && s2.x <= width - pad + 0.5, `x=${s2.x} (${v.id})`);
+      assert.ok(s2.y >= pad - 0.5 && s2.y <= height - pad + 0.5, `y=${s2.y} (${v.id})`);
     }
   }
 });
@@ -167,7 +164,7 @@ test('자동 맞춤 — zoom 배율이 그대로 크기에 반영된다', () => 
 });
 
 test('정사투영(아이소) — 거리와 상관없이 크기가 같고 평행선이 평행하게 유지된다', () => {
-  const cam = makeCamera({ target: [0, 0, 0], yaw: 45, pitch: ISO_PITCH, distance: 50000, ortho: true });
+  const cam = makeCamera({ target: [0, 0, 0], yaw: 45, pitch: 35.264, distance: 50000, ortho: true });
   const a0 = projectPoint(cam, [0, 0, 0]), a1 = projectPoint(cam, [1000, 0, 0]);
   const b0 = projectPoint(cam, [0, 0, 8000]), b1 = projectPoint(cam, [1000, 0, 8000]);
   const len = p => Math.hypot(p[0], p[1]);
@@ -177,27 +174,49 @@ test('정사투영(아이소) — 거리와 상관없이 크기가 같고 평행
   assert.equal(projectPoint(cam, [0, 0, 99999]).ok, true);             // 정사투영은 근거리 잘림 없음
 });
 
-test('큐브 뷰 — 꼭짓점·모서리·면 시점이 정의돼 있고 기본은 우측 코너', () => {
-  assert.ok(CUBE_VIEWS.length >= 8);
-  assert.equal(cubeView(DEFAULT_CUBE_VIEW).id, 'iso-r');
-  assert.equal(cubeView('없는값').id, DEFAULT_CUBE_VIEW);              // 잘못된 값은 기본 시점
-  const corner = CUBE_VIEWS.filter(v => v.kind === 'corner');
-  assert.equal(corner.length, 2);
-  for (const v of corner) assert.ok(Math.abs(v.pitch - ISO_PITCH) < 1e-9);   // 정아이소메트릭 각도
-  for (const v of CUBE_VIEWS) assert.deepEqual(clampView(v), clampView({ yaw: v.yaw, pitch: v.pitch, zoom: 1 }));
+test('시점 — 오너가 정한 5개 시점 + 평면도가 있고 기본은 우측 코너', () => {
+  assert.deepEqual(CUBE_VIEWS.map(v => v.id), ['side-l', 'corner-l', 'front', 'corner-r', 'side-r', 'top']);
+  assert.deepEqual(CUBE_VIEWS.map(v => v.label), ['좌측', '좌측 코너', '정면', '우측 코너', '우측', '평면도']);
+  assert.equal(cubeView(DEFAULT_CUBE_VIEW).id, 'corner-r');
+  assert.equal(cubeView('없는값').id, DEFAULT_CUBE_VIEW);
+  // 좌→우 순서(yaw 오름차순)로 나열돼 있어야 화살표 회전이 직관적이다
+  const ring = CUBE_VIEWS.filter(v => !v.plan);
+  for (let i = 1; i < ring.length; i++) assert.ok(ring[i].yaw > ring[i - 1].yaw);
 });
 
-test('큐브 뷰 — 좌우로 한 칸씩 돌리면 같은 높이의 시점끼리 순환한다', () => {
-  const start = 'iso-r';
-  const next = rotateCubeView(start, 1);
-  assert.notEqual(next, start);
-  assert.equal(cubeView(next).pitch, cubeView(start).pitch);           // 높이(pitch)는 그대로
-  // 한 바퀴 돌면 제자리
-  let id = start;
-  const ring = CUBE_VIEWS.filter(v => Math.abs(v.pitch - cubeView(start).pitch) < 0.01 && v.pitch < 89).length;
-  for (let i = 0; i < ring; i++) id = rotateCubeView(id, 1);
-  assert.equal(id, start);
-  assert.equal(rotateCubeView(rotateCubeView(start, 1), -1), start);   // 되돌리기
+test('시점 — 좌우 화살표로 한 칸씩 돌면 제자리로 돌아오고, 평면도는 고리 밖', () => {
+  const ring = CUBE_VIEWS.filter(v => !v.plan);
+  let id = ring[0].id;
+  for (let i = 0; i < ring.length; i++) id = rotateCubeView(id, 1);
+  assert.equal(id, ring[0].id);
+  assert.equal(rotateCubeView(rotateCubeView('front', 1), -1), 'front');
+  // 평면도는 고리 밖 — 화살표를 누르면 가운데(정면) 옆 칸으로 들어온다(막히지 않게)
+  assert.equal(rotateCubeView('top', 1), 'corner-r');
+  assert.equal(rotateCubeView('top', -1), 'corner-l');
+});
+
+test('카메라 언어 — 5개 시점이 같은 눈높이·화각을 쓰고 원근(투시)이다', () => {
+  for (const v of CUBE_VIEWS.filter(x => !x.plan)) {
+    const cam = viewCamera(scene, v.id);
+    assert.equal(cam.ortho, false, `${v.id}: 투시여야 한다(아이소메트릭 금지)`);
+    assert.equal(cam.fovDeg, FOV_DEG, `${v.id}: 화각이 달라지면 안 된다`);
+    assert.ok(cam.pitch >= MIN_PITCH_DEG - 1e-9 && cam.pitch < 20, `${v.id}: 살짝 내려다보는 각도여야 한다(${cam.pitch})`);
+    assert.ok(cam.pos[1] > LOOK_MM, `${v.id}: 바라보는 높이보다 위에서 본다`);
+  }
+});
+
+test('카메라 — 방 밖에 서서 방 전체가 카메라 앞에 놓인다(벽이 잘리지 않게)', () => {
+  for (const v of CUBE_VIEWS.filter(x => !x.plan)) {
+    const cam = viewCamera(scene, v.id);
+    assert.ok(cam.pos[2] > scene.D, `${v.id}: 카메라가 방 안(z=${cam.pos[2]})`);
+    for (const p of fitAnchors(scene)) assert.ok(projectPoint(cam, p).ok, `${v.id}: 모서리가 카메라 뒤`);
+  }
+  assert.ok(viewDistanceMm(scene) >= scene.D * 1.4);
+});
+
+test('평면도 — 정사투영(도면)이라 원근이 없다', () => {
+  const cam = viewCamera(scene, 'top');
+  assert.equal(cam.ortho, true);
 });
 
 test('상자 — 면 6장이 나오고 각 면의 normal은 바깥을 향한다', () => {
@@ -211,7 +230,7 @@ test('상자 — 면 6장이 나오고 각 면의 normal은 바깥을 향한다'
     assert.ok(v[0] * q.normal[0] + v[1] * q.normal[1] + v[2] * q.normal[2] > 0);
   }
   // 상자 밖에서 보면 6면 중 최대 3면만 보인다
-  const cam = makeCamera({ target: center, yaw: 40, pitch: 30, distance: 5000, ortho: true });
+  const cam = makeCamera({ target: center, yaw: 40, pitch: 30, distance: 500000, ortho: true });
   assert.equal(b.filter(q => isFacing(cam, q)).length, 3);
 });
 
@@ -233,27 +252,8 @@ test('회전 — Y축 90° 회전이 좌표와 normal에 같이 적용된다', (
   assert.equal(rotateQuadsY(b, [0, 0, 0], 0), b);
 });
 
-test('큐브 뷰 — 회전 가능한 고리는 아이소(꼭짓점)와 낮은 시점 둘, 평면도는 고리 밖', () => {
-  const pitches = [...new Set(CUBE_VIEWS.filter(v => v.pitch < 89).map(v => v.pitch))];
-  assert.equal(pitches.length, 2, '높이는 아이소와 낮은 시점 두 종류');
-  for (const pitch of pitches) {
-    const ring = CUBE_VIEWS.filter(v => v.pitch === pitch);
-    assert.ok(ring.length >= 3, `${pitch}° 고리가 너무 작음`);
-    // 같은 고리 안에서만 순환한다
-    let id = ring[0].id;
-    for (let i = 0; i < ring.length; i++) {
-      id = rotateCubeView(id, 1);
-      assert.equal(cubeView(id).pitch, pitch);
-    }
-    assert.equal(id, ring[0].id, '한 바퀴 돌면 제자리');
-  }
-  // 평면도는 혼자이므로 회전해도 그대로
-  assert.equal(rotateCubeView('top', 1), 'top');
-});
-
 test('평면도(바로 위) 시점에서도 카메라 축이 무너지지 않는다', () => {
-  const v = cubeView('top');
-  const cam = makeCamera({ target: scene.target, yaw: v.yaw, pitch: v.pitch, distance: 100000, ortho: true });
+  const cam = viewCamera(scene, 'top');
   for (const axis of [cam.right, cam.up, cam.fwd]) {
     assert.ok(Math.abs(Math.hypot(...axis) - 1) < 1e-9, `축 길이 ${axis}`);
   }
@@ -267,10 +267,39 @@ test('평면도(바로 위) 시점에서도 카메라 축이 무너지지 않는
 });
 
 test('평면도 — 도면처럼 오른쪽이 +X, 위쪽이 LED 벽(z=0)이 된다(좌우 반전 없음)', () => {
-  const cam = makeCamera({ target: scene.target, yaw: 0, pitch: 90, distance: 100000, ortho: true });
+  const cam = viewCamera(scene, 'top');
   const o = projectPoint(cam, [0, 0, 0]);
   const px = projectPoint(cam, [scene.W, 0, 0]);       // +X 방향
   const pz = projectPoint(cam, [0, 0, scene.D]);       // +Z(방 안쪽) 방향
   assert.ok(px.x > o.x, '+X는 화면 오른쪽이어야 한다(좌우 반전 금지)');
   assert.ok(pz.y > o.y, '+Z(방 안쪽)는 화면 아래쪽 — 즉 LED 벽이 위에 온다');
+});
+
+test('원뿔대 — 위아래 지름이 달라도 옆면이 이어지고 좌표가 정상이다', () => {
+  const q = frustumQuads('t', { cx: 0, cz: 0, r0: 300, r1: 100, y0: 0, y1: 500, sides: 12 });
+  assert.ok(q.length >= 12);
+  for (const f of q) for (const p of f.pts) {
+    for (const v of p) assert.ok(Number.isFinite(v));
+    assert.ok(Math.hypot(p[0], p[2]) <= 300 + 1e-6);      // 가장 넓은 지름 안
+    assert.ok(p[1] >= -1e-9 && p[1] <= 500 + 1e-9);
+  }
+  // 위로 갈수록 좁아진다 — 윗면 점들이 아랫면보다 중심에 가깝다
+  const top = q.flatMap(f => f.pts).filter(p => Math.abs(p[1] - 500) < 1e-6);
+  const bot = q.flatMap(f => f.pts).filter(p => Math.abs(p[1]) < 1e-6);
+  const maxR = a => Math.max(...a.map(p => Math.hypot(p[0], p[2])));
+  assert.ok(maxR(top) < maxR(bot));
+  // 끝이 뾰족해도(r1=0) 깨지지 않는다
+  assert.ok(frustumQuads('t', { cx: 0, cz: 0, r0: 200, r1: 0, y0: 0, y1: 300, sides: 8 }).length > 0);
+});
+
+test('카메라 — 깊은 공간(강당)에서도 최소 각도로 내려다본다(좌석이 납작해지지 않게)', () => {
+  const hall = buildScene({ ...baseInput, spaceW: 18000, spaceH: 6000, spaceD: 24300 });
+  for (const v of CUBE_VIEWS.filter(x => !x.plan)) {
+    const cam = viewCamera(hall, v.id);
+    assert.ok(cam.pitch >= MIN_PITCH_DEG - 1e-9, `${v.id}: ${cam.pitch}`);
+    assert.ok(cam.pos[1] > 3000, `${v.id}: 깊은 방에서는 시점이 올라가야 한다 (${cam.pos[1]})`);
+  }
+  // 작은 회의실은 여전히 낮은 눈높이를 유지한다
+  const small = buildScene({ ...baseInput, spaceW: 8000, spaceH: 3000, spaceD: 6000 });
+  assert.ok(viewCamera(small, 'front').pos[1] < 3200);
 });

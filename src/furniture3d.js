@@ -9,17 +9,19 @@
 // kind 값은 render3d.js의 색 팔레트 키와 1:1로 맞춘다(예: chairSeat, tableTop).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { boxQuads, prismQuads, polyPrismQuads, rotateQuadsY } from './scene3d.js?v=351';
+import { boxQuads, prismQuads, polyPrismQuads, frustumQuads, rotateQuadsY } from './scene3d.js?v=352';
 
 // 가구 기준 치수(mm). 실제 사무가구 표준에 맞춘 값.
 export const SIZES = Object.freeze({
-  chair: { seatW: 480, seatD: 480, seatY: 420, seatH: 100, backH: 430, backD: 80, baseR: 290 },
-  seat: { w: 500, d: 460, seatY: 420, seatH: 80, backH: 520 },
+  // 의자는 '등받이 + 얇은 좌판' 정도로 단순화한다. 작은 정육면체가 반복되면
+  //   미니어처 모형처럼 보여 공간의 격이 떨어진다(디자인 지침 2026-09-16).
+  chair: { seatW: 470, seatD: 460, seatY: 430, seatH: 55, backH: 400, backD: 45, baseR: 195 },
+  seat: { w: 500, d: 450, seatY: 420, seatH: 50, backH: 480, backD: 45 },
   table: { topY: 720, topH: 55 },
   desk: { topY: 720, topH: 40 },
   console: { topY: 730, topH: 50, monW: 760, monH: 440 },
   podium: { w: 700, d: 500, h: 1080 },
-  plant: { potR: 190, potH: 360, leafH: 900 },
+  plant: { potR: 170, potH: 300, leafH: 520 },
   rug: { h: 14 },
 });
 
@@ -76,13 +78,15 @@ function buildOne(item) {
 function buildChair(item) {
   const S = SIZES.chair, { x, z } = item;
   const q = [
-    ...prismQuads('chairBase', { cx: x, cz: z, r: S.baseR, y0: 25, y1: 80, sides: 10 }),
-    ...boxQuads('chairBase', { x: x - 45, y: 80, z: z - 45, w: 90, h: S.seatY - 80, d: 90 }),
+    // 납작한 받침 + 가는 기둥 — 덩어리감을 줄인다.
+    ...prismQuads('chairBase', { cx: x, cz: z, r: S.baseR, y0: 20, y1: 55, sides: 10 }),
+    ...boxQuads('chairBase', { x: x - 34, y: 55, z: z - 34, w: 68, h: S.seatY - 55, d: 68 }),
+    // 얇은 좌판
     ...boxQuads('chairSeat', { x: x - S.seatW / 2, y: S.seatY, z: z - S.seatD / 2, w: S.seatW, h: S.seatH, d: S.seatD }),
-    // 등받이는 앉은 사람 뒤(+Z)
+    // 등받이는 앉은 사람 뒤(+Z). 좌판보다 살짝 좁게 세운다.
     ...boxQuads('chairBack', {
-      x: x - (S.seatW - 20) / 2, y: S.seatY + S.seatH + 20, z: z + S.seatD / 2 - S.backD,
-      w: S.seatW - 20, h: S.backH, d: S.backD,
+      x: x - (S.seatW - 60) / 2, y: S.seatY + S.seatH + 40, z: z + S.seatD / 2 - S.backD,
+      w: S.seatW - 60, h: S.backH, d: S.backD,
     }),
   ];
   return place(q, item);
@@ -92,10 +96,13 @@ function buildChair(item) {
 function buildAudienceSeat(item) {
   const S = SIZES.seat, { x, z } = item;
   const q = [
+    // 얇은 좌판 + 등받이. 다리는 가운데 하나로 모아 줄줄이 늘어설 때 시각적 잡음을 줄인다.
     ...boxQuads('seatFabric', { x: x - S.w / 2, y: S.seatY, z: z - S.d / 2, w: S.w, h: S.seatH, d: S.d }),
-    ...boxQuads('seatFabric', { x: x - S.w / 2, y: S.seatY + S.seatH, z: z + S.d / 2 - 70, w: S.w, h: S.backH, d: 70 }),
-    ...boxQuads('seatFrame', { x: x - S.w / 2 - 25, y: 0, z: z - S.d / 2, w: 50, h: S.seatY + S.seatH, d: S.d }),
-    ...boxQuads('seatFrame', { x: x + S.w / 2 - 25, y: 0, z: z - S.d / 2, w: 50, h: S.seatY + S.seatH, d: S.d }),
+    ...boxQuads('seatFabric', {
+      x: x - (S.w - 40) / 2, y: S.seatY + S.seatH, z: z + S.d / 2 - S.backD,
+      w: S.w - 40, h: S.backH, d: S.backD,
+    }),
+    ...boxQuads('seatFrame', { x: x - 45, y: 0, z: z - 45, w: 90, h: S.seatY, d: 90 }),
   ];
   return place(q, item);
 }
@@ -110,12 +117,11 @@ function buildTable(item) {
     q.push(...prismQuads('tableBase', { cx: x, cz: z, r: Math.min(w, d) * 0.17, y0: 60, y1: S.topY, sides: 12 }));
     q.push(...prismQuads('tableBase', { cx: x, cz: z, r: Math.min(w, d) * 0.3, y0: 20, y1: 60, sides: 12 }));
   } else {
-    // 상판을 받치는 검은 받침 2개(레퍼런스의 흰 상판 + 어두운 베이스)
-    const pw = Math.max(120, w * 0.06), pd = Math.max(200, d * 0.55);
-    for (const sx of [x - w * 0.27, x + w * 0.27 - pw]) {
-      q.push(...boxQuads('tableBase', { x: sx, y: 20, z: z - pd / 2, w: pw, h: S.topY - 20, d: pd }));
+    // 상판을 받치는 얇은 받침 2개. 가로대를 두면 옆에서 볼 때 하나의 회색 덩어리로 뭉친다.
+    const pw = Math.max(90, w * 0.035), pd = Math.max(160, d * 0.42);
+    for (const sx of [x - w * 0.28, x + w * 0.28 - pw]) {
+      q.push(...boxQuads('tableBase', { x: sx, y: 15, z: z - pd / 2, w: pw, h: S.topY - 15, d: pd }));
     }
-    q.push(...boxQuads('tableBase', { x: x - w * 0.27, y: S.topY - 180, z: z - 80, w: w * 0.54, h: 120, d: 160 }));
   }
   return place(q, item);
 }
@@ -186,8 +192,10 @@ function buildPodium(item) {
 
 // ── 무대(단상) ──────────────────────────────────────────────────────────────
 function buildStage(item) {
-  const h = item.h || 450, w = item.w || 6000, d = item.d || 2600;
-  return boxQuads('stage', { x: item.x - w / 2, y: 0, z: item.z - d / 2, w, h, d });
+  const h = item.h || 300, w = item.w || 6000, d = item.d || 2600;
+  // 윗면과 옆면 색을 나눠 낮고 얇은 단처럼 보이게 한다(덩어리로 보이지 않게).
+  return boxQuads('stage', { x: item.x - w / 2, y: 0, z: item.z - d / 2, w, h, d })
+    .map(q => ({ ...q, kind: q.normal[1] > 0.5 ? 'stage' : 'stageSide' }));
 }
 
 // ── 러그 ────────────────────────────────────────────────────────────────────
@@ -199,15 +207,20 @@ function buildRug(item) {
 // ── 화분(잎이 위로 뻗는 형태) ───────────────────────────────────────────────
 function buildPlant(item) {
   const S = SIZES.plant, { x, z } = item;
+  // 화분 + 둥글게 뭉친 잎. 가는 막대나 원기둥을 쌓으면 식물이 아니라 기계 부품처럼 보인다.
+  //   구(球)에 가까운 지름 곡선으로 얇게 여러 겹 쌓아 둥근 수형을 만든다.
   const q = [
-    ...prismQuads('plantPot', { cx: x, cz: z, r: S.potR * 0.82, y0: 0, y1: 40, sides: 12 }),
-    ...prismQuads('plantPot', { cx: x, cz: z, r: S.potR, y0: 40, y1: S.potH, sides: 12 }),
+    ...prismQuads('plantPot', { cx: x, cz: z, r: S.potR * 0.78, y0: 0, y1: 45, sides: 12 }),
+    ...prismQuads('plantPot', { cx: x, cz: z, r: S.potR, y0: 45, y1: S.potH, sides: 12 }),
   ];
-  const blades = [[0, 1], [38, 0.82], [76, 0.92], [120, 0.7], [158, 0.86]];
-  for (const [deg, k] of blades) {
-    const h = S.leafH * k;
-    const blade = boxQuads('plantLeaf', { x: x - 38, y: S.potH - 30, z: z - 8, w: 76, h, d: 16 });
-    q.push(...rotateQuadsY(blade, [x, 0, z], deg));
+  const profile = [0.42, 0.88, 1.12, 1.15, 0.98, 0.58, 0.12];   // 아래→위 지름 변화(둥근 수형)
+  const slice = S.leafH / (profile.length - 1);
+  for (let i = 0; i < profile.length - 1; i++) {
+    const y0 = S.potH - 40 + i * slice;
+    q.push(...frustumQuads('plantLeaf', {
+      cx: x, cz: z, r0: S.potR * 1.15 * profile[i], r1: S.potR * 1.15 * profile[i + 1],
+      y0, y1: y0 + slice, sides: 14,
+    }));
   }
   return place(q, item);
 }

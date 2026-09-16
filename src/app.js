@@ -9,9 +9,9 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=351';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=351';
-import { createViewer3d, buildModel } from './render3d.js?v=351';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=352';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=352';
+import { createViewer3d, buildModel } from './render3d.js?v=352';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -261,7 +261,7 @@ let pvView = '2d';
 let roomTypeId = DEFAULT_ROOM_TYPE;
 let roomOpts = defaultOptions(DEFAULT_ROOM_TYPE);
 let cubeViewId = DEFAULT_CUBE_VIEW;
-const pv3dShow = { person: true, dims: true, grid: false, accentWall: true };
+const pv3dShow = { person: true, dims: true, grid: true, accentWall: true };
 let viewer3d = null;   // createViewer3d() 인스턴스(3D 뷰를 처음 열 때 만든다)
 // 사람(스케일 기준 인물): 실사 사진(연예인, 실제 키) + 의상형 실루엣(남/여, 회색 PNG).
 //   hMM=키(mm, 실제 인물 키). 모두 photo=내장 이미지(img/people/<file>). 커스텀 업로드 시 그 항목만 대체(세션 한정).
@@ -820,12 +820,17 @@ function renderPreview3D() {
     ? { x: spot.x, z: spot.z, heightMm: who.hMM, img: person3dImage() }
     : null;
 
+  // 정보 카드 — 작고 정돈된 형태(제목 + 보조 줄들).
   const unit = svMode ? '장' : '캐비닛';
-  const caption = [
-    t.name,
-    `${r.cols} × ${r.rows} = ${r.total} ${unit} · ${fmt(r.actualW / 1000, 2)} × ${fmt(r.actualH / 1000, 2)} m`,
-    `${fmt(r.resW)} × ${fmt(r.resH)} px · ${roomType(roomTypeId).label} · 공간 ${fmt(sW / 1000, 1)} × ${fmt(sH / 1000, 1)} × ${fmt(D / 1000, 1)} m`,
-  ];
+  const caption = {
+    title: t.name,
+    lines: [
+      `${r.cols} × ${r.rows} · ${fmt(r.total)} ${unit}`,
+      `${fmt(r.actualW / 1000, 2)} × ${fmt(r.actualH / 1000, 2)} m`,
+      `${fmt(r.resW)} × ${fmt(r.resH)} px`,
+      `${roomType(roomTypeId).label} · ${fmt(sW / 1000, 1)} × ${fmt(sH / 1000, 1)} × ${fmt(D / 1000, 1)} m`,
+    ],
+  };
 
   if (!viewer3d) viewer3d = createViewer3d(canvas, { onChange: syncCubeView });
   // 시점이 실제로 바뀐 때만 적용한다 — 매번 부르면 확대·이동이 초기화된다.
@@ -952,13 +957,18 @@ $('#btn3dReset')?.addEventListener('click', () => viewer3d?.resetView());
 $('#btn3dPng')?.addEventListener('click', () => {
   const url = viewer3d?.toPNG(3);   // 제안서·인쇄용 3배 해상도
   if (!url) { alert('먼저 3D 뷰를 표시한 뒤 저장하세요.'); return; }
-  // 파일 이름이 적용되려면 링크가 화면(DOM)에 잠깐 붙어 있어야 한다 — 누른 뒤 바로 지운다.
+  // 큰 PNG는 data URL 대신 Blob으로 내보낸다 — 파일 이름이 확실히 적용되고 메모리도 덜 쓴다.
+  const bin = atob(url.slice(url.indexOf(',') + 1));
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const blobUrl = URL.createObjectURL(new Blob([buf], { type: 'image/png' }));
   const a = document.createElement('a');
   const name = ($('#pvModelName')?.textContent || 'LED').trim().replace(/[^\w가-힣.-]+/g, '_');
-  a.href = url; a.download = `3D_${name}_${roomType(roomTypeId).label}.png`;
+  a.href = blobUrl; a.download = `3D_${name}_${roomType(roomTypeId).label}.png`;
   document.body.appendChild(a);
   a.click();
   a.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 });
 
 // 하단 높이(바닥에서 LED 아래까지)를 입력하면 세로 구성(바닥 여백·LED 세로·위 남는 높이)을 표시.
