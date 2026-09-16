@@ -18,16 +18,16 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=378';
-import { createMaterialLibrary } from './materials-gl.js?v=378';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=379';
+import { createMaterialLibrary } from './materials-gl.js?v=379';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
-  BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling,
-} from './gl-model.js?v=378';
+  BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize,
+} from './gl-model.js?v=379';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -65,6 +65,7 @@ export const GL_PALETTE = Object.freeze({
 // 포인트 벽은 벽 색 위에 '낮은 농도로' 얹는다. 원색 그대로 칠하면 면적이 넓어
 //   LED보다 포인트 벽에 시선이 먼저 간다(기존 3D 뷰와 같은 규칙).
 export const ACCENT_ALPHA = 0.5;
+
 
 // 바닥 격자 간격(mm) — 기존 3D 뷰와 같은 2단계.
 export const GRID_MINOR_MM = 600;
@@ -370,6 +371,20 @@ function buildRoomGroup(model, shared) {
   //    (3D 문자를 만들면 각도마다 읽기 어렵고 무거워진다)
   if (model.show?.dims !== false) g.add(buildDimLines(model));
 
+  // ── 그림자 역할 ────────────────────────────────────────────────────────
+  //   **가구를 모두 넣은 뒤에** 한 번에 지정한다(먼저 지정하면 나중에 들어온 가구가 빠진다).
+  //   **벽과 천장은 그림자를 만들지 않는다.** 방을 둘러싼 면이라 어떤 방향의 빛에서도
+  //   실내 바닥에 거대한 그늘을 드리우게 되는데, 실제 방은 조명이 천장 안쪽에 있어 그렇지 않다.
+  //   대신 걸레받이가 바닥에 얇은 그림자를 남겨 '벽이 바닥에 닿은 선'을 만든다.
+  //   가구·무대·LED 상자는 바닥에 접촉 그림자를 만들고, 바닥·벽은 그림자를 받는다.
+  const NO_CAST = new Set(['ceiling', 'floorGrid', 'floor', 'wallFront', 'wallBack', 'wallLeft', 'wallRight']);
+  const NO_RECEIVE = new Set(['ceiling', 'floorGrid']);
+  g.traverse(o => {
+    if (!o.isMesh && !o.isInstancedMesh) return;
+    o.castShadow = !NO_CAST.has(o.name);
+    o.receiveShadow = !NO_RECEIVE.has(o.name);
+  });
+
   return g;
 }
 
@@ -487,6 +502,12 @@ export function createViewerGL(canvas, { onError } = {}) {
   }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // 그림자 — 부드러운 방식(PCFSoft)만 쓴다. 장면이 움직이지 않으므로 **매 프레임 다시 굽지 않는다**:
+  //   모델이 바뀔 때만 한 번 갱신하면 되고, 그래서 지속 비용이 사실상 0이다.
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(GL_PALETTE.bg);
@@ -503,14 +524,36 @@ export function createViewerGL(canvas, { onError } = {}) {
   //   hemi : 위는 밝은 회색, 아래는 바닥색 — 전체를 부드럽게 채운다.
   //   key  : 앞 위쪽에서 오는 주광 — 벽·무대에 방향감을 준다.
   //   fill : 반대쪽에서 아주 약하게 — 그늘진 면이 새까매지지 않게.
-  const hemi = new THREE.HemisphereLight(0xffffff, 0xc7cdd6, 2.1);
+  // ① 부드러운 환경광 — 하늘(위)과 바닥(아래)에서 오는 은은한 빛. 방의 기본 밝기.
+  const hemi = new THREE.HemisphereLight(0xffffff, 0xc9cfd8, LIGHTS.hemi);
+  hemi.name = 'hemiLight';
   scene.add(hemi);
-  const key = new THREE.DirectionalLight(0xffffff, 1.5);
+  // ② 천장 조명 — 실제 사무실 천장등처럼 위에서 고르게 내려오는 빛.
+  //   RectAreaLight가 정석이지만 그 계산에 필요한 데이터 파일(LTC)을 동봉할 수 없어
+  //   (사내망에서 외부 CDN이 막힘 + 빌드리스 유지), 바로 아래를 비추는 방향광으로 대신한다.
+  //   그림자는 만들지 않는다 — 천장등 그림자는 원래 거의 보이지 않는다.
+  const ceilLight = new THREE.DirectionalLight(0xffffff, LIGHTS.ceiling);
+  ceilLight.name = 'ceilingLight';
+  scene.add(ceilLight);
+  // ③ 주광 — **그림자를 만드는 유일한 조명**. 앞 위쪽에서 비스듬히 들어온다.
+  const key = new THREE.DirectionalLight(0xffffff, LIGHTS.key);
   key.name = 'keyLight';
+  key.castShadow = true;
+  const shadowPx = shadowMapSize(typeof window !== 'undefined' ? window.devicePixelRatio : 1);
+  key.shadow.mapSize.set(shadowPx, shadowPx);
+  key.shadow.radius = 4;            // PCFSoft 흐림 — 가장자리를 뭉갠다
+  key.shadow.bias = -0.0006;        // 면 자기 그림자(얼룩) 방지
+  key.shadow.normalBias = 0.02;
   scene.add(key);
-  const fill = new THREE.DirectionalLight(0xffffff, 0.45);
+  // ④ 보조광 — 반대쪽에서 아주 약하게. 그림자 속이 새까매지지 않게 받쳐 준다.
+  const fill = new THREE.DirectionalLight(0xffffff, LIGHTS.fill);
   fill.name = 'fillLight';
   scene.add(fill);
+  // ⑤ LED 스필광 — 화면 앞에 놓인 아주 약한 푸른 점광. 벽에 옅게 번진다.
+  //   네온처럼 빛나면 안 되므로 세기를 낮추고 거리를 짧게 잡는다.
+  const ledSpill = new THREE.PointLight(new THREE.Color(GL_PALETTE.ledGlow), LIGHTS.ledSpill, 0, 2);
+  ledSpill.name = 'ledSpill';
+  scene.add(ledSpill);
 
   // ── 시점 조작(OrbitControls) ──
   // 프리셋으로 자리를 잡고, 사용자는 거기서 자유롭게 돌려 볼 수 있다.
@@ -780,6 +823,19 @@ export function createViewerGL(canvas, { onError } = {}) {
     fill.position.set(room.W * 1.3, room.H * 1.2, room.D * 0.2);
     fill.target.position.set(room.W / 2, room.H * 0.4, 0);
     scene.add(fill.target);
+    // 천장등 — 방 한가운데 천장에서 바로 아래를 비춘다.
+    ceilLight.position.set(room.W / 2, room.H * 1.6, room.D / 2);
+    ceilLight.target.position.set(room.W / 2, 0, room.D / 2);
+    scene.add(ceilLight.target);
+
+    // 그림자 계산 범위를 **방 크기에 딱 맞춘다**. 기본값은 범위가 너무 넓어
+    //   같은 해상도를 넓은 면적에 나눠 쓰게 되고, 그림자가 계단처럼 뭉개진다.
+    const half = Math.max(room.W, room.D) * 0.75 + room.H;
+    const sc = key.shadow.camera;
+    sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half;
+    sc.near = 0.5; sc.far = half * 4 + room.H * 3;
+    sc.updateProjectionMatrix();
+    renderer.shadowMap.needsUpdate = true;   // 방이 바뀌었으니 한 번 다시 굽는다
   }
 
   /**
@@ -944,6 +1000,15 @@ export function createViewerGL(canvas, { onError } = {}) {
       group = buildRoomGroup(model, shared);
       scene.add(group);
       fitSceneBasics(model.room);
+      // LED 스필광은 화면 한가운데 앞 0.6m에 둔다 — 벽에 옅게 번지기만 하면 된다.
+      ledSpill.position.set(
+        model.led.x + model.led.w / 2,
+        model.led.y + model.led.h / 2,
+        model.led.depth + 0.6,
+      );
+      ledSpill.distance = Math.max(3, Math.min(9, model.led.w * 1.6));
+      // 장면이 새로 지어졌으니 그림자를 한 번만 다시 굽는다(매 프레임이 아니다).
+      renderer.shadowMap.needsUpdate = true;
       // 방이나 LED가 달라졌으면 카메라를 다시 앉힌다(같으면 보던 시점을 지킨다).
       if (first || !sameRoom) applyPreset(presetId, { animate: !first });
       needsRender = true;
