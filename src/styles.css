@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v371) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v374) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
@@ -975,12 +975,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .stage3d{position:relative;display:flex;gap:10px;width:100%;
   border-radius:var(--r-inner);overflow:hidden;align-items:stretch}
 
-/* 3D 뷰가 열려 있는 동안에는 03 카드가 페이지 폭을 다 쓰도록 한 열로 편다.
-   패널(250px)을 빼고 남는 폭이 전부 캔버스가 된다. 정면 뷰로 돌아가면 원래 2열로.
-   (1200px 이하에서는 원래부터 한 열이라 달라지는 게 없다) */
-body.pv3dOpen .cols{grid-template-columns:1fr}
-
-.pv3dInspector{flex:0 0 250px;max-width:250px;display:flex;flex-direction:column;gap:2px;
+.pv3dInspector{flex:0 0 224px;max-width:224px;display:flex;flex-direction:column;gap:2px;
   padding:12px;overflow-y:auto;
   background:var(--panel-solid);border:1px solid var(--line);border-radius:var(--r-inner);
   box-shadow:0 1px 3px rgba(30,40,55,.05)}
@@ -995,6 +990,13 @@ body.pv3dOpen .cols{grid-template-columns:1fr}
 .pv3dRow .pv3dField input[type=number]{flex:0 0 78px;width:78px;text-align:right}
 /* 토글은 패널에서 한 줄씩 — 가로로 흐르지 않게 */
 .pv3dInspector .pvTog{width:100%;justify-content:flex-start}
+/* 벽면 4면 켜고 끄기 — 한 줄에 앞·뒤·좌·우 */
+.pv3dWalls{display:flex;align-items:center;gap:4px;width:100%}
+.pv3dWallsLab{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--ink-2);margin-right:2px}
+.pv3dInspector .pv3dWallBtn{flex:1 1 0;min-width:0;justify-content:center;padding:6px 0;gap:0}
+.pv3dInspector .pv3dWallBtn .dot{display:none}
+.pv3dWallBtn.on{background:rgba(47,127,246,.12);color:var(--accent,#1250E0);border-color:rgba(47,127,246,.35)}
+
 /* 공간 크기 W × H × D */
 .pv3dSize{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .pv3dSize label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted);font-weight:600}
@@ -1039,6 +1041,10 @@ body.pv3dOpen .cols{grid-template-columns:1fr}
   box-shadow:0 4px 14px -4px var(--accent)}
 .pv3dTools .tiny.primary:hover{background:var(--accent-2)}
 .pv3dTools .tiny[hidden]{display:none}
+
+/* 전체화면(Fullscreen) 팝업 안에서는 3D 캔버스도 화면 높이를 쓴다. */
+#pvZoom .stage3d{height:100%}
+#pvZoom #cv3d{height:min(76vh,860px)}
 
 /* 미니맵 — 지금 어디서 보고 있는지. 캔버스 오른쪽 아래에 작게. */
 .pv3dMini{position:absolute;right:12px;bottom:12px;width:112px;height:112px;z-index:2;

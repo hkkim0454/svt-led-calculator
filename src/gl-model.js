@@ -76,6 +76,14 @@ export function buildGLModel({ space, led, items, show, person }) {
       dims: show?.dims !== false,
       grid: show?.grid !== false,
       accentWall: show?.accentWall !== false,
+      // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 벽 2면만 —
+      //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
+      walls: {
+        front: show?.walls?.front !== false,
+        back: !!show?.walls?.back,
+        left: show?.walls?.left !== false,
+        right: !!show?.walls?.right,
+      },
     },
     // 배치 목록은 mm 그대로 들고 간다 — 가구를 세우는 쪽(furniture-gl.js)에서 환산한다.
     //   여기서 미리 바꾸면 room-presets 결과와 대조하기 어려워진다.
@@ -133,6 +141,42 @@ export function stepPreset(id, step) {
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const DEG = Math.PI / 180;
+
+// 평면도를 얼마나 눕힐지(°). 90 = 완전히 수직(납작함), 작을수록 입체감이 커진다.
+//   58°면 바닥 배치가 도면처럼 읽히면서 좌석 등받이·무대·단차 높이가 함께 보인다.
+//   더 세우면(70° 이상) 좌석이 납작한 띠로 뭉쳐 안 읽힌다.
+export const TOP_PITCH_DEG = 58;
+
+/**
+ * 정사투영 카메라가 방 전체를 담으려면 세로로 몇 m를 봐야 하는지.
+ *   방의 여덟 모서리를 카메라의 화면 축(오른쪽·위)에 투영해 실제 차지하는 범위를 잰다
+ *   — 기울어진 시점에서도 잘리지 않는다.
+ */
+export function orthoFitHeight(room, yawDeg, pitchDeg, aspect = 16 / 9, pad = 1.1, target = null) {
+  const a = Math.max(0.3, aspect);
+  const y = yawDeg * DEG, p = pitchDeg * DEG;
+  // 카메라 → 바라보는 점 방향
+  const fwd = [-Math.cos(p) * Math.sin(y), -Math.sin(p), -Math.cos(p) * Math.cos(y)];
+  // 화면 오른쪽 = fwd × 위(0,1,0), 화면 위 = 오른쪽 × fwd
+  const right = [-fwd[2], 0, fwd[0]];
+  const rl = Math.hypot(right[0], right[2]) || 1;
+  right[0] /= rl; right[2] /= rl;
+  const up = [
+    right[1] * fwd[2] - right[2] * fwd[1],
+    right[2] * fwd[0] - right[0] * fwd[2],
+    right[0] * fwd[1] - right[1] * fwd[0],
+  ];
+  let maxR = 0, maxU = 0;
+  // **카메라가 실제로 바라보는 점**을 기준으로 재야 한다 — 방 중심으로 재면
+  //   바라보는 점이 다를 때 그 차이만큼 화면이 한쪽으로 치우쳐 잘린다.
+  const [cx, cy, cz] = target || [room.W / 2, room.H / 2, room.D / 2];
+  for (const x of [0, room.W]) for (const yy of [0, room.H]) for (const z of [0, room.D]) {
+    const d = [x - cx, yy - cy, z - cz];
+    maxR = Math.max(maxR, Math.abs(d[0] * right[0] + d[1] * right[1] + d[2] * right[2]));
+    maxU = Math.max(maxU, Math.abs(d[0] * up[0] + d[1] * up[1] + d[2] * up[2]));
+  }
+  return Math.max(2 * maxU, (2 * maxR) / a) * pad;
+}
 
 // 화각(세로)과 화면비로 가로 화각을 구한다. 세로로 긴 화면에서는 가로가 더 빡빡해진다.
 function hFovOf(fovDeg, aspect) {
@@ -193,17 +237,24 @@ export function presetPose(id, model, aspect = 16 / 9) {
   const a = Math.max(0.3, aspect);
   const cx = led.x + led.w / 2;               // LED 가로 중심
 
-  // ── 평면도 — 위에서 수직으로 내려다본다(정사투영) ──
+  // ── 평면도 — 위에서 내려다본 배치도. 다만 **수직은 아니다** ──
+  //   완전히 수직으로 보면 벽·좌석·무대가 납작한 색면이 되어 높이 관계가 안 읽힌다.
+  //   조금 눕혀(TOP_PITCH_DEG) 입체가 보이게 하되, 원근이 없는 정사투영이라
+  //   도면처럼 좌우 폭을 그대로 비교할 수 있다. 화면 위쪽은 여전히 LED 벽이다.
   if (p.id === 'top') {
-    // 바로 위에서 보면 '위쪽'이 정해지지 않는다. -Z를 위로 두면 도면처럼
-    //   '오른쪽 = +X, 화면 위 = LED 벽'이 된다(+Z를 쓰면 좌우가 뒤집힌다).
-    const height = Math.max(room.D, room.W / a) * 1.08;
+    const pitch = TOP_PITCH_DEG * DEG;
+    // 방 한가운데를 본다 — 그래야 담을 범위 계산과 화면 중심이 정확히 맞는다.
+    const target = [room.W / 2, room.H / 2, room.D / 2];
+    const dist = Math.max(room.W, room.D, room.H) * 4;   // 정사투영이라 거리는 크기에 영향 없음
     return {
       id: p.id, ortho: true,
-      position: [room.W / 2, Math.max(room.H * 3, 10), room.D / 2],
-      target: [room.W / 2, 0, room.D / 2],
-      up: [0, 0, -1],
-      fov: null, orthoHeight: height,
+      position: [
+        target[0],
+        target[1] + dist * Math.sin(pitch),
+        target[2] + dist * Math.cos(pitch),
+      ],
+      target, up: [0, 1, 0],
+      fov: null, orthoHeight: orthoFitHeight(room, 0, TOP_PITCH_DEG, a, 1.1, target),
     };
   }
 

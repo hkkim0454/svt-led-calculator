@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   MM_PER_UNIT, u, toMm, buildGLModel, viewDistance,
   FOV_DEG, EYE_MM, LOOK_MM, START_YAW_DEG, LED_FIT,
+  TOP_PITCH_DEG, orthoFitHeight,
 } from '../src/gl-model.js';
 import { computeConfig } from '../src/engine.js';
 import { MODELS } from '../src/models.js';
@@ -284,19 +285,39 @@ test('iso — 방 전체가 보이도록 방 밖 높은 곳에 선다(과도한 
   assert.ok(pitchDeg > 20 && pitchDeg < 45, `내려다보는 각도 ${pitchDeg.toFixed(1)}° — 20~45° 밖`);
 });
 
-test('top — 정사투영으로 방 바로 위에서, 방 전체가 화면에 들어온다', () => {
+test('top — 정사투영 배치도. 수직이 아니라 살짝 눕혀 입체가 보인다', () => {
   const { room } = room10;
   for (const aspect of [0.6, 1, 16 / 9, 2.4]) {
     const p = presetPose('top', room10, aspect);
-    assert.equal(p.ortho, true);
+    assert.equal(p.ortho, true, '도면이므로 원근이 없어야 한다');
+    // 가로 중심은 방 한가운데 — 좌우가 기울지 않는다
     assert.ok(Math.abs(p.position[0] - room.W / 2) < 1e-6);
-    assert.ok(Math.abs(p.position[2] - room.D / 2) < 1e-6);
-    assert.ok(p.position[1] > room.H, '천장보다 위에서');
-    // 바로 위에서 볼 때 '화면 위'는 LED 벽(-Z) — 도면 방향을 고정한다
-    assert.deepEqual(p.up, [0, 0, -1]);
-    // 방이 화면 안에 다 들어오는가
-    assert.ok(p.orthoHeight >= room.D, `깊이 ${room.D} 가 화면 세로 ${p.orthoHeight} 를 넘는다`);
-    assert.ok(p.orthoHeight * aspect >= room.W - 1e-9, `가로 ${room.W} 가 화면 가로를 넘는다`);
+    assert.ok(p.position[1] > room.H, '천장보다 위에서 내려다본다');
+    // 완전히 수직이면 납작해서 높이가 안 읽힌다. 너무 누우면 배치도가 아니다.
+    const dy = p.position[1] - p.target[1];
+    const flat = Math.hypot(p.position[0] - p.target[0], p.position[2] - p.target[2]);
+    const pitch = Math.atan2(dy, flat) * 180 / Math.PI;
+    assert.ok(pitch > 55 && pitch < 85, `내려다보는 각도 ${pitch.toFixed(1)}° — 55~85° 밖`);
+    // 카메라는 관찰자 쪽(+Z)에 서므로 화면 위쪽이 LED 벽이 된다
+    assert.ok(p.position[2] > p.target[2], 'LED 벽이 화면 위쪽에 오려면 카메라가 +Z 쪽');
+    assert.deepEqual(p.up, [0, 1, 0]);
+  }
+});
+
+test('top — 기울여도 방 전체가 화면 안에 들어온다', () => {
+  // 방을 감싸는 8모서리를 카메라 화면 축에 투영해 잰 값이라 어떤 방 모양에서도 안 잘린다.
+  for (const [W, H, D] of [[10, 3.5, 10], [4, 2.6, 4], [30, 6, 40], [39.8, 6.35, 12]]) {
+    const m = buildGLModel({
+      space: { W: W * 1000, H: H * 1000, D: D * 1000 },
+      led: { w: 3840, h: 2160, marginW: 100, mount: 1000, cols: 4, rows: 4, depth: 80 },
+      items: [],
+    });
+    for (const aspect of [0.6, 1, 16 / 9, 2.4]) {
+      const p = presetPose('top', m, aspect);
+      const need = orthoFitHeight(m.room, 0, TOP_PITCH_DEG, aspect, 1);   // 여유 없이 딱 필요한 크기
+      assert.ok(p.orthoHeight >= need - 1e-9,
+        `${W}×${H}×${D}m @${aspect}: 화면 ${p.orthoHeight.toFixed(2)} < 필요 ${need.toFixed(2)}`);
+    }
   }
 });
 
@@ -321,4 +342,34 @@ test('프리셋 — 아주 작은 방·아주 깊은 강당에서도 카메라�
     const top = presetPose('top', m, 16 / 9);
     assert.ok(top.orthoHeight >= m.room.D, `${c.W}mm top: 방이 다 안 들어온다`);
   }
+});
+
+// ── 벽 4면 표시 (오너 요청 2026-09-16) ──────────────────────────────────────
+
+test('벽면 — 기본은 LED 벽 + 왼쪽 2면만 켜진다', () => {
+  const m = buildGLModel({
+    space: { W: 10000, H: 3500, D: 10000 },
+    led: { w: 3840, h: 2160, marginW: 3080, mount: 1000, cols: 4, rows: 4, depth: 79.5 },
+    items: [],
+  });
+  // 카메라 쪽 벽이 없어야 방 안이 들여다보인다
+  assert.deepEqual(m.show.walls, { front: true, back: false, left: true, right: false });
+});
+
+test('벽면 — 4면을 각각 켜고 끌 수 있다', () => {
+  const make = walls => buildGLModel({
+    space: { W: 10000, H: 3500, D: 10000 },
+    led: { w: 3840, h: 2160, marginW: 3080, mount: 1000, cols: 4, rows: 4, depth: 79.5 },
+    items: [], show: { walls },
+  }).show.walls;
+  assert.deepEqual(make({ front: false, back: true, left: false, right: true }),
+    { front: false, back: true, left: false, right: true });
+  assert.deepEqual(make({ front: true, back: true, left: true, right: true }),
+    { front: true, back: true, left: true, right: true });
+  assert.deepEqual(make({ front: false, back: false, left: false, right: false }),
+    { front: false, back: false, left: false, right: false });
+  // 일부만 지정하면 나머지는 기본값
+  assert.deepEqual(make({ right: true }), { front: true, back: false, left: true, right: true });
+  // show 자체가 없어도 안전하다
+  assert.deepEqual(make(undefined), { front: true, back: false, left: true, right: false });
 });
