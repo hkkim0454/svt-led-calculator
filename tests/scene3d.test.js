@@ -8,7 +8,7 @@ import {
   buildScene, cabinetQuads, floorGridLines, isFacing, cullAndSort,
   fitTransform, toScreen, fitAnchors, NEAR_MM,
   CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView, rotateCubeView,
-  viewCamera, viewDistanceMm, EYE_MM, LOOK_MM, FOV_DEG, MIN_PITCH_DEG,
+  viewCamera, viewDistanceMm, EYE_MM, LOOK_MM, FOV_DEG, MIN_PITCH_DEG, focusGain, FRAMING_STEPS,
   boxQuads, prismQuads, frustumQuads, rotateQuadsY, roomShellQuads, visibleWallSides,
 } from '../src/scene3d.js';
 
@@ -302,4 +302,75 @@ test('카메라 — 깊은 공간(강당)에서도 최소 각도로 내려다본
   // 작은 회의실은 여전히 낮은 눈높이를 유지한다
   const small = buildScene({ ...baseInput, spaceW: 8000, spaceH: 3000, spaceD: 6000 });
   assert.ok(viewCamera(small, 'front').pos[1] < 3200);
+});
+
+
+// ── 2026-09-16 미세 보정 ────────────────────────────────────────────────────
+
+test('카메라 — 10 m 깊이 공간에서 눈높이가 사람 시점(2.3~2.6 m)에 머문다', () => {
+  const room = buildScene({ ...baseInput, spaceW: 10000, spaceH: 3500, spaceD: 10000 });
+  for (const v of CUBE_VIEWS.filter(x => !x.plan)) {
+    const h = viewCamera(room, v.id).pos[1];
+    assert.ok(h >= 2300 && h <= 2600, `${v.id}: 카메라 높이 ${h}mm — 2.3~2.6 m 밖`);
+  }
+  // 평면도는 도면이므로 이 규칙과 무관하다(정사투영·수직 내려다보기 그대로).
+  const plan = viewCamera(room, 'top');
+  assert.equal(plan.ortho, true);
+  assert.equal(plan.pitch, 90);
+});
+
+test('focusGain — LED를 자르지 않는 선에서 화면을 10% 이상 당겨 들어간다', () => {
+  const room = buildScene({ ...baseInput, spaceW: 10000, spaceH: 3500, spaceD: 10000 });
+  const { led } = room;
+  const ledPts = [
+    [led.x, led.y, led.z], [led.x + led.w, led.y, led.z],
+    [led.x, led.y + led.h, led.z], [led.x + led.w, led.y + led.h, led.z],
+  ];
+  const box = { width: 1200, height: 640, pad: 34 };
+  for (const v of CUBE_VIEWS.filter(x => !x.plan)) {
+    const cam = viewCamera(room, v.id);
+    const A = fitAnchors(room).map(p => projectPoint(cam, p));
+    const L = ledPts.map(p => projectPoint(cam, p));
+    const g = focusGain(A, L, box);
+    assert.ok(g >= 1.10, `${v.id}: 확대 배율이 ${g}밖에 안 된다`);
+    // 확대한 뒤에도 LED 네 모서리가 화면 안에 남아야 한다
+    const t = fitTransform(A, { ...box, zoom: g });
+    const w0 = ledWidthPx(fitTransform(A, { ...box, zoom: 1 }), L);
+    const w1 = ledWidthPx(t, L);
+    assert.ok(w1 / w0 >= 1.10 && w1 / w0 <= 1.15, `${v.id}: LED 확대율 ${(w1 / w0).toFixed(3)}`);
+    for (const p of L) {
+      const s = toScreen(t, p);
+      assert.ok(s.x >= 0 && s.x <= box.width && s.y >= 0 && s.y <= box.height, `${v.id}: LED가 잘렸다`);
+    }
+  }
+});
+
+function ledWidthPx(t, L) {
+  const xs = L.map(p => toScreen(t, p).x);
+  return Math.max(...xs) - Math.min(...xs);
+}
+
+test('focusGain — LED가 커서 잘릴 상황이면 배율을 단계적으로 낮춘다', () => {
+  // 벽을 거의 다 채우는 LED + 깊고 넓은 공간 → 최대 배율로는 모서리가 화면 밖으로 나간다
+  const room = buildScene({
+    spaceW: 12000, spaceH: 4000, spaceD: 12000,
+    ledW: 11800, ledH: 3700, marginW: 100, mountMm: 150, cols: 6, rows: 4, cabDepth: 50,
+  });
+  const { led } = room;
+  const ledPts = [
+    [led.x, led.y, led.z], [led.x + led.w, led.y, led.z],
+    [led.x, led.y + led.h, led.z], [led.x + led.w, led.y + led.h, led.z],
+  ];
+  const box = { width: 900, height: 520, pad: 34 };
+  const cam = viewCamera(room, 'side-r');
+  const A = fitAnchors(room).map(p => projectPoint(cam, p));
+  const L = ledPts.map(p => projectPoint(cam, p));
+  const g = focusGain(A, L, box);
+  assert.ok(FRAMING_STEPS.includes(g), `배율은 정해진 단계 중 하나여야 한다 (${g})`);
+  assert.ok(g < FRAMING_STEPS[0], `잘릴 상황인데 최대 배율(${g})을 그대로 썼다`);
+  const t = fitTransform(A, { ...box, zoom: g });
+  for (const p of L) {
+    const s = toScreen(t, p);
+    assert.ok(s.x >= 0 && s.x <= box.width && s.y >= 0 && s.y <= box.height, 'LED가 잘렸다');
+  }
 });
