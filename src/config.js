@@ -13,6 +13,9 @@ export const CONFIG_VERSION = 1;
 export const CONFIG_DEFAULTS = Object.freeze({
   spaceW: 8000,
   spaceH: 3400,
+  spaceD: 0,             // 공간 깊이(mm). 0 = 비움(공간 타입별 자동) — 3D 뷰 전용
+  roomType: 'meeting',   // 3D 뷰 공간 타입(회의실·강의실·강당·상황실)
+  roomOpts: null,        // 그 타입의 옵션(테이블 모양·좌석 수 등). null = 타입 기본값
   baseHeight: 1000,      // 바닥에서 LED 아래까지(mm)
   ledW: 4000,            // 'LED 크기 지정' 모드의 LED 가로(mm)
   ledH: 2300,            // 'LED 크기 지정' 모드의 LED 세로(mm)
@@ -60,6 +63,11 @@ export function normalizeConfig(raw) {
   return {
     spaceW: asNum(r.spaceW, D.spaceW),
     spaceH: asNum(r.spaceH, D.spaceH),
+    spaceD: asNum(r.spaceD, D.spaceD),
+    roomType: asStr(r.roomType, D.roomType),
+    // 옵션은 타입마다 항목이 달라 여기서는 '객체면 그대로' 두고, 화면에서 타입 스키마로 정리한다
+    //   (room-presets.js의 normalizeOptions). 이 파일이 가구 규칙을 알 필요는 없다.
+    roomOpts: (r.roomOpts && typeof r.roomOpts === 'object' && !Array.isArray(r.roomOpts)) ? { ...r.roomOpts } : D.roomOpts,
     baseHeight: asNum(r.baseHeight, D.baseHeight),
     ledW: asNum(r.ledW, D.ledW),
     ledH: asNum(r.ledH, D.ledH),

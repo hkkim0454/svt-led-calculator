@@ -8,6 +8,10 @@ import { normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImpor
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
+// 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=348';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom } from './room-presets.js?v=348';
+import { createViewer3d, buildModel } from './render3d.js?v=348';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -95,6 +99,8 @@ const num = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
 //   (반대로 화면에 되쓸 때는 c.spaceW/1000 — applyConfig 참조.)
 const spaceWmm = () => num($('#spaceW').value) * 1000;
 const spaceHmm = () => num($('#spaceH').value) * 1000;
+// 공간 깊이(앞뒤)는 3D 뷰에서만 쓴다. 비워두면 0 → 공간 타입별 자동값(autoDepthForType).
+const spaceDmm = () => num($('#spaceD')?.value) * 1000;
 const fmt = (n, d = 0) => (isFinite(n) && n != null) ? n.toLocaleString('ko-KR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—';
 // 피치 표기: 최대 소수 2자리, 끝자리 0은 생략 (1.5→"1.5", 1.25→"1.25", 1.5625→"1.56").
 const fmtPitch = p => (p != null && isFinite(p)) ? p.toLocaleString('ko-KR', { maximumFractionDigits: 2 }) : '—';
@@ -246,6 +252,17 @@ function moveModel(id, dir) {
 
 // 03 미리보기 표시 토글(사람/눈높이선/바닥 그리드/치수). 기본 전부 켜짐.
 const pvShow = { person: true, eye: true, grid: true, dims: true, cellgrid: true, handle: true };
+
+// ── 3D(아이소메트릭) 뷰 상태 ────────────────────────────────────────────────
+//   pvView   : '2d' = 기존 정면 뷰, '3d' = 큐브 시점 아이소메트릭 뷰
+//   roomTypeId/roomOpts : 공간 타입(회의실·강의실·강당·상황실)과 그 옵션(테이블 모양·좌석 수 등)
+//   pv3dShow : 3D 뷰 전용 표시 토글
+let pvView = '2d';
+let roomTypeId = DEFAULT_ROOM_TYPE;
+let roomOpts = defaultOptions(DEFAULT_ROOM_TYPE);
+let cubeViewId = DEFAULT_CUBE_VIEW;
+const pv3dShow = { dims: true, grid: false, accentWall: true };
+let viewer3d = null;   // createViewer3d() 인스턴스(3D 뷰를 처음 열 때 만든다)
 // 사람(스케일 기준 인물): 실사 사진(연예인, 실제 키) + 의상형 실루엣(남/여, 회색 PNG).
 //   hMM=키(mm, 실제 인물 키). 모두 photo=내장 이미지(img/people/<file>). 커스텀 업로드 시 그 항목만 대체(세션 한정).
 //   같은 인물의 다른 의상은 별도 항목이되 personId 공유, variantId로 구분(이사 지침 2026-09-15).
@@ -376,17 +393,17 @@ function expandSpaceTo(needW, needH, opts = {}) {
 
 // 미리보기를 CSS 3D 1점 투시로 그린다(원근감 스펙 2026-09-12). 치수 값·계산은 engine 결과 그대로 쓰고
 //   위치만 3D 화면에 맞춰 투영한다. 벽 크기·모델·배열이 바뀌어도 동적으로 맞는다(고정 좌표 없음).
-function renderPreview() {
-  const stage = $('#stage');
+// 지금 미리보기에 그릴 대상(모델 또는 사이니지)과 배열 결과를 구한다.
+//   정면 뷰(renderPreview)와 3D 뷰(renderPreview3D)가 똑같은 값을 쓰도록 한 곳에서만 계산한다.
+//   반환: { m, r, svMode, svSizeInfo, name, error }  — error가 있으면 그릴 수 없는 상태.
+function resolvePreviewTarget() {
   const sW = spaceWmm(), sH = spaceHmm();
   // 사이니지가 선택돼 있으면(svCode) LED 대신 3D 방 안에 사이니지를 그린다.
-  //   합성 r(캐비닛 배열과 같은 형태의 벽 정보)을 만들어 아래 기존 렌더를 그대로 재사용한다.
+  //   합성 r(캐비닛 배열과 같은 형태의 벽 정보)을 만들어 기존 렌더를 그대로 재사용한다.
   //   단독형=1×1, 비디오월=가로 N×세로 M(패널). 이미지 넣기·검은 테두리 등 LED 기능이 그대로 적용된다.
   const svf = svCode ? computeSvFit() : null;
   const svm = svf ? svf.m : null;
-  let m = null, r, svMode = false, svSizeInfo = null;   // svSizeInfo: 우상단 인치 라벨용 {isVW,inch,N,M}
   if (svm) {
-    svMode = true;
     const isVW = svf.isVW;
     const N = svf.N, M = svf.M;   // 공간에 들어가는 최대치로 제한된 장수(초과분은 잘림 — 이사 요청)
     const pw = svf.pw, ph = svf.ph;
@@ -397,24 +414,37 @@ function renderPreview() {
     else if (svm.display.screenSizeCm != null) inch = Math.round(svm.display.screenSizeCm / 2.54);
     // 비디오월 전체(N×M 배열) 대각 인치 — 우상단 라벨에 '개별"(전체")'로 병기(이사 요청 2026-09-14).
     const totInch = (isVW && pw != null && ph != null) ? Math.round(Math.sqrt((N * pw) ** 2 + (M * ph) ** 2) / 25.4) : null;
-    svSizeInfo = { isVW, inch, N, M, totInch };
     const nm = svm.model || ('삼성 ' + svm.display.screenSizeInch + '형');
-    $('#pvModelName').textContent = isVW ? `${nm} · 비디오월 ${N}×${M}` : `${nm} · 단독형`;
-    if (pw == null || ph == null) { stage.innerHTML = '<div class="previewEmpty">이 사이니지는 외형(mm) 데이터가 없어 미리보기를 표시할 수 없습니다.</div>'; return; }
+    const name = isVW ? `${nm} · 비디오월 ${N}×${M}` : `${nm} · 단독형`;
+    if (pw == null || ph == null) return { name, error: '이 사이니지는 외형(mm) 데이터가 없어 미리보기를 표시할 수 없습니다.' };
     const totalW = N * pw, totalH = M * ph;
-    r = {
-      fits: true, total: N * M, cols: N, rows: M,
-      actualW: totalW, actualH: totalH, marginW: Math.max(0, (sW - totalW) / 2),
-      resW: isVW ? 1920 * N : (svm.display.resolution.width || 0),
-      resH: isVW ? 1080 * M : (svm.display.resolution.height || 0),
+    return {
+      m: null, svMode: true, name,
+      svSizeInfo: { isVW, inch, N, M, totInch },
+      r: {
+        fits: true, total: N * M, cols: N, rows: M,
+        actualW: totalW, actualH: totalH, marginW: Math.max(0, (sW - totalW) / 2),
+        resW: isVW ? 1920 * N : (svm.display.resolution.width || 0),
+        resH: isVW ? 1080 * M : (svm.display.resolution.height || 0),
+      },
     };
-  } else {
-    m = models.find(x => x.id === selectedId);
-    $('#pvModelName').textContent = m ? m.name : '—';
-    if (!m) { stage.innerHTML = '<div class="previewEmpty">모델을 선택하세요</div>'; return; }
-    r = computeConfig(m, sW, sH, opts());
-    if (!r.fits) { stage.innerHTML = '<div class="previewEmpty">이 공간에는 캐비닛이 들어가지 않습니다.</div>'; return; }
   }
+  const m = models.find(x => x.id === selectedId);
+  if (!m) return { name: '—', error: '모델을 선택하세요' };
+  const r = computeConfig(m, sW, sH, opts());
+  if (!r.fits) return { m, name: m.name, error: '이 공간에는 캐비닛이 들어가지 않습니다.' };
+  return { m, r, svMode: false, svSizeInfo: null, name: m.name };
+}
+
+function renderPreview() {
+  // 3D 뷰가 켜져 있으면 캔버스 렌더러가 대신 그린다(정면 뷰 로직은 그대로 둔다).
+  if (pvView === '3d') return renderPreview3D();
+  const stage = $('#stage');
+  const sW = spaceWmm(), sH = spaceHmm();
+  const t = resolvePreviewTarget();
+  $('#pvModelName').textContent = t.name;
+  if (t.error) { stage.innerHTML = `<div class="previewEmpty">${esc(t.error)}</div>`; return; }
+  const { m, r, svMode, svSizeInfo } = t;
 
   const mmL = v => fmt(Math.round(v)) + 'mm';
   const mL = v => fmt(Math.round(v) / 1000, v % 1000 === 0 ? 0 : 3) + ' m';   // m 표기(3.500 m)
@@ -731,6 +761,164 @@ function renderPreview() {
     </div>
   </div>`;
 }
+
+// ── 3D(아이소메트릭) 미리보기 ───────────────────────────────────────────────
+// 방을 '컷어웨이'(카메라 쪽 벽을 잘라낸 모형)로 그리고, 공간 타입에 맞는 가구를 놓는다.
+// LED 크기·배열·여백은 정면 뷰와 같은 engine 결과(resolvePreviewTarget)를 그대로 쓴다.
+
+// 화면에 넣은 이미지(dataURL)를 캔버스에 그릴 수 있는 Image 객체로 바꿔 캐시한다.
+let pv3dImg = null, pv3dImgSrc = null;
+function led3dImage() {
+  if (!pvImage) { pv3dImg = null; pv3dImgSrc = null; return null; }
+  if (pv3dImgSrc !== pvImage) {
+    pv3dImgSrc = pvImage;
+    pv3dImg = new Image();
+    pv3dImg.onload = () => { if (pvView === '3d') renderPreview3D(); };   // 다 읽히면 다시 그리기
+    pv3dImg.src = pvImage;
+  }
+  return pv3dImg;
+}
+
+function renderPreview3D() {
+  const host = $('#stage3d'), canvas = $('#cv3d'), stage = $('#stage');
+  if (!host || !canvas) return;
+  const t = resolvePreviewTarget();
+  $('#pvModelName').textContent = t.name;
+  if (t.error) {   // 그릴 수 없으면 정면 뷰와 같은 안내 문구를 보여준다
+    host.hidden = true; stage.hidden = false;
+    stage.innerHTML = `<div class="previewEmpty">${esc(t.error)}</div>`;
+    return;
+  }
+  stage.hidden = true; host.hidden = false;
+  const { m, r, svMode } = t;
+
+  const sW = spaceWmm(), sH = spaceHmm();
+  const D = spaceDmm() || autoDepthForType(roomTypeId, sW);          // 깊이 입력이 없으면 타입별 자동
+  const baseH = num($('#baseHeight').value);
+  const mount = Math.min(Math.max(0, baseH), Math.max(0, sH - r.actualH));
+  const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D });
+
+  const unit = svMode ? '장' : '캐비닛';
+  const caption = [
+    t.name,
+    `${r.cols} × ${r.rows} = ${r.total} ${unit} · ${fmt(r.actualW / 1000, 2)} × ${fmt(r.actualH / 1000, 2)} m`,
+    `${fmt(r.resW)} × ${fmt(r.resH)} px · ${roomType(roomTypeId).label} · 공간 ${fmt(sW / 1000, 1)} × ${fmt(sH / 1000, 1)} × ${fmt(D / 1000, 1)} m`,
+  ];
+
+  if (!viewer3d) viewer3d = createViewer3d(canvas, { onChange: syncCubeView });
+  // 시점이 실제로 바뀐 때만 적용한다 — 매번 부르면 확대·이동이 초기화된다.
+  if (viewer3d.getView().viewId !== cubeViewId) viewer3d.setViewId(cubeViewId);
+  viewer3d.setModel(buildModel({
+    space: { W: sW, H: sH, D },
+    led: {
+      w: r.actualW, h: r.actualH, marginW: r.marginW, mount,
+      cols: r.cols, rows: r.rows, depth: (m && m.depth) || 60,
+    },
+    items: lay.items,
+    show: { ...pv3dShow },
+    caption,
+    ledImage: led3dImage(),
+    theme: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light',
+  }));
+
+  // 배치 결과 안내(요청보다 줄었을 때 등) + 실제 좌석 수
+  const seats = lay.placed.chairs ?? lay.placed.seats ?? lay.placed.consoles ?? 0;
+  const note = $('#room3dNote');
+  if (note) note.textContent = [seats ? `배치 ${seats}석` : '', ...lay.notes].filter(Boolean).join(' · ');
+}
+
+// 공간 타입 선택 + 그 타입의 옵션 입력칸을 그린다(타입마다 옵션이 다르므로 매번 새로 만든다).
+function renderRoomOptions() {
+  const sel = $('#roomType'); if (!sel) return;
+  if (!sel.options.length) sel.innerHTML = ROOM_TYPES.map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('');
+  sel.value = roomTypeId;
+  const box = $('#roomOpts'); if (!box) return;
+  box.innerHTML = roomType(roomTypeId).options.map(o => {
+    const v = roomOpts[o.key];
+    if (o.type === 'toggle') {
+      return `<button type="button" class="pvTog${v ? ' on' : ''}" data-ropt="${o.key}"><span class="dot"></span>${esc(o.label)}</button>`;
+    }
+    if (o.type === 'number') {
+      return `<label class="pv3dField"><span>${esc(o.label)}</span><input type="number" data-ropt="${o.key}" min="${o.min}" max="${o.max}" step="1" value="${v}"/></label>`;
+    }
+    const opts = o.choices.map(c => `<option value="${c.value}"${c.value === v ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+    return `<label class="pv3dField"><span>${esc(o.label)}</span><select data-ropt="${o.key}">${opts}</select></label>`;
+  }).join('');
+}
+
+// 큐브 시점 선택칸을 현재 시점에 맞춘다.
+function syncCubeView() {
+  const sel = $('#cubeView'); if (!sel) return;
+  if (!sel.options.length) sel.innerHTML = CUBE_VIEWS.map(v => `<option value="${v.id}">${esc(v.label)}</option>`).join('');
+  if (viewer3d) cubeViewId = viewer3d.getView().viewId;
+  sel.value = cubeViewId;
+}
+
+// 정면 뷰 ↔ 3D 뷰 전환. 2D 전용 컨트롤(신호·사람 토글)은 3D에서 숨긴다.
+function setPreviewView(v) {
+  pvView = (v === '3d') ? '3d' : '2d';
+  $('#pvViewMode')?.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.view === pvView));
+  const is3d = pvView === '3d';
+  if ($('#pv3dBar')) $('#pv3dBar').hidden = !is3d;
+  if ($('#pvToggles')) $('#pvToggles').hidden = is3d;
+  if ($('#signalMode')) $('#signalMode').hidden = is3d;
+  if (!is3d && $('#stage3d')) { $('#stage3d').hidden = true; $('#stage').hidden = false; }
+  if (is3d) { renderRoomOptions(); syncCubeView(); }
+  renderPreview();
+}
+
+$('#pvViewMode')?.addEventListener('click', e => {
+  const b = e.target.closest('button[data-view]'); if (!b) return;
+  setPreviewView(b.dataset.view);
+});
+
+$('#roomType')?.addEventListener('change', () => {
+  roomTypeId = roomType($('#roomType').value).id;
+  roomOpts = defaultOptions(roomTypeId);   // 타입이 바뀌면 그 타입의 기본 옵션으로
+  renderRoomOptions(); renderPreview();
+});
+
+// 옵션 — 토글은 클릭, 숫자·선택은 input. 숫자 입력 중에는 다시 그리지 않아야(포커스 유지) 하므로
+//   목록 재생성(renderRoomOptions)은 change 때만 한다.
+$('#roomOpts')?.addEventListener('click', e => {
+  const b = e.target.closest('button[data-ropt]'); if (!b) return;
+  roomOpts = normalizeOptions(roomTypeId, { ...roomOpts, [b.dataset.ropt]: !roomOpts[b.dataset.ropt] });
+  b.classList.toggle('on', !!roomOpts[b.dataset.ropt]);
+  renderPreview();
+});
+$('#roomOpts')?.addEventListener('input', e => {
+  const el = e.target.closest('input[data-ropt],select[data-ropt]'); if (!el) return;
+  const raw = el.tagName === 'INPUT' ? num(el.value) : el.value;
+  roomOpts = normalizeOptions(roomTypeId, { ...roomOpts, [el.dataset.ropt]: raw });
+  renderPreview();
+});
+$('#roomOpts')?.addEventListener('change', () => renderRoomOptions());
+
+// 3D 표시 토글(치수·바닥 격자·포인트 벽)
+$('#pv3dBar')?.addEventListener('click', e => {
+  const b = e.target.closest('button[data-t3d]'); if (!b) return;
+  const k = b.dataset.t3d;
+  pv3dShow[k] = !pv3dShow[k];
+  b.classList.toggle('on', pv3dShow[k]);
+  renderPreview();
+});
+
+// 큐브 시점 — 좌우 한 칸씩 돌리거나 목록에서 고른다(자유 회전은 없음).
+$('#btn3dRotL')?.addEventListener('click', () => { viewer3d?.rotate(-1); syncCubeView(); });
+$('#btn3dRotR')?.addEventListener('click', () => { viewer3d?.rotate(1); syncCubeView(); });
+$('#cubeView')?.addEventListener('change', () => { cubeViewId = cubeView($('#cubeView').value).id; viewer3d?.setViewId(cubeViewId); });
+$('#btn3dReset')?.addEventListener('click', () => viewer3d?.resetView());
+$('#btn3dPng')?.addEventListener('click', () => {
+  const url = viewer3d?.toPNG(3);   // 제안서·인쇄용 3배 해상도
+  if (!url) { alert('먼저 3D 뷰를 표시한 뒤 저장하세요.'); return; }
+  // 파일 이름이 적용되려면 링크가 화면(DOM)에 잠깐 붙어 있어야 한다 — 누른 뒤 바로 지운다.
+  const a = document.createElement('a');
+  const name = ($('#pvModelName')?.textContent || 'LED').trim().replace(/[^\w가-힣.-]+/g, '_');
+  a.href = url; a.download = `3D_${name}_${roomType(roomTypeId).label}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
 
 // 하단 높이(바닥에서 LED 아래까지)를 입력하면 세로 구성(바닥 여백·LED 세로·위 남는 높이)을 표시.
 //   위 남는 높이 = 세로 공간 − 하단 높이 − LED 세로. 음수면(공간 초과) 경고를 빨간색으로 보여준다.
@@ -1818,6 +2006,8 @@ function clampManualArray() {
 }
 // 벽면·하단 높이 편집: LED 입력칸의 max만 갱신하고 값은 보존(편집 중 LED 세로가 0으로 눌러붙지 않게).
 ['spaceW', 'spaceH', 'baseHeight'].forEach(id => $('#' + id)?.addEventListener('input', () => { setLedMax(); renderAll(); }));
+// 공간 깊이는 3D 뷰에서만 쓰이므로 미리보기만 다시 그린다(스펙·견적 계산에는 영향 없음).
+$('#spaceD')?.addEventListener('input', renderPreview);
 // LED 크기 직접 입력: 벽면 한계로 값 제한.
 ['ledW', 'ledH'].forEach(id => $('#' + id)?.addEventListener('input', () => { clampLedInputs(); renderAll(); }));
 $('#sboxSpare')?.addEventListener('input', renderAll);
@@ -2235,7 +2425,8 @@ function writeConfigs(list) { try { localStorage.setItem(CONFIG_KEY, JSON.string
 function gatherConfig() {
   const m = models.find(x => x.id === selectedId) || null;
   return {
-    spaceW: spaceWmm(), spaceH: spaceHmm(),
+    spaceW: spaceWmm(), spaceH: spaceHmm(), spaceD: spaceDmm(),
+    roomType: roomTypeId, roomOpts: { ...roomOpts },
     baseHeight: num($('#baseHeight').value), ledW: num($('#ledW').value), ledH: num($('#ledH').value),
     mode, manCols: num($('#manCols').value), manRows: num($('#manRows').value),
     redundancy: $('#redundancy').checked, cs4b: userCS4B, gbicFB: $('#gbicFB').checked,
@@ -2258,6 +2449,10 @@ function applyConfig(raw) {
     models.push({ ...c.selectedModel, _show: true });
   }
   $('#spaceW').value = c.spaceW / 1000; $('#spaceH').value = c.spaceH / 1000;   // 저장은 mm, 화면 입력은 m
+  if ($('#spaceD')) $('#spaceD').value = c.spaceD > 0 ? c.spaceD / 1000 : '';    // 0 = 비움(자동)
+  roomTypeId = roomType(c.roomType).id;
+  roomOpts = normalizeOptions(roomTypeId, c.roomOpts);
+  renderRoomOptions();
   $('#baseHeight').value = c.baseHeight; $('#ledW').value = c.ledW; $('#ledH').value = c.ledH;
   $('#manCols').value = c.manCols; $('#manRows').value = c.manRows;
   $('#sboxSpare').value = c.sboxSpare;

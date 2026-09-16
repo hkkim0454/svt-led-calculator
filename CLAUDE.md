@@ -26,6 +26,12 @@ src/engine.js   순수 계산 함수 (DOM 없음). 브라우저·Node 공용 ESM
 src/models.js   모델 데이터. 삼성 도구에서 관측한 실측치. weight/maxPower=null은 데이터시트 필요.
 src/app.js      UI 컨트롤러. 계산은 반드시 engine.js를 호출(중복 구현 금지).
 src/index.html  마크업. src/styles.css.
+
+3D(아이소메트릭) 미리보기 — 03 카드의 '3D 뷰'. 스펙 계산은 하지 않고 engine 결과를 좌표로만 바꾼다.
+src/scene3d.js      카메라·정사투영·큐브 시점·기본 입체도형(상자/기둥)·컷어웨이 벽. DOM 없음.
+src/room-presets.js 공간 타입(회의실·강의실·소중대강당·상황실)과 가구 '배치' 계산. DOM 없음.
+src/furniture3d.js  배치 → 실제 가구 입체도형(의자·테이블·책상·콘솔·무대·러그·화분). DOM 없음.
+src/render3d.js     캔버스 그리기 + 시점 조작 + PNG 내보내기. 유일하게 DOM을 쓰는 3D 파일.
 tests/          node:test. 삼성 검증 수치를 고정하는 회귀 테스트.
 docs/           SPEC.md, aidlc-state.md, audit.md.
 ```

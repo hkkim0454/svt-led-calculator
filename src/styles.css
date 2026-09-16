@@ -946,3 +946,33 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary{display:inline-flex;flex-wrap:wrap;gap:4px 14px;margin-left:auto}
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
+
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v348) ====
+   방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
+   여기서는 조작 막대와 캔버스 자리만 잡는다. */
+.viewseg{flex:0 0 auto}
+.viewseg button{flex:0 0 auto;padding:8px 14px}
+
+.pv3dBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:2px 0 10px;padding:8px 10px;
+  background:var(--field-fill);border:1px solid var(--line);border-radius:var(--r-inner);font-size:12px;color:var(--ink-2)}
+.pv3dGroup{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pv3dViewCtl{margin-left:auto}
+.pv3dOpts{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.pv3dField{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pv3dField>span{color:var(--ink-2);font-weight:600}
+.pv3dField select,.pv3dField input[type=number]{
+  font:inherit;font-size:12px;font-weight:600;color:var(--ink);
+  padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel-solid);cursor:pointer}
+.pv3dField input[type=number]{width:62px;cursor:text}
+.pv3dField select:hover,.pv3dField input[type=number]:hover{border-color:rgba(47,127,246,.5)}
+.pv3dNote{flex:1 1 100%;color:var(--muted);font-size:11px}
+.pv3dNote:empty{display:none}
+
+/* 캔버스는 카드 폭을 꽉 채우고, 높이는 화면 폭에 따라 적당히(16:9 근처). */
+.stage3d{position:relative;width:100%;border-radius:var(--r-inner);overflow:hidden}
+/* .previewStage가 display:block이라 hidden 속성만으로는 안 숨는다 — 명시적으로 지정. */
+.previewStage[hidden],.stage3d[hidden]{display:none}
+.stage3d>canvas{display:block;width:100%;height:clamp(320px,42vw,560px)}
+@media(max-width:680px){ .stage3d>canvas{height:clamp(260px,64vw,420px)} }
+/* 인쇄 시에도 캔버스가 그대로 나오도록(비트맵이라 별도 처리 불필요). */
+body.printing .stage3d>canvas{height:420px}
