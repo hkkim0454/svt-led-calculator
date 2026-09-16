@@ -18,10 +18,11 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=388';
-import { createMaterialLibrary } from './materials-gl.js?v=388';
-import { MOODS } from './materials.js?v=388';
-import { ledImageFit } from './led-image.js?v=388';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=389';
+import { createMaterialLibrary } from './materials-gl.js?v=389';
+import { MOODS } from './materials.js?v=389';
+import { ledImageFit } from './led-image.js?v=389';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=389';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -29,7 +30,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=388';
+} from './gl-model.js?v=389';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
@@ -175,14 +176,15 @@ function makeLedImageTexture(image, ledW, ledH) {
 function buildRoomGroup(model, shared) {
   const { room, led, stage } = model;
   // 가구(좌석·통로·테이블 등)는 room-presets 배치를 그대로 세운다 — 여기서 새로 계산하지 않는다.
-  const furniture = buildFurnitureGroup(model.items);
+  const rmode = renderMode(model.renderMode);
+  const furniture = buildFurnitureGroup(model.items, { textureScale: rmode.texture });
   const ownedTex = [];   // 이 Group만 쓰는 텍스처(공용 텍스처와 달리 여기서 반납한다)
   const g = new THREE.Group();
   g.name = 'roomGroup';
 
   // 재질은 materials.js의 프리셋에서 가져온다 — 거칠기·금속성·무늬 간격이 한곳에 모여 있다.
   //   무늬(요철)는 실제 마감재 규격대로 반복한다: 카펫 타일 500mm · 비닐 600mm · 도장 벽 1500mm.
-  const mats = createMaterialLibrary();
+  const mats = createMaterialLibrary({ textureScale: rmode.texture });
   // 분위기 — 벽·천장 색을 흰색 쪽으로 조금 섞는다(아이디에이션 공간은 더 밝고 가볍게).
   //   조명 '구성'은 방마다 바꾸지 않는다. 세기와 색만 조금 다를 뿐이다.
   const mood = MOODS[model.finish?.mood] || MOODS.office;
@@ -472,8 +474,8 @@ function buildRoomGroup(model, shared) {
   const NO_RECEIVE = new Set(['ceiling', 'floorGrid']);
   g.traverse(o => {
     if (!o.isMesh && !o.isInstancedMesh) return;
-    o.castShadow = !NO_CAST.has(o.name);
-    o.receiveShadow = !NO_RECEIVE.has(o.name);
+    o.castShadow = rmode.shadows && !NO_CAST.has(o.name);
+    o.receiveShadow = rmode.shadows && !NO_RECEIVE.has(o.name);
   });
 
   return g;
@@ -1101,12 +1103,16 @@ export function createViewerGL(canvas, { onError } = {}) {
         model.led.depth + 0.6,
       );
       ledSpill.distance = Math.max(3, Math.min(9, model.led.w * 1.6));
-      // 분위기 — 조명 개수는 그대로 두고 세기만 곱한다.
+      // 조명 세기 = 기준값 × 표현 방식(심플/실사) 배수 × 분위기 배수. 조명 개수는 그대로다.
       const md = MOODS[model.finish?.mood] || MOODS.office;
-      hemi.intensity = LIGHTS.hemi * md.light;
-      ceilLight.intensity = LIGHTS.ceiling * md.light;
-      key.intensity = LIGHTS.key * md.light;
-      fill.intensity = LIGHTS.fill * md.light;
+      const lv = lightLevels(LIGHTS, model.renderMode, md.light);
+      hemi.intensity = lv.hemi;
+      ceilLight.intensity = lv.ceiling;
+      key.intensity = lv.key;
+      fill.intensity = lv.fill;
+      ledSpill.intensity = lv.ledSpill;
+      // 심플에서는 그림자 자체를 끈다 — 계산도 하지 않아 느린 기기에서 가볍다.
+      renderer.shadowMap.enabled = renderMode(model.renderMode).shadows;
       // 장면이 새로 지어졌으니 그림자를 한 번만 다시 굽는다(매 프레임이 아니다).
       renderer.shadowMap.needsUpdate = true;
       // 방이나 LED가 달라졌으면 카메라를 다시 앉힌다(같으면 보던 시점을 지킨다).

@@ -9,14 +9,15 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=388';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=388';
-import { createViewerGL } from './render3d-gl.js?v=388';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=388';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=388';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=388';
-import { sideMonitorLayout } from './monitors.js?v=388';
-import { ledImageFit } from './led-image.js?v=388';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=389';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=389';
+import { createViewerGL } from './render3d-gl.js?v=389';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=389';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=389';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=389';
+import { sideMonitorLayout } from './monitors.js?v=389';
+import { ledImageFit } from './led-image.js?v=389';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=389';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -271,6 +272,8 @@ let customViews = [];                 // 사용자가 저장한 시점(구성과
 let viewEditMode = false;             // 시점 편집 모드 — 켜면 '+'(저장)와 '×'(삭제)가 보인다
 // 시점 옵션 — 화각(도)과 평면도 원근 여부. 3D 뷰 전용이라 구성 저장에는 넣지 않는다.
 let view3dOpts = { fov: FOV_RANGE.default, topPerspective: true };
+// 표현 방식 — '심플'(평평한 다이어그램)과 '실사'(그림자·재질) 중 하나. 형상·치수는 같다.
+let render3dMode = DEFAULT_RENDER_MODE;
 const pv3dShow = {
   person: true, dims: true, grid: true, accentWall: true, viewAngle: false,
   // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 2면 —
@@ -880,6 +883,7 @@ function renderPreview3D() {
     show: { ...pv3dShow },
     roomType: roomTypeId,   // 바닥 마감(카펫/비닐)을 공간 타입에서 고른다
     sideMonitors: sm.monitors,
+    renderMode: render3dMode,
     person: personFor3D(r, mount, sW, D, items),
   }));
 
@@ -1030,6 +1034,29 @@ function buildViewOptionFields() {
   lab.append(t, inp);
   wrap.appendChild(lab);
 
+  // 표현 방식 — 심플 / 실사. 형상·치수·계산은 어느 쪽에서도 같고 빛과 재질만 달라진다.
+  const seg = document.createElement('div');
+  seg.className = 'seg pv3dModeSeg';
+  seg.id = 'render3dMode';
+  for (const m of Object.values(RENDER_MODES)) {
+    const mb = document.createElement('button');
+    mb.type = 'button';
+    mb.dataset.rmode = m.id;
+    mb.textContent = m.label;
+    mb.className = render3dMode === m.id ? 'on' : '';
+    mb.title = m.id === 'simple'
+      ? '그림자와 재질 무늬를 끈 평평한 그림 — 배치 검토·흑백 인쇄·느린 기기에 좋습니다'
+      : '접촉 그림자와 재질 무늬가 들어간 건축 시각화 느낌';
+    mb.addEventListener('click', () => {
+      if (render3dMode === m.id) return;
+      render3dMode = m.id;
+      for (const o of seg.querySelectorAll('button')) o.classList.toggle('on', o.dataset.rmode === m.id);
+      renderPreview();
+    });
+    seg.appendChild(mb);
+  }
+  wrap.appendChild(seg);
+
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'pvTog' + (view3dOpts.topPerspective ? ' on' : '');
@@ -1081,7 +1108,7 @@ function buildInspector() {
   }
 
   // [시점] 화각 · 평면도 원근
-  const s4 = inspectorSection('시점');
+  const s4 = inspectorSection('표현 · 시점');
   s4.body.appendChild(buildViewOptionFields());
 
   // 좁은 화면에서 패널을 접었다 펴는 버튼(넓은 화면에서는 CSS가 숨긴다).

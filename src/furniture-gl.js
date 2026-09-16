@@ -15,14 +15,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=388';
-import { createMaterialLibrary } from './materials-gl.js?v=388';
-import { PART_MATERIAL } from './materials.js?v=388';
-import { GRADE_COLORS } from './viewangle.js?v=388';
+import { u } from './gl-model.js?v=389';
+import { createMaterialLibrary } from './materials-gl.js?v=389';
+import { PART_MATERIAL } from './materials.js?v=389';
+import { GRADE_COLORS } from './viewangle.js?v=389';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=388';
+} from './furniture-assets.js?v=389';
 
 const DEG = Math.PI / 180;
 
@@ -142,7 +142,7 @@ function plantMesh(mat) {
  * @param items room-presets.layoutRoom()의 items (무대는 방 구조 쪽에서 그리므로 제외)
  * @returns THREE.Group  (호출한 쪽이 scene에 넣고, 버릴 때 disposeFurniture로 정리한다)
  */
-export function buildFurnitureGroup(items) {
+export function buildFurnitureGroup(items, opts = {}) {
   const g = new THREE.Group();
   g.name = 'furniture';
   if (!items || !items.length) return g;
@@ -150,7 +150,7 @@ export function buildFurnitureGroup(items) {
   // 색은 팔레트에서, 질감(거칠기·금속성·요철)은 재질 라이브러리에서 가져온다.
   //   부품 종류 → 재질 프리셋 대응표는 materials.js(PART_MATERIAL)에 있다.
   //   같은 프리셋 + 같은 색이면 재질 하나를 돌려 쓰므로 그리기 호출이 늘지 않는다.
-  const lib = createMaterialLibrary();
+  const lib = createMaterialLibrary({ textureScale: opts.textureScale ?? 1 });
   const mat = {};
   for (const [k, c] of Object.entries(FURNITURE_COLORS)) {
     const token = PART_MATERIAL[k];
