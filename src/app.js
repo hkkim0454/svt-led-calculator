@@ -9,9 +9,9 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=350';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom } from './room-presets.js?v=350';
-import { createViewer3d, buildModel } from './render3d.js?v=350';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=351';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=351';
+import { createViewer3d, buildModel } from './render3d.js?v=351';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -261,7 +261,7 @@ let pvView = '2d';
 let roomTypeId = DEFAULT_ROOM_TYPE;
 let roomOpts = defaultOptions(DEFAULT_ROOM_TYPE);
 let cubeViewId = DEFAULT_CUBE_VIEW;
-const pv3dShow = { dims: true, grid: false, accentWall: true };
+const pv3dShow = { person: true, dims: true, grid: false, accentWall: true };
 let viewer3d = null;   // createViewer3d() 인스턴스(3D 뷰를 처음 열 때 만든다)
 // 사람(스케일 기준 인물): 실사 사진(연예인, 실제 키) + 의상형 실루엣(남/여, 회색 PNG).
 //   hMM=키(mm, 실제 인물 키). 모두 photo=내장 이미지(img/people/<file>). 커스텀 업로드 시 그 항목만 대체(세션 한정).
@@ -779,6 +779,20 @@ function led3dImage() {
   return pv3dImg;
 }
 
+// 3D 뷰에 세울 사람 이미지. 정면 뷰와 같은 인물(pvPerson)을 쓰고, 직접 올린 사진이 있으면 그것을 쓴다.
+let pv3dPersonImg = null, pv3dPersonSrc = null;
+function person3dImage() {
+  const src = pvPersonImg[pvPerson] || personBuiltinSrc(pvPerson);
+  if (pv3dPersonSrc !== src) {
+    pv3dPersonSrc = src;
+    pv3dPersonImg = new Image();
+    pv3dPersonImg.onload = () => { if (pvView === '3d') renderPreview3D(); };   // 다 읽히면 다시 그리기
+    pv3dPersonImg.onerror = () => console.error('[사람 이미지 누락] ' + src);
+    pv3dPersonImg.src = src;
+  }
+  return pv3dPersonImg;
+}
+
 function renderPreview3D() {
   const host = $('#stage3d'), canvas = $('#cv3d'), stage = $('#stage');
   if (!host || !canvas) return;
@@ -797,6 +811,14 @@ function renderPreview3D() {
   const baseH = num($('#baseHeight').value);
   const mount = Math.min(Math.max(0, baseH), Math.max(0, sH - r.actualH));
   const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D });
+
+  // 사람(축척 비교용) — LED 옆 빈 곳에 세운다. 정면 뷰와 같은 인물·같은 키를 쓴다.
+  const ledGeom = { x: r.marginW, w: r.actualW, h: r.actualH, y: mount };
+  const who = PEOPLE[pvPerson] || PEOPLE['go-youn-jung_01'];
+  const spot = personSpot({ W: sW, D }, ledGeom, lay.items);
+  const person = pv3dShow.person
+    ? { x: spot.x, z: spot.z, heightMm: who.hMM, img: person3dImage() }
+    : null;
 
   const unit = svMode ? '장' : '캐비닛';
   const caption = [
@@ -818,6 +840,7 @@ function renderPreview3D() {
     show: { ...pv3dShow },
     caption,
     ledImage: led3dImage(),
+    person,
     theme: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light',
   }));
 
@@ -846,6 +869,17 @@ function renderRoomOptions() {
   }).join('');
 }
 
+// 3D 뷰의 인물 선택 상자를 채운다(정면 뷰의 목록·선택값을 그대로 공유).
+function syncPerson3dSel() {
+  const sel = $('#person3dSel'); if (!sel) return;
+  if (!sel.options.length) {
+    sel.innerHTML = Object.entries(PEOPLE)
+      .map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  }
+  sel.value = pvPerson;
+  sel.disabled = !pv3dShow.person;
+}
+
 // 큐브 시점 선택칸을 현재 시점에 맞춘다.
 function syncCubeView() {
   const sel = $('#cubeView'); if (!sel) return;
@@ -863,13 +897,19 @@ function setPreviewView(v) {
   if ($('#pvToggles')) $('#pvToggles').hidden = is3d;
   if ($('#signalMode')) $('#signalMode').hidden = is3d;
   if (!is3d && $('#stage3d')) { $('#stage3d').hidden = true; $('#stage').hidden = false; }
-  if (is3d) { renderRoomOptions(); syncCubeView(); }
+  if (is3d) { renderRoomOptions(); syncCubeView(); syncPerson3dSel(); }
   renderPreview();
 }
 
 $('#pvViewMode')?.addEventListener('click', e => {
   const b = e.target.closest('button[data-view]'); if (!b) return;
   setPreviewView(b.dataset.view);
+});
+
+$('#person3dSel')?.addEventListener('change', () => {
+  pvPerson = $('#person3dSel').value;   // 정면 뷰와 같은 값을 쓰므로 양쪽에 함께 반영된다
+  syncPvToggles();
+  renderPreview();
 });
 
 $('#roomType')?.addEventListener('change', () => {
@@ -900,6 +940,7 @@ $('#pv3dBar')?.addEventListener('click', e => {
   const k = b.dataset.t3d;
   pv3dShow[k] = !pv3dShow[k];
   b.classList.toggle('on', pv3dShow[k]);
+  if (k === 'person') syncPerson3dSel();
   renderPreview();
 });
 

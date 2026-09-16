@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions,
-  autoDepthForType, layoutRoom, FURNITURE,
+  autoDepthForType, layoutRoom, FURNITURE, faceTowards, distributeSeats, personSpot, PERSON_BLOCKING,
 } from '../src/room-presets.js';
 
 // 배치된 물건이 모두 방 안(0..W, 0..D)에 있는지 확인한다.
@@ -203,4 +203,180 @@ test('모든 타입 — 기본 옵션으로 방 안에 정상 배치된다(여�
       }
     }
   }
+});
+
+// ── 의자 방향 불변조건 ───────────────────────────────────────────────────────
+// 이 프로젝트의 규칙: 의자는 '맞닿는 테이블(책상·콘솔)'을 바라봐야 한다.
+// 테이블이 없는 자리(강당 관람석 등)는 LED 벽(z=0) 쪽을 바라봐야 한다.
+// 아래 도우미는 모든 공간 타입·옵션에서 이 규칙을 기계적으로 검사한다.
+
+const SURFACE = new Set(['table', 'desk', 'console']);
+const facingVec = rotY => {                       // rotY=0 → -Z(LED 벽) 방향
+  const r = (rotY || 0) * Math.PI / 180;
+  return [Math.sin(r), -Math.cos(r)];
+};
+const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// 의자 → 테이블 방향(단위벡터)과 '테이블 가장자리까지의 틈'.
+//   사각·보트형: 상판 사각형의 가장 가까운 지점 기준
+//   원형       : 중심 방향 · 반지름을 뺀 거리 기준(중심까지 거리로 재면 멀어 보인다)
+function toSurface(chair, t) {
+  const w = t.w || 1200, d = t.d || 1200;
+  let dx, dz, gap;
+  if (t.shape === 'round') {
+    dx = t.x - chair.x; dz = t.z - chair.z;
+    gap = Math.max(0, Math.hypot(dx, dz) - w / 2);
+  } else {
+    const tx = clampN(chair.x, t.x - w / 2, t.x + w / 2);
+    const tz = clampN(chair.z, t.z - d / 2, t.z + d / 2);
+    dx = tx - chair.x; dz = tz - chair.z;
+    gap = Math.hypot(dx, dz);
+  }
+  const len = Math.hypot(dx, dz) || 1;
+  return { ux: dx / len, uz: dz / len, gap };
+}
+
+function assertChairsFaceTables(res, label) {
+  const surfaces = res.items.filter(i => SURFACE.has(i.type));
+  const chairs = res.items.filter(i => i.type === 'chair' || i.type === 'seat');
+  assert.ok(chairs.length > 0, `${label}: 의자가 하나도 없음`);
+  for (const c of chairs) {
+    const [fx, fz] = facingVec(c.rotY);
+    // 가장 가까운 테이블(1.5m 이내)을 '맞닿는' 테이블로 본다
+    let best = null;
+    for (const t of surfaces) {
+      const v = toSurface(c, t);
+      if (!best || v.gap < best.gap) best = v;
+    }
+    if (best && best.gap <= 1200) {   // 이 정도면 '맞닿아 앉은' 테이블
+      const dot = fx * best.ux + fz * best.uz;
+      assert.ok(dot > 0.93,
+        `${label}: 의자(${Math.round(c.x)},${Math.round(c.z)}, rotY=${c.rotY})가 맞닿는 테이블을 안 봄 (정렬도 ${dot.toFixed(2)})`);
+    } else {
+      // 테이블이 없으면 LED 벽(z=0) 쪽을 봐야 한다
+      assert.ok(fz < -0.99,
+        `${label}: 테이블 없는 의자(${Math.round(c.x)},${Math.round(c.z)}, rotY=${c.rotY})가 LED를 안 봄`);
+    }
+  }
+}
+
+test('의자 방향 — 모든 공간 타입·옵션에서 맞닿는 테이블을 바라본다', () => {
+  const cases = [];
+  for (const shape of ['boat', 'rect', 'round', 'u', 'none']) {
+    for (const seats of [2, 6, 12, 20, 40]) {
+      cases.push(['meeting', { tableShape: shape, seats, rug: false, plant: false }, `회의실 ${shape} ${seats}석`]);
+    }
+  }
+  for (const rows of [1, 3, 6]) for (const cols of [1, 4, 8]) {
+    cases.push(['classroom', { rows, cols, aisle: rows % 2 === 0, podium: true }, `강의실 ${cols}×${rows}`]);
+  }
+  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
+    for (const aisles of ['0', '1', '2']) cases.push([t, { aisles, stage: true }, `${t} 통로${aisles}`]);
+  }
+  for (const consoleRows of [1, 2, 4]) for (const backTable of [true, false]) {
+    cases.push(['control', { consoleRows, perRow: 3, backTable }, `상황실 ${consoleRows}줄 back=${backTable}`]);
+  }
+  for (const [type, opts, label] of cases) {
+    for (const W of [8000, 12000, 20000]) {
+      const D = autoDepthForType(type, W);
+      const res = layoutRoom(type, opts, { W, D });
+      assertChairsFaceTables(res, `${label} (W=${W})`);
+      assertInside(res, W, D, label);
+    }
+  }
+});
+
+test('회의실 원형 — 의자가 모두 테이블 중심을 정확히 바라본다', () => {
+  const res = layoutRoom('meeting', { tableShape: 'round', seats: 12, rug: false, plant: false }, { W: 9000, D: 8000 });
+  const table = res.items.find(i => i.type === 'table');
+  for (const c of res.items.filter(i => i.type === 'chair')) {
+    const [fx, fz] = facingVec(c.rotY);
+    const dx = table.x - c.x, dz = table.z - c.z, len = Math.hypot(dx, dz);
+    assert.ok(fx * (dx / len) + fz * (dz / len) > 0.999, `rotY=${c.rotY} 가 중심을 안 봄`);
+  }
+});
+
+test('회의실 U자형 — 좌석이 뒤·좌·우에 고르게 나뉜다(한쪽 몰림 없음)', () => {
+  const W = 10000, D = 10000;
+  const res = layoutRoom('meeting', { tableShape: 'u', seats: 12, rug: false, plant: false }, { W, D });
+  const chairs = res.items.filter(i => i.type === 'chair');
+  assert.equal(chairs.length, 12);
+  const tables = res.items.filter(i => i.type === 'table');
+  const back = tables.reduce((a, t) => (t.z > a.z ? t : a));           // 뒤쪽 가로 상판
+  const armChairs = chairs.filter(c => c.rotY === 90 || c.rotY === 270);
+  const backChairs = chairs.filter(c => c.rotY === 0);
+  assert.ok(backChairs.length > 0 && armChairs.length > 0, '뒤·옆 모두 배치되어야 함');
+  assert.ok(armChairs.length >= 4, `옆쪽 좌석이 너무 적음 (${armChairs.length}석)`);
+  assert.ok(backChairs.every(c => c.z > back.z), '뒤쪽 좌석은 상판 바깥(먼 쪽)에 있어야 함');
+  // 좌·우 팔이 균형 있게
+  const left = armChairs.filter(c => c.x < W / 2).length, right = armChairs.filter(c => c.x > W / 2).length;
+  assert.ok(Math.abs(left - right) <= 1, `좌우 불균형 (좌${left} 우${right})`);
+});
+
+test('상황실 — 뒤쪽 회의 테이블 좌석이 테이블을 바라본다(등 돌리지 않음)', () => {
+  const res = layoutRoom('control', { consoleRows: 2, perRow: 4, backTable: true }, { W: 12000, D: 12000 });
+  const table = res.items.find(i => i.type === 'table');
+  const backChairs = res.items.filter(i => i.type === 'chair' && i.z > table.z);
+  assert.ok(backChairs.length > 0);
+  for (const c of backChairs) assert.equal(c.rotY, 0, '테이블 뒤 좌석은 테이블·LED 쪽(0°)을 봐야 함');
+});
+
+test('좌석 분배 — 정원을 넘지 않고 비례로 나뉜다', () => {
+  assert.deepEqual(distributeSeats(12, [9, 4, 4]), [6, 3, 3]);
+  assert.deepEqual(distributeSeats(100, [9, 4, 4]), [9, 4, 4]);   // 정원까지만
+  assert.deepEqual(distributeSeats(0, [9, 4, 4]), [0, 0, 0]);
+  assert.deepEqual(distributeSeats(5, [0, 0, 0]), [0, 0, 0]);
+  for (const n of [1, 3, 7, 13, 17]) {
+    const out = distributeSeats(n, [9, 4, 4]);
+    assert.equal(out.reduce((a, b) => a + b, 0), Math.min(n, 17));
+    out.forEach((v, i) => assert.ok(v <= [9, 4, 4][i]));
+  }
+});
+
+test('사람 자리 — LED 옆 빈 곳에 서고 가구와 겹치지 않는다', () => {
+  const W = 10000, D = 8500;
+  const led = { x: 3000, y: 1000, w: 4000, h: 2200, z: 60 };
+  const res = layoutRoom('meeting', { tableShape: 'boat', seats: 12, rug: true, plant: true }, { W, D });
+  const spot = personSpot({ W, D }, led, res.items);
+  assert.ok(spot.x >= 600 && spot.x <= W - 600, `x=${spot.x}`);
+  assert.ok(spot.z >= 600 && spot.z <= D - 600, `z=${spot.z}`);
+  // 사람을 막는 가구(테이블·의자 등)와 겹치지 않아야 한다
+  const blockers = res.items.filter(i => PERSON_BLOCKING.has(i.type));
+  for (const it of blockers) {
+    const hw = (it.w || 700) / 2 + 450, hd = (it.d || 700) / 2 + 450;
+    assert.ok(!(Math.abs(it.x - spot.x) < hw && Math.abs(it.z - spot.z) < hd),
+      `${it.type}(${Math.round(it.x)},${Math.round(it.z)})와 겹침`);
+  }
+});
+
+test('사람 자리 — 방이 가구로 가득해도 방 안의 좌표를 돌려준다', () => {
+  const W = 7000, D = 7000;
+  const led = { x: 1500, y: 1000, w: 4000, h: 2200, z: 60 };
+  const res = layoutRoom('classroom', { rows: 20, cols: 20, aisle: false, podium: true }, { W, D });
+  const spot = personSpot({ W, D }, led, res.items);
+  assert.ok(Number.isFinite(spot.x) && Number.isFinite(spot.z));
+  assert.ok(spot.x >= 600 && spot.x <= W - 600 && spot.z >= 600 && spot.z <= D - 600);
+});
+
+test('사람 자리 — 모든 공간 타입에서 방 안에 선다', () => {
+  for (const t of ROOM_TYPES) {
+    for (const W of [7000, 14000, 24000]) {
+      const D = autoDepthForType(t.id, W);
+      const led = { x: W * 0.25, y: 1000, w: W * 0.4, h: 2200, z: 60 };
+      const res = layoutRoom(t.id, defaultOptions(t.id), { W, D });
+      const spot = personSpot({ W, D }, led, res.items);
+      assert.ok(spot.x > 0 && spot.x < W, `${t.id} W=${W}: x=${spot.x}`);
+      assert.ok(spot.z > 0 && spot.z < D, `${t.id} W=${W}: z=${spot.z}`);
+    }
+  }
+});
+
+test('사람 자리 — 무대 위에 서지 않는다(바닥에 세우므로 발이 묻힘)', () => {
+  const W = 18000, D = autoDepthForType('hall_m', W);
+  const led = { x: 7000, y: 1000, w: 4000, h: 2200, z: 60 };
+  const res = layoutRoom('hall_m', { ...defaultOptions('hall_m'), stage: true }, { W, D });
+  const stage = res.items.find(i => i.type === 'stage');
+  const spot = personSpot({ W, D }, led, res.items);
+  assert.ok(stage, '무대가 있어야 하는 테스트');
+  assert.ok(spot.z > stage.z + (stage.d || 2600) / 2, `사람(z=${spot.z})이 무대(z≤${stage.z + (stage.d||2600)/2}) 밖에 서야 함`);
 });

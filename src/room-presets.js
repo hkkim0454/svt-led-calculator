@@ -15,9 +15,42 @@
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const int = (v, d = 0) => (Number.isFinite(Number(v)) ? Math.round(Number(v)) : d);
+const DEG = Math.PI / 180;
 
 // 몇 개나 들어가는지 = 쓸 수 있는 길이 ÷ 한 칸 간격 (최소 0)
 const fitCount = (available, pitch) => Math.max(0, Math.floor(available / pitch));
+
+// ── 의자 방향 ───────────────────────────────────────────────────────────────
+// 의자는 rotY = 0 일 때 -Z(LED 벽) 쪽을 바라본다. 아래 함수는 '바라볼 지점'을 주면
+// 그 쪽을 향하는 각도를 계산한다.
+//
+// ※ 규칙: 의자를 놓을 때는 각도를 손으로 적지 말고 반드시 이 함수에
+//   '맞닿는 테이블(책상·콘솔)의 중심'을 넘긴다. 손으로 적으면 방향이 뒤집히기 쉽다.
+//   (tests/room-presets.test.js 가 모든 의자에 대해 이 규칙을 검사한다.)
+export function faceTowards(x, z, targetX, targetZ) {
+  const dx = targetX - x, dz = targetZ - z;
+  if (!dx && !dz) return 0;
+  return (Math.round(Math.atan2(dx, -dz) / DEG) + 360) % 360;
+}
+
+// 의자 하나를 만든다. faceX·faceZ 는 이 의자가 바라볼 대상(테이블 중심 등).
+const chairAt = (x, z, faceX, faceZ, type = 'chair') => ({ type, x, z, rotY: faceTowards(x, z, faceX, faceZ) });
+
+// 좌석을 여러 구간에 '정원 비례'로 나눈다(한쪽에만 몰리지 않게).
+// caps = 구간별 최대 수용 인원. 반환 = 구간별 배정 인원(합계 ≤ total, 각 구간 ≤ cap).
+export function distributeSeats(total, caps) {
+  const sum = caps.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return caps.map(() => 0);
+  const n = clamp(Math.round(total), 0, sum);
+  const raw = caps.map(c => (n * c) / sum);
+  const out = raw.map(v => Math.floor(v));
+  let left = n - out.reduce((a, b) => a + b, 0);
+  // 남은 자리는 소수점이 큰 구간부터, 같으면 정원이 큰 구간부터
+  const order = caps.map((_, i) => i).sort((a, b) => (raw[b] - out[b]) - (raw[a] - out[a]) || caps[b] - caps[a]);
+  for (const i of order) { if (left <= 0) break; if (out[i] < caps[i]) { out[i]++; left--; } }
+  for (let i = 0; left > 0 && i < out.length; i++) { while (left > 0 && out[i] < caps[i]) { out[i]++; left--; } }
+  return out;
+}
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
@@ -174,10 +207,8 @@ function layoutMeeting(o, W, D) {
     items.push({ type: 'table', shape: 'round', x: W / 2, z: cz, rotY: 0, w: dia, d: dia });
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
-      items.push({
-        type: 'chair', x: W / 2 + Math.sin(a) * ring, z: cz + Math.cos(a) * ring,
-        rotY: (a / Math.PI) * 180 + 180,     // 항상 테이블 중심을 바라보게
-      });
+      // 원 둘레에 놓고, 방향은 '테이블 중심'을 바라보도록 계산한다(각도를 직접 적지 않는다).
+      items.push(chairAt(W / 2 + Math.sin(a) * ring, cz + Math.cos(a) * ring, W / 2, cz));
     }
     if (n < o.seats) notes.push(`원형 테이블 둘레상 ${capacity}석까지 들어갑니다.`);
     if (o.rug) items.push({ type: 'rug', x: W / 2, z: cz, rotY: 0, w: dia + 3000, d: dia + 3000 });
@@ -205,17 +236,17 @@ function layoutMeeting(o, W, D) {
   sideN[1] = Math.min(perSide, left - sideN[0]);
   left -= sideN[0] + sideN[1];
   for (let s = 0; s < 2; s++) {
-    // s=0 : 테이블 뒤쪽(LED에서 먼 쪽) → LED·테이블을 바라본다(rotY 0)
-    // s=1 : 테이블 앞쪽(LED 쪽)       → 뒤돌아 테이블을 바라본다(rotY 180)
+    // 테이블 긴 변 양쪽. 방향은 '바로 앞 테이블 면'을 바라보게 계산한다.
     const zc = cz + (s === 0 ? 1 : -1) * (tD / 2 + F.chairClear);
     const span = (sideN[s] - 1) * F.chairPitch;
     for (let i = 0; i < sideN[s]; i++) {
-      items.push({ type: 'chair', x: W / 2 - span / 2 + i * F.chairPitch, z: zc, rotY: s === 0 ? 0 : 180 });
+      const x = W / 2 - span / 2 + i * F.chairPitch;
+      items.push(chairAt(x, zc, x, cz));
     }
   }
-  for (let e = 0; e < Math.min(left, ends); e++) {
+  for (let e = 0; e < Math.min(left, ends); e++) {   // 양 끝(상석)
     const sign = e === 0 ? 1 : -1;
-    items.push({ type: 'chair', x: W / 2 + sign * (tW / 2 + F.chairClear), z: cz, rotY: sign > 0 ? 270 : 90 });
+    items.push(chairAt(W / 2 + sign * (tW / 2 + F.chairClear), cz, W / 2, cz));
   }
   if (n < o.seats) notes.push(`이 방 크기에서는 ${capacity}석까지 들어갑니다.`);
   if (o.rug) items.push({ type: 'rug', x: W / 2, z: cz, rotY: 0, w: tW + 2600, d: tD + 2600 });
@@ -239,21 +270,23 @@ function layoutUTable(o, W, D, cz) {
   const armN = fitCount(tD - seg - 400, F.chairPitch);
   const capacity = backN + armN * 2;
   const n = clamp(o.seats, 0, capacity);
-  let left = n;
-  const nb = Math.min(backN, left); left -= nb;
-  const na = Math.min(armN, Math.ceil(left / 2)); left -= na;
-  const nb2 = Math.min(armN, left);
+  // 뒤·좌·우 세 구간에 정원 비례로 나눠, 한쪽에만 몰리지 않게 한다.
+  const [nb, naL, naR] = distributeSeats(n, [backN, armN, armN]);
 
+  // 뒤쪽 가로 상판 — 상판 바깥(LED에서 먼 쪽)에 앉아 상판을 바라본다.
   const spanB = (nb - 1) * F.chairPitch;
-  for (let i = 0; i < nb; i++) items.push({ type: 'chair', x: W / 2 - spanB / 2 + i * F.chairPitch, z: zBack + seg / 2 + F.chairClear, rotY: 180 });
-  for (const [cnt, sign] of [[na, -1], [nb2, 1]]) {
+  for (let i = 0; i < nb; i++) {
+    const x = W / 2 - spanB / 2 + i * F.chairPitch;
+    items.push(chairAt(x, zBack + seg / 2 + F.chairClear, x, zBack));
+  }
+  // 좌·우 세로 상판 — 상판 바깥쪽에 앉아 상판을 바라본다.
+  const zMid = cz - seg / 2;
+  for (const [cnt, sign] of [[naL, -1], [naR, 1]]) {
+    const armX = W / 2 + sign * (tW / 2 - seg / 2);          // 상판(팔) 중심 x
     const span = (cnt - 1) * F.chairPitch;
-    const zMid = cz - seg / 2;
     for (let i = 0; i < cnt; i++) {
-      items.push({
-        type: 'chair', x: W / 2 + sign * (tW / 2 - seg / 2 + F.chairClear),
-        z: zMid - span / 2 + i * F.chairPitch, rotY: sign < 0 ? 90 : 270,
-      });
+      const z = zMid - span / 2 + i * F.chairPitch;
+      items.push(chairAt(armX + sign * F.chairClear, z, armX, z));
     }
   }
   if (n < o.seats) notes.push(`U자 배치에서는 ${capacity}석까지 들어갑니다.`);
@@ -272,7 +305,8 @@ function layoutLooseChairs(seats, W, D, items) {
     const r = Math.floor(i / perRow), c = i % perRow;
     const inRow = Math.min(perRow, n - r * perRow);
     const span = (inRow - 1) * F.chairPitch;
-    items.push({ type: 'chair', x: W / 2 - span / 2 + c * F.chairPitch, z: F.frontClear + 600 + r * 900, rotY: 0 });
+    const x = W / 2 - span / 2 + c * F.chairPitch, z = F.frontClear + 600 + r * 900;
+    items.push(chairAt(x, z, x, 0));   // 테이블이 없으므로 LED 벽(z=0)을 바라본다
   }
   return n;
 }
@@ -295,7 +329,7 @@ function layoutClassroom(o, W, D) {
     for (let c = 0; c < cols; c++) {
       const x = x0 + c * F.deskPitchX + (o.aisle && c >= half ? aisle : 0);
       items.push({ type: 'desk', x, z, rotY: 0, w: F.deskW, d: F.deskD });
-      items.push({ type: 'chair', x, z: z + 750, rotY: 0 });
+      items.push(chairAt(x, z + 750, x, z));   // 책상 뒤에 앉아 책상(과 LED)을 바라본다
     }
   }
   if (o.podium) items.push({ type: 'podium', x: clamp(W * 0.22, 900, W - 900), z: F.frontClear * 0.6, rotY: 180 });
@@ -331,7 +365,7 @@ function layoutHall(o, W, D) {
   }
   for (let r = 0; r < rows; r++) {
     const z = zStart + r * F.seatPitchZ;
-    for (const sx of xs) items.push({ type: 'seat', x: sx, z, rotY: 0 });
+    for (const sx of xs) items.push(chairAt(sx, z, sx, 0, 'seat'));   // 무대·LED(z=0) 쪽을 바라본다
   }
   if (o.plant) addPlant(items, W, D);
   return { items, placed: { seats: rows * xs.length, rows, perRow: xs.length }, capacity: maxRows * maxPerRow, notes };
@@ -353,7 +387,7 @@ function layoutControl(o, W, D) {
     for (let c = 0; c < perRow; c++) {
       const x = W / 2 - span / 2 + c * F.consolePitchX;
       items.push({ type: 'console', x, z, rotY: 0, w: F.consoleW, d: F.consoleD });
-      items.push({ type: 'chair', x, z: z + 1000, rotY: 0 });
+      items.push(chairAt(x, z + 1000, x, z));   // 콘솔 뒤에 앉아 콘솔(과 LED)을 바라본다
     }
   }
   if (o.backTable) {
@@ -361,8 +395,11 @@ function layoutControl(o, W, D) {
     const tW = clamp(W - F.wallClear * 2 - F.chairClear * 2, 1600, 6000);
     items.push({ type: 'table', shape: 'rect', x: W / 2, z, rotY: 0, w: tW, d: 1200 });
     const n = fitCount(tW - 400, F.chairPitch);
-    const s = (n - 1) * F.chairPitch;
-    for (let i = 0; i < n; i++) items.push({ type: 'chair', x: W / 2 - s / 2 + i * F.chairPitch, z: z + 1200 / 2 + F.chairClear, rotY: 180 });
+    const span = (n - 1) * F.chairPitch;
+    for (let i = 0; i < n; i++) {
+      const cx = W / 2 - span / 2 + i * F.chairPitch;
+      items.push(chairAt(cx, z + 1200 / 2 + F.chairClear, cx, z));   // 테이블 바깥에 앉아 테이블을 바라본다
+    }
   }
   if (o.plant) addPlant(items, W, D);
   return { items, placed: { consoles: rows * perRow, rows, perRow }, capacity: maxRows * maxPerRow, notes };
@@ -371,4 +408,32 @@ function layoutControl(o, W, D) {
 // 화분은 방 뒤쪽 구석(LED에서 먼 쪽)에 둔다 — 시야를 가리지 않게.
 function addPlant(items, W, D) {
   items.push({ type: 'plant', x: W - FURNITURE.wallClear / 1.6, z: D - FURNITURE.wallClear / 1.6, rotY: 0 });
+}
+
+// ── 사람이 설 자리 ──────────────────────────────────────────────────────────
+// 3D 뷰에 축척 비교용으로 사람을 세울 위치를 고른다.
+//   · LED 옆에 서야 화면 크기를 눈으로 가늠할 수 있다(LED를 가리지 않게 옆쪽).
+//   · 테이블·의자와 겹치면 사람이 가구를 뚫고 선 것처럼 보이므로 빈 곳을 찾는다.
+// 무대(stage)도 피한다 — 사람은 바닥(y=0)에 세우므로 단상 위에 두면 발이 묻힌다.
+export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage']));
+
+export function personSpot(room, led, items = []) {
+  const W = Math.max(2000, room.W), D = Math.max(2000, room.D);
+  const margin = 600;
+  const blocked = (x, z) => (items || []).some(it => {
+    if (!PERSON_BLOCKING.has(it.type)) return false;           // 러그 위에는 설 수 있다
+    const hw = (it.w || 700) / 2 + 450, hd = (it.d || 700) / 2 + 450;
+    return Math.abs(it.x - x) < hw && Math.abs(it.z - z) < hd;
+  });
+  // LED 좌·우 바깥쪽을 먼저, 벽에서 조금씩 떨어뜨려 가며 빈 곳을 찾는다.
+  //   벽에 너무 붙이면 화면에서 치수선·치수 라벨과 겹치므로 적당히 띄운다.
+  const xs = [led.x - 1400, led.x + led.w + 1400, led.x - 2300, led.x + led.w + 2300];
+  const zs = [2200, 2800, 1500, 3400];   // 벽에서 2.2 m쯤 떨어져 서면 치수 라벨과 겹치지 않는다
+  for (const z of zs) {
+    for (const x of xs) {
+      const cx = clamp(x, margin, W - margin), cz = clamp(z, margin, D - margin);
+      if (!blocked(cx, cz)) return { x: cx, z: cz };
+    }
+  }
+  return { x: clamp(xs[0], margin, W - margin), z: clamp(zs[0], margin, D - margin) };
 }

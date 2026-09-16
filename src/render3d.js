@@ -13,8 +13,8 @@ import {
   buildScene, roomShellQuads, visibleWallSides, cabinetQuads, floorGridLines,
   makeCamera, projectPoint, cullAndSort, fitTransform, toScreen, fitAnchors,
   cubeView, rotateCubeView, DEFAULT_CUBE_VIEW, clampView, VIEW_LIMITS, CUBE_VIEWS,
-} from './scene3d.js?v=350';
-import { furnitureGroups, footprint } from './furniture3d.js?v=350';
+} from './scene3d.js?v=351';
+import { furnitureGroups, footprint } from './furniture3d.js?v=351';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 방·가구는 제품 렌더처럼 '항상 밝은 톤'으로 그린다(다크모드에서도 동일).
@@ -44,6 +44,13 @@ const BACKDROP = {
 // 한 물건 안에서 '반드시 나중에(위에) 그려야 하는' 부품. 상판은 다리·받침 위에 얹히므로,
 // 단순 거리순으로만 그리면 받침이 상판을 뚫고 보인다. 숫자가 클수록 나중에 그린다.
 const LATE = { tableTop: 1, deskTop: 1, consoleTop: 1, podiumTop: 1, monitorBase: 1, monitor: 2, plantLeaf: 1 };
+
+// 그 면이 '방 안쪽'을 향한 벽면인지 — 포인트 색은 이 면에만 칠한다.
+const INWARD = { front: [0, 0, 1], back: [0, 0, -1], left: [1, 0, 0], right: [-1, 0, 0] };
+function isInnerWallFace(q) {
+  const n = INWARD[q.side];
+  return !!n && (q.normal[0] * n[0] + q.normal[1] * n[1] + q.normal[2] * n[2]) > 0.5;
+}
 
 // 면이 향한 방향에 따른 밝기 — 위는 밝고 아래·옆은 어둡게(입체감).
 function shadeFactor(normal) {
@@ -172,10 +179,15 @@ export function paint(ctx, width, height, m, view) {
   if (m.show?.shadow !== false) for (const it of m.items || []) drawContactShadow(ctx, P, it);
 
   // ⑥ 벽 — 카메라 쪽 벽은 잘라내(컷어웨이) 안이 보이게. 옆벽 하나는 포인트 색.
+  //    포인트 색은 '방 안쪽을 향한 면'에만 칠한다. 벽 윗면·바깥면까지 칠하면
+  //    흰 벽의 윗면과 만나는 꼭짓점에서 색이 끊겨 모서리가 어긋나 보인다(실제 도장과도 다름).
   const accent = sides.right ? 'right' : (sides.left ? 'left' : null);
   const wallQuads = shell
     .filter(q => q.side !== 'floor' && sides[q.side])
-    .map(q => ({ ...q, kind: (m.show?.accentWall !== false && q.side === accent) ? 'wallAccent' : 'wall' }));
+    .map(q => ({
+      ...q,
+      kind: (m.show?.accentWall !== false && q.side === accent && isInnerWallFace(q)) ? 'wallAccent' : 'wall',
+    }));
   drawQuads(cullAndSort(cam, wallQuads));
 
   // ⑦ LED
@@ -187,18 +199,34 @@ export function paint(ctx, width, height, m, view) {
   const flatTypes = new Set(['rug', 'stage']);
   const byDepth = list => list
     .map(g => ({ g, depth: projectPoint(cam, [g.item.x, 0, g.item.z]).z }))
-    .sort((a, b) => b.depth - a.depth)
-    .map(x => x.g);
+    .sort((a, b) => b.depth - a.depth);
   const drawGroup = g => {
     const vis = cullAndSort(cam, g.quads);
     vis.sort((a, b) => (LATE[a.kind] || 0) - (LATE[b.kind] || 0) || b.depth - a.depth);
     drawQuads(vis);
   };
-  for (const g of byDepth(groups.filter(g => flatTypes.has(g.item.type)))) drawGroup(g);
-  for (const g of byDepth(groups.filter(g => !flatTypes.has(g.item.type)))) drawGroup(g);
+  for (const { g } of byDepth(groups.filter(g => flatTypes.has(g.item.type)))) drawGroup(g);
+
+  // 사람은 가구와 같은 앞뒤 순서에 끼워 그린다(뒤쪽 의자에 가려지고, 앞쪽 의자는 사람을 가리게).
+  //   평면도처럼 키가 화면에서 납작해지는 시점에서는 사람(그림자·키 라벨 포함)을 생략한다.
+  const person = (m.person && personScreenHeight(P, m.person) >= 6) ? m.person : null;
+  const personDepth = person ? projectPoint(cam, [person.x, 0, person.z]).z : null;
+  let personDrawn = !person;
+  if (person) drawPersonShadow(ctx, P, person);
+  for (const { g, depth } of byDepth(groups.filter(g => !flatTypes.has(g.item.type)))) {
+    if (!personDrawn && personDepth > depth) { drawPerson(ctx, P, person); personDrawn = true; }
+    drawGroup(g);
+  }
+  if (!personDrawn) drawPerson(ctx, P, person);
 
   // ⑨ 치수·설명
-  if (m.show?.dims) drawDims(ctx, P, scene);
+  if (m.show?.dims) {
+    drawDims(ctx, P, scene);
+    if (person) {
+      const f = P([person.x, 0, person.z]);
+      pill(ctx, f.x, f.y + 24, `키 ${(person.heightMm / 10).toFixed(1)} cm`, { sub: true });
+    }
+  }
   if (m.caption) drawCaption(ctx, width, height, m.caption);
 }
 
@@ -296,6 +324,29 @@ function drawLed(ctx, cam, t, scene, m) {
     quadPath(ctx, pts);
     ctx.strokeStyle = 'rgba(5,6,8,.9)'; ctx.lineWidth = 2; ctx.stroke();
   }
+}
+
+// 사람은 입체 도형이 아니라 '화면을 향해 세운 사진 판(빌보드)'으로 그린다.
+//   정사투영이라 화면에서의 크기가 거리와 무관하므로, 실제 키(mm)가 그대로 비율에 반영된다.
+//   반환값: 실제로 그렸으면 true (평면도처럼 키가 납작해지는 시점에서는 그리지 않는다).
+function personScreenHeight(P, person) {
+  const foot = P([person.x, 0, person.z]), head = P([person.x, person.heightMm, person.z]);
+  return Math.hypot(head.x - foot.x, head.y - foot.y);
+}
+
+function drawPerson(ctx, P, person) {
+  const img = person.img;
+  if (!img || !img.complete || !img.naturalWidth) return false;
+  const foot = P([person.x, 0, person.z]);
+  const h = personScreenHeight(P, person);
+  const w = h * (img.naturalWidth / img.naturalHeight);
+  ctx.drawImage(img, foot.x - w / 2, foot.y - h, w, h);
+  return true;
+}
+
+// 사람 발밑 그림자 — 바닥에 서 있다는 느낌을 준다(가구 접지 그림자와 같은 방식).
+function drawPersonShadow(ctx, P, person) {
+  drawContactShadow(ctx, P, { type: 'person', x: person.x, z: person.z });
 }
 
 function drawDims(ctx, P, scene) {
@@ -464,7 +515,7 @@ export function createViewer3d(canvas, { onChange } = {}) {
 }
 
 // 화면(app.js)이 넘겨준 값으로 그릴 준비가 된 모델을 만든다.
-export function buildModel({ space, led, items, show, caption, ledImage, theme }) {
+export function buildModel({ space, led, items, show, caption, ledImage, theme, person }) {
   return {
     scene: buildScene({
       spaceW: space.W, spaceH: space.H, spaceD: space.D,
@@ -473,6 +524,6 @@ export function buildModel({ space, led, items, show, caption, ledImage, theme }
     }),
     items: items || [],
     show: show || {},
-    caption, ledImage, theme,
+    caption, ledImage, theme, person,
   };
 }

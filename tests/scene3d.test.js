@@ -265,3 +265,12 @@ test('평면도(바로 위) 시점에서도 카메라 축이 무너지지 않는
   const up = projectPoint(cam, [0, 3000, 0]);
   assert.ok(Math.hypot(up.x - a.x, up.y - a.y) < 1e-6);
 });
+
+test('평면도 — 도면처럼 오른쪽이 +X, 위쪽이 LED 벽(z=0)이 된다(좌우 반전 없음)', () => {
+  const cam = makeCamera({ target: scene.target, yaw: 0, pitch: 90, distance: 100000, ortho: true });
+  const o = projectPoint(cam, [0, 0, 0]);
+  const px = projectPoint(cam, [scene.W, 0, 0]);       // +X 방향
+  const pz = projectPoint(cam, [0, 0, scene.D]);       // +Z(방 안쪽) 방향
+  assert.ok(px.x > o.x, '+X는 화면 오른쪽이어야 한다(좌우 반전 금지)');
+  assert.ok(pz.y > o.y, '+Z(방 안쪽)는 화면 아래쪽 — 즉 LED 벽이 위에 온다');
+});
