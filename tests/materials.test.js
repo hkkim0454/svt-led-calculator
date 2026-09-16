@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MATERIAL_PRESETS, MATERIAL_IDS, PART_MATERIAL, floorFinishFor, tileRepeat,
+  MATERIAL_PRESETS, MATERIAL_IDS, PART_MATERIAL, floorFinishFor, tileRepeat, MOODS, moodFor,
 } from '../src/materials.js';
 import { FURNITURE_COLORS } from '../src/furniture-assets.js';
 import { MM_PER_UNIT } from '../src/gl-model.js';
@@ -66,10 +66,27 @@ test('LED보다 눈에 띄지 않는다 — 마감재 중 금속성이 있는 �
   }
 });
 
-test('바닥 마감 — 강의실만 비닐, 나머지는 카펫', () => {
+test('바닥 마감 — 강의실·아이디에이션은 비닐, 나머지는 카펫', () => {
   assert.equal(floorFinishFor('classroom'), 'vinylFloor');
+  assert.equal(floorFinishFor('ideation'), 'vinylFloor');
   for (const id of ['meeting', 'hall_s', 'hall_m', 'hall_l', 'control', undefined]) {
     assert.equal(floorFinishFor(id), 'carpetTile', String(id));
+  }
+});
+
+test('분위기 — 아이디에이션 공간만 더 밝고, 조명 구성은 방마다 바뀌지 않는다', () => {
+  assert.equal(moodFor('ideation'), 'bright');
+  for (const id of ['meeting', 'classroom', 'hall_s', 'control', undefined]) {
+    assert.equal(moodFor(id), 'office', String(id));
+  }
+  assert.ok(MOODS.bright.light > MOODS.office.light, '아이디에이션이 더 밝아야 한다');
+  assert.ok(MOODS.bright.wallMix > 0, '벽도 흰쪽으로 섞인다');
+  assert.equal(MOODS.office.wallMix, 0, '기준 분위기는 색을 건드리지 않는다');
+  assert.ok(MOODS.dim.light < MOODS.office.light, '어두운 분위기는 더 어둡다');
+  // 밝기 차이가 과하면 같은 도구 안에서 방마다 다른 세상처럼 보인다.
+  for (const m of Object.values(MOODS)) {
+    assert.ok(m.light >= 0.75 && m.light <= 1.25, `${m.id}: 밝기 배수 ${m.light}`);
+    assert.ok(m.label, `${m.id}: 라벨 필요`);
   }
 });
 
@@ -86,7 +103,8 @@ test('무늬 간격 — 방이 커지면 반복도 같이 늘어난다(확대·�
 });
 
 test('가구 부품 — 모든 색 이름이 재질과 이어진다(모니터·잎 제외)', () => {
-  const EXEMPT = new Set(['monitor', 'plantLeaf']);   // 7종 프리셋에 없는 둘
+  // 7종 프리셋에 없는 것 — 화면 2종(모니터·이동식 디스플레이)과 잎.
+  const EXEMPT = new Set(['monitor', 'standPanel', 'plantLeaf']);
   for (const kind of Object.keys(FURNITURE_COLORS)) {
     if (EXEMPT.has(kind)) continue;
     const token = PART_MATERIAL[kind];

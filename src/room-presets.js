@@ -116,6 +116,20 @@ export const ROOM_TYPES = Object.freeze([
     options: hallOptions(16, 24, true),
   },
   {
+    // 아이디에이션(협업) 공간 — 줄 맞춘 좌석이 아니라 '구역'으로 흩어 놓는다.
+    //   가구를 많이 넣는 것이 목표가 아니라 **비워 둔 바닥이 보이는 것**이 목표다.
+    id: 'ideation', label: '아이디에이션', depthFactor: 0.95, minDepth: 5000,
+    options: [
+      { key: 'highTables', label: '하이 테이블 수', type: 'number', default: 1, min: 0, max: 3 },
+      { key: 'stools', label: '테이블당 스툴 수', type: 'number', default: 4, min: 0, max: 8 },
+      { key: 'collabTables', label: '협업 테이블 수', type: 'number', default: 2, min: 0, max: 4 },
+      { key: 'lounge', label: '라운지 좌석', type: 'toggle', default: true },
+      { key: 'mobileStand', label: '이동식 디스플레이', type: 'toggle', default: true },
+      { key: 'rug', label: '러그', type: 'toggle', default: true },
+      { key: 'plant', label: '화분', type: 'toggle', default: true },
+    ],
+  },
+  {
     id: 'control', label: '상황실', depthFactor: 1.0, minDepth: 6000,
     options: [
       { key: 'consoleRows', label: '콘솔 줄 수', type: 'number', default: 2, min: 1, max: 8 },
@@ -195,6 +209,7 @@ export function layoutRoom(typeId, opts, room) {
     case 'classroom': return layoutClassroom(o, W, D);
     case 'hall_s': case 'hall_m': case 'hall_l': return layoutHall(o, W, D);
     case 'control': return layoutControl(o, W, D);
+    case 'ideation': return layoutIdeation(o, W, D);
     case 'meeting': default: return layoutMeeting(o, W, D);
   }
 }
@@ -461,6 +476,79 @@ function layoutHall(o, W, D) {
   };
 }
 
+// ── 아이디에이션(협업) 공간 ────────────────────────────────────────────────
+// 줄·열이 없다. 방을 몇 개의 **구역**으로 나누고 각 구역에 한 덩어리씩 놓는다.
+//   비율(0~1)로 자리를 잡은 뒤 벽 여유 안으로 당겨서, 방 크기가 달라져도 구성이 유지된다.
+//   목표는 가구를 채우는 것이 아니라 **가운데 바닥을 비워 두는 것**이다.
+function layoutIdeation(o, W, D) {
+  const F = FURNITURE;
+  const items = [], notes = [];
+  const pad = F.wallClear;
+  const front = Math.max(F.frontClear, D * 0.18);           // LED 앞은 비워 둔다
+  const px = (t, half = 0) => clamp(W * t, pad + half, W - pad - half);
+  const pz = (t, half = 0) => clamp(D * t, front + half, D - pad - half);
+
+  // ① 하이 테이블 구역 — 서서 쓰는 협업 테이블. 스툴을 둘레에 고르게 돌린다.
+  const htW = clamp(W * 0.22, 1200, 2200), htD = 900;
+  const nHT = clamp(o.highTables, 0, 3);
+  const htSpots = [[0.30, 0.42], [0.72, 0.42], [0.50, 0.30]];
+  let stools = 0;
+  for (let i = 0; i < nHT; i++) {
+    const [tx, tz] = htSpots[i];
+    const x = px(tx, htW / 2), z = pz(tz, htD / 2 + 700);
+    items.push({ type: 'highTable', x, z, rotY: 0, w: htW, d: htD });
+    // 스툴은 긴 변(앞뒤)에 반씩. 테이블을 바라보게 둔다.
+    const n = clamp(o.stools, 0, 8);
+    for (let k = 0; k < n; k++) {
+      const side = k % 2 ? 1 : -1;                          // 앞줄 / 뒷줄
+      const idx = Math.floor(k / 2);
+      const perSide = Math.ceil(n / 2);
+      const span = (perSide - 1) * 620;
+      const sx = x - span / 2 + idx * 620;
+      const sz = z + side * (htD / 2 + 430);
+      items.push({ ...chairAt(sx, sz, x, z, 'stool') });
+      stools++;
+    }
+  }
+
+  // ② 협업 구역 — 낮은 원형 테이블 + 라운지 체어 3개. 서로 마주 본다.
+  const nCT = clamp(o.collabTables, 0, 4);
+  const ctSpots = [[0.74, 0.70], [0.28, 0.74], [0.74, 0.30], [0.28, 0.30]];
+  const dia = 1100;
+  let lounge = 0;
+  for (let i = 0; i < nCT; i++) {
+    const [tx, tz] = ctSpots[i];
+    const x = px(tx, dia / 2 + 700), z = pz(tz, dia / 2 + 700);
+    items.push({ type: 'collabTable', x, z, rotY: 0, w: dia, d: dia });
+    if (o.lounge) {
+      const ring = dia / 2 + 520;
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI * 2 + Math.PI / 6;
+        items.push(chairAt(x + Math.sin(a) * ring, z + Math.cos(a) * ring, x, z, 'lounge'));
+        lounge++;
+      }
+    }
+    if (o.rug && i === 0) {
+      items.push({ type: 'rug', x, z, rotY: 0, w: dia + 2800, d: dia + 2800 });
+    }
+  }
+
+  // ③ 이동식 디스플레이 — LED 벽 옆에 비스듬히. 붙박이 화면과 대비되는 요소다.
+  if (o.mobileStand) {
+    items.push({ type: 'mobileStand', x: px(0.90, 700), z: pz(0.16, 700), rotY: -35 });
+  }
+  if (o.plant) addPlant(items, W, D);
+
+  const seats = stools + lounge;
+  if (nHT === 0 && nCT === 0) notes.push('가구를 모두 끄면 빈 공간만 보입니다.');
+  return {
+    items,
+    placed: { highTables: nHT, stools, collabTables: nCT, lounge, chairs: seats },
+    capacity: seats,
+    notes,
+  };
+}
+
 // ── 상황실 ──────────────────────────────────────────────────────────────────
 function layoutControl(o, W, D) {
   const F = FURNITURE;
@@ -505,7 +593,8 @@ function addPlant(items, W, D) {
 //   · LED 옆에 서야 화면 크기를 눈으로 가늠할 수 있다(LED를 가리지 않게 옆쪽).
 //   · 테이블·의자와 겹치면 사람이 가구를 뚫고 선 것처럼 보이므로 빈 곳을 찾는다.
 // 무대(stage)도 피한다 — 사람은 바닥(y=0)에 세우므로 단상 위에 두면 발이 묻힌다.
-export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage', 'credenza']));
+export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage', 'credenza',
+  'highTable', 'stool', 'lounge', 'collabTable', 'mobileStand']));
 
 export function personSpot(room, led, items = []) {
   const W = Math.max(2000, room.W), D = Math.max(2000, room.D);

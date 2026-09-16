@@ -15,13 +15,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=382';
-import { createMaterialLibrary } from './materials-gl.js?v=382';
-import { PART_MATERIAL } from './materials.js?v=382';
+import { u } from './gl-model.js?v=383';
+import { createMaterialLibrary } from './materials-gl.js?v=383';
+import { PART_MATERIAL } from './materials.js?v=383';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable,
-} from './furniture-assets.js?v=382';
+} from './furniture-assets.js?v=383';
 
 const DEG = Math.PI / 180;
 
@@ -153,9 +153,11 @@ export function buildFurnitureGroup(items) {
   for (const [k, c] of Object.entries(FURNITURE_COLORS)) {
     const token = PART_MATERIAL[k];
     if (token) { mat[k] = lib.get(token, c); continue; }
-    // 7종 프리셋에 없는 둘 — 모니터 화면(살짝 반들)과 잎(무광)은 여기서 직접 만든다.
+    // 7종 프리셋에 없는 것 — 화면(모니터·이동식 디스플레이)과 잎은 여기서 직접 만든다.
+    //   화면은 실내 마감재가 아니라서 재질 라이브러리에 두지 않는다(LED와 같은 이유).
+    const screen = k === 'monitor' || k === 'standPanel';
     mat[k] = new THREE.MeshStandardMaterial({
-      color: c, roughness: k === 'monitor' ? 0.35 : 0.9, metalness: k === 'monitor' ? 0.1 : 0,
+      color: c, roughness: screen ? 0.35 : 0.9, metalness: screen ? 0.1 : 0,
     });
   }
 

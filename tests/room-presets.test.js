@@ -18,7 +18,7 @@ function assertInside(res, W, D, label) {
 
 test('공간 타입 — 6종이 모두 있고 각자 옵션 스키마를 가진다', () => {
   const ids = ROOM_TYPES.map(t => t.id);
-  assert.deepEqual(ids, ['meeting', 'classroom', 'hall_s', 'hall_m', 'hall_l', 'control']);
+  assert.deepEqual(ids, ['meeting', 'classroom', 'hall_s', 'hall_m', 'hall_l', 'ideation', 'control']);
   for (const t of ROOM_TYPES) {
     assert.ok(t.label && t.options.length > 0, t.id);
     for (const o of t.options) {
@@ -571,4 +571,59 @@ test('강의실 — 강사 영역은 수강생 배치에 끼어들지 않는다'
     assert.ok(it.z < firstRowZ, '강사 영역이 수강생 첫 줄보다 앞에 있어야 한다');
   }
   assertInside(on, room.W, room.D, '강사 영역');
+});
+
+
+// ── 아이디에이션 공간(STEP 8) ───────────────────────────────────────────────
+
+test('아이디에이션 — 줄·열이 아니라 구역 배치이고, 가운데 바닥이 비어 있다', () => {
+  const W = 11000, D = 10500;
+  const res = layoutRoom('ideation', defaultOptions('ideation'), { W, D });
+  const by = t => res.items.filter(i => i.type === t);
+  assert.equal(by('highTable').length, 1);
+  assert.equal(by('collabTable').length, 2);
+  assert.equal(by('stool').length, 4);
+  assert.equal(by('lounge').length, 6, '협업 테이블마다 라운지 3석');
+  assert.equal(by('mobileStand').length, 1);
+  assertInside(res, W, D, '아이디에이션');
+
+  // 강당처럼 줄 맞춘 좌석이 아니다 — 같은 z에 여러 좌석이 늘어서지 않는다.
+  const zs = by('lounge').map(i => Math.round(i.z / 100));
+  const maxSameRow = Math.max(...zs.map(z => zs.filter(v => v === z).length));
+  assert.ok(maxSameRow <= 2, `한 줄에 ${maxSameRow}석이 늘어섰다 — 줄 배치처럼 보인다`);
+
+  // 방 한가운데는 비워 둔다(개방감). 중앙 2.4m 사각 안에 가구가 없어야 한다.
+  const near = res.items.filter(i => Math.abs(i.x - W / 2) < 1200 && Math.abs(i.z - D / 2) < 1200
+    && i.type !== 'rug');
+  assert.equal(near.length, 0, `가운데에 ${near.map(i => i.type).join(',')}`);
+});
+
+test('아이디에이션 — 가구 수를 바꿔도 방 안에 들어가고, 모두 끄면 빈 공간이 된다', () => {
+  for (const [W, D] of [[6000, 5600], [9000, 8500], [16000, 15000]]) {
+    const full = layoutRoom('ideation', { highTables: 3, stools: 8, collabTables: 4, lounge: true,
+      mobileStand: true, rug: true, plant: true }, { W, D });
+    assertInside(full, W, D, `가득 ${W}×${D}`);
+    assert.equal(full.placed.stools, 24);
+    assert.equal(full.placed.lounge, 12);
+    assert.equal(full.placed.chairs, 36);
+  }
+  const empty = layoutRoom('ideation', { highTables: 0, stools: 0, collabTables: 0, lounge: false,
+    mobileStand: false, rug: false, plant: false }, { W: 9000, D: 8500 });
+  assert.equal(empty.items.length, 0);
+  assert.equal(empty.capacity, 0);
+  assert.ok(empty.notes.length > 0, '빈 공간이라는 안내가 있어야 한다');
+});
+
+test('아이디에이션 — 스툴·라운지는 자기 테이블을 바라본다', () => {
+  const W = 12000, D = 11000;
+  const res = layoutRoom('ideation', defaultOptions('ideation'), { W, D });
+  const nearest = (it, type) => res.items.filter(i => i.type === type)
+    .reduce((a, b) => (Math.hypot(b.x - it.x, b.z - it.z) < Math.hypot(a.x - it.x, a.z - it.z) ? b : a));
+  for (const [seat, table] of [['stool', 'highTable'], ['lounge', 'collabTable']]) {
+    for (const s of res.items.filter(i => i.type === seat)) {
+      const t = nearest(s, table);
+      assert.equal(Math.round(s.rotY), Math.round(faceTowards(s.x, s.z, t.x, t.z)),
+        `${seat}가 ${table}을 바라보지 않는다`);
+    }
+  }
 });
