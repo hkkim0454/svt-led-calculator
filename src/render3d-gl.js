@@ -18,18 +18,18 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=357';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=359';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
-  CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose,
-} from './gl-model.js?v=357';
+  CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
+} from './gl-model.js?v=359';
 
 // 화면(app.js)이 한 곳에서만 불러 쓰도록 다시 내보낸다.
 export {
   MM_PER_UNIT, u, toMm, EYE_MM, LOOK_MM, FOV_DEG, START_YAW_DEG, viewDistance, buildGLModel,
-  CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose,
+  CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
 };
 
 // 프리셋 전환에 걸리는 시간(ms). 툭 끊기지 않으면서 기다린다는 느낌은 없는 길이.
@@ -50,7 +50,19 @@ export const GL_PALETTE = Object.freeze({
   ledGlow: '#2f7ff6',       // 벽에 번지는 푸른 헤일로
   stageTop: '#eef1f5',      // 무대 윗면
   stageSide: '#dce1e7',     // 무대 옆면
+  wallAccent: '#afc9be',    // 포인트 벽(차분한 세이지) — 기존 3D 뷰와 같은 색
+  gridMinor: 'rgba(89,104,125,.10)',   // 바닥 격자 600mm
+  gridMajor: 'rgba(89,104,125,.20)',   // 바닥 격자 1200mm
+  dimLine: '#8c95a3',       // 치수 보조선
 });
+
+// 포인트 벽은 벽 색 위에 '낮은 농도로' 얹는다. 원색 그대로 칠하면 면적이 넓어
+//   LED보다 포인트 벽에 시선이 먼저 간다(기존 3D 뷰와 같은 규칙).
+export const ACCENT_ALPHA = 0.5;
+
+// 바닥 격자 간격(mm) — 기존 3D 뷰와 같은 2단계.
+export const GRID_MINOR_MM = 600;
+export const GRID_MAJOR_MM = 1200;
 
 // ── LED 화면 텍스처 ─────────────────────────────────────────────────────────
 // 정면 뷰와 같은 '짙은 네이비 + 가운데만 은은하게 푸른' 화면. 캔버스로 한 번 그려 텍스처로 쓴다.
@@ -90,6 +102,40 @@ function makeGlowTexture() {
   return tex;
 }
 
+// ── 바닥 격자 ───────────────────────────────────────────────────────────────
+// 격자를 '바닥 위에 띄운 판'으로 만들면 시점에 따라 떠 보이고 z-fighting(지글거림)이 난다.
+// 그래서 **바닥 재질의 무늬로** 그려 넣는다 — 물리적으로 바닥 그 자체가 된다.
+//   한 타일 = 1200mm(주 격자). 그 안에 600mm(보조) 선을 하나 더 넣는다.
+function makeGridTexture() {
+  const S = 256;                       // 타일 한 장(= 1200mm)의 픽셀 수
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const c = cv.getContext('2d');
+  c.fillStyle = GL_PALETTE.floor;
+  c.fillRect(0, 0, S, S);
+  // 보조선(600mm) — 타일 한가운데
+  c.strokeStyle = GL_PALETTE.gridMinor;
+  c.lineWidth = 1.5;
+  c.beginPath();
+  c.moveTo(S / 2, 0); c.lineTo(S / 2, S);
+  c.moveTo(0, S / 2); c.lineTo(S, S / 2);
+  c.stroke();
+  // 주선(1200mm) — 타일 경계. 이웃 타일과 이어지도록 양쪽 가장자리에 반씩 그린다.
+  c.strokeStyle = GL_PALETTE.gridMajor;
+  c.lineWidth = 2;
+  c.beginPath();
+  c.moveTo(0.5, 0); c.lineTo(0.5, S);
+  c.moveTo(S - 0.5, 0); c.lineTo(S - 0.5, S);
+  c.moveTo(0, 0.5); c.lineTo(S, 0.5);
+  c.moveTo(0, S - 0.5); c.lineTo(S, S - 0.5);
+  c.stroke();
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
 // ── 장면 만들기 ─────────────────────────────────────────────────────────────
 // 방·LED·무대를 하나의 Group에 담아 돌려준다. 모델이 바뀌면 이 Group만 통째로 갈아 끼운다.
 function buildRoomGroup(model, shared) {
@@ -106,8 +152,17 @@ function buildRoomGroup(model, shared) {
     color: GL_PALETTE.wallSide, roughness: 0.96, metalness: 0, side: THREE.FrontSide,
   });
   const matFloor = new THREE.MeshStandardMaterial({
-    color: GL_PALETTE.floor, roughness: 0.92, metalness: 0, side: THREE.FrontSide,
+    color: 0xffffff, roughness: 0.92, metalness: 0, side: THREE.FrontSide,
   });
+  // 바닥 격자 — 바닥 재질의 무늬로 넣는다(별도 판을 띄우지 않으므로 뜨거나 지글거리지 않는다).
+  if (model.show?.grid !== false) {
+    const tex = shared.gridTex();
+    // 타일 한 장 = 1200mm. 방 크기에 맞춰 반복 횟수를 정한다.
+    tex.repeat.set(room.W / u(GRID_MAJOR_MM), room.D / u(GRID_MAJOR_MM));
+    matFloor.map = tex;
+  } else {
+    matFloor.color.set(GL_PALETTE.floor);
+  }
 
   // ① 바닥 — XZ 평면. PlaneGeometry는 XY 평면에 서 있으므로 눕힌다.
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.D), matFloor);
@@ -122,16 +177,26 @@ function buildRoomGroup(model, shared) {
   wallFront.name = 'wallFront';
   g.add(wallFront);
 
-  // ③ 좌측 벽(x=0) — 방 안쪽(+X)을 향하도록 +90° 돌린다.
-  const wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), matWallSide);
-  wallLeft.rotation.y = Math.PI / 2;
+  // ③④ 좌·우 벽. 포인트 벽은 **공간 좌표 기준 한쪽 벽(ACCENT_WALL_SIDE)에 고정**한다.
+  //     '카메라에서 보이는 옆벽'에 칠하면 시점을 돌릴 때 벽이 좌↔우로 옮겨 다닌다 —
+  //     실제로 칠해 둔 벽은 그럴 수 없다. 여기서 카메라를 참조하지 않는 것이 핵심이다.
+  const accentOn = model.show?.accentWall !== false;
+  const matAccent = new THREE.MeshStandardMaterial({
+    // 벽 색에 포인트 색을 ACCENT_ALPHA 만큼 섞는다(반투명 겹치기 대신 색을 미리 섞어
+    //   두면 어느 각도에서도 같은 색으로 보이고 그리기 순서 문제도 없다).
+    color: new THREE.Color(GL_PALETTE.wallSide).lerp(new THREE.Color(GL_PALETTE.wallAccent), ACCENT_ALPHA),
+    roughness: 0.96, metalness: 0, side: THREE.FrontSide,
+  });
+  const sideMat = side => (accentOn && side === ACCENT_WALL_SIDE) ? matAccent : matWallSide;
+
+  const wallLeft = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('left'));
+  wallLeft.rotation.y = Math.PI / 2;               // 방 안쪽(+X)을 향한다
   wallLeft.position.set(0, room.H / 2, room.D / 2);
   wallLeft.name = 'wallLeft';
   g.add(wallLeft);
 
-  // ④ 우측 벽(x=W) — 방 안쪽(−X)을 향한다.
-  const wallRight = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), matWallSide);
-  wallRight.rotation.y = -Math.PI / 2;
+  const wallRight = new THREE.Mesh(new THREE.PlaneGeometry(room.D, room.H), sideMat('right'));
+  wallRight.rotation.y = -Math.PI / 2;             // 방 안쪽(−X)을 향한다
   wallRight.position.set(room.W, room.H / 2, room.D / 2);
   wallRight.name = 'wallRight';
   g.add(wallRight);
@@ -188,6 +253,61 @@ function buildRoomGroup(model, shared) {
   }
 
   g.add(furniture);
+
+  // ⑦ 치수 보조선 — 글자는 HTML 오버레이가 그리고, 선만 씬에 둔다.
+  //    (3D 문자를 만들면 각도마다 읽기 어렵고 무거워진다)
+  if (model.show?.dims !== false) g.add(buildDimLines(model));
+
+  return g;
+}
+
+const clampPx = (v, lo, hi) => (hi <= lo ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
+
+// 높이 축이 화면에서 거의 사라졌는지(= 위에서 수직으로 내려다보는 그림인지).
+const _f1 = new THREE.Vector3(), _f2 = new THREE.Vector3();
+function isFlatView(m, cam, h) {
+  if (!m) return false;
+  const { led } = m;
+  _f1.set(led.x, led.y, led.depth).project(cam);
+  _f2.set(led.x, led.y + 1, led.depth).project(cam);   // 1 m 위
+  return Math.abs(_f2.y - _f1.y) * h * 0.5 < 8;        // 화면에서 8px 미만이면 '납작'
+}
+
+// ── 치수 ────────────────────────────────────────────────────────────────────
+// 어디를 재는지 — 기존 정면 뷰·3D 뷰와 같은 세 가지.
+//   가로 : LED 위쪽      세로 : LED 오른쪽      하단 높이 : LED 왼쪽 아래(바닥까지)
+// 화면 픽셀 기준 여백은 라벨 쪽에서 주고, 여기서는 '무엇을 잇는 선인지'만 정한다.
+export function dimSpecs(model) {
+  const { led } = model;
+  const top = led.y + led.h;
+  const out = [
+    { id: 'w', a: [led.x, top, led.depth], b: [led.x + led.w, top, led.depth],
+      mm: led.w * MM_PER_UNIT, key: true, off: [0, 1, 0] },          // 위로 띄운다
+    { id: 'h', a: [led.x + led.w, led.y, led.depth], b: [led.x + led.w, top, led.depth],
+      mm: led.h * MM_PER_UNIT, key: true, off: [1, 0, 0] },          // 오른쪽으로
+  ];
+  // 하단 높이는 0이면 잴 것이 없다(바닥에 붙은 설치).
+  if (led.y * MM_PER_UNIT > 100) {
+    out.push({ id: 'b', a: [led.x, 0, led.depth], b: [led.x, led.y, led.depth],
+      mm: led.y * MM_PER_UNIT, key: false, off: [-1, 0, 0] });       // 왼쪽으로
+  }
+  return out;
+}
+
+function buildDimLines(model) {
+  const g = new THREE.Group();
+  g.name = 'dimLines';
+  const mat = new THREE.LineBasicMaterial({ color: GL_PALETTE.dimLine, transparent: true, opacity: 0.85 });
+  g.userData.mat = mat;
+  for (const d of dimSpecs(model)) {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(...d.a), new THREE.Vector3(...d.b),
+    ]);
+    const line = new THREE.Line(geo, mat);
+    line.name = `dim:${d.id}`;
+    line.userData.spec = d;
+    g.add(line);
+  }
   return g;
 }
 
@@ -278,8 +398,10 @@ export function createViewerGL(canvas, { onError } = {}) {
 
   // 텍스처는 모델이 바뀌어도 다시 만들 필요가 없다(가로세로비가 달라질 때만 새로).
   let screenTexCache = null, screenTexAspect = null;
+  let gridTexCache = null;
   const shared = {
     glowTex: makeGlowTexture(),
+    gridTex() { if (!gridTexCache) gridTexCache = makeGridTexture(); return gridTexCache; },
     screenTex(aspect) {
       if (!screenTexCache || Math.abs(aspect - screenTexAspect) > 0.01) {
         screenTexCache?.dispose();
@@ -300,6 +422,65 @@ export function createViewerGL(canvas, { onError } = {}) {
     w: Math.max(1, canvas.clientWidth || canvas.parentElement?.clientWidth || 800),
     h: Math.max(1, canvas.clientHeight || 460),
   });
+
+  // ── 치수 라벨(HTML 오버레이) ────────────────────────────────────────────────
+  // 3D 문자는 각도마다 읽기 어렵고 무겁다. 캔버스 위에 HTML 알약을 띄우고
+  // 매 프레임 3D 좌표를 화면 좌표로 바꿔 따라다니게 한다 — 글자는 항상 정면이고
+  // 정면 뷰의 알약(.rs3Dlbl)과 같은 디자인 언어를 그대로 쓸 수 있다.
+  const labels = (() => {
+    const host = canvas.parentElement;
+    let layer = null, pool = [];
+    if (host) {
+      layer = document.createElement('div');
+      layer.className = 'gl3dLabels';
+      host.appendChild(layer);
+    }
+    const _v = new THREE.Vector3();
+    return {
+      /** 치수 목록에 맞춰 알약을 만들고, 화면 좌표로 옮긴다. */
+      update(m, cam, w, h) {
+        if (!layer) return;
+        let specs = (m && m.show?.dims !== false) ? dimSpecs(m) : [];
+        // 위에서 내려다보면(평면도) 높이 축이 화면에서 사라진다 — 세로·하단 높이는
+        //   잴 수 없고 라벨만 겹치므로 가로 치수만 남긴다(기존 Canvas 뷰와 같은 규칙).
+        if (specs.length && isFlatView(m, cam, h)) specs = specs.filter(d => d.id === 'w');
+        // 개수가 달라졌을 때만 DOM을 다시 만든다.
+        while (pool.length < specs.length) {
+          const el = document.createElement('span');
+          el.className = 'gl3dDim';
+          layer.appendChild(el);
+          pool.push(el);
+        }
+        for (let i = specs.length; i < pool.length; i++) pool[i].style.display = 'none';
+
+        for (let i = 0; i < specs.length; i++) {
+          const d = specs[i], el = pool[i];
+          // 선의 가운데를 화면 좌표로
+          const mid = [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2, (d.a[2] + d.b[2]) / 2];
+          _v.set(mid[0], mid[1], mid[2]).project(cam);
+          if (_v.z > 1) { el.style.display = 'none'; continue; }   // 카메라 뒤
+          // 오브젝트에서 띄우는 방향도 3D로 계산한다 — 시점이 바뀌어도 늘 바깥쪽으로 밀린다.
+          const off = new THREE.Vector3(mid[0] + d.off[0] * 0.5, mid[1] + d.off[1] * 0.5, mid[2] + d.off[2] * 0.5)
+            .project(cam);
+          let dx = off.x - _v.x, dy = -(off.y - _v.y);
+          const len = Math.hypot(dx, dy) || 1;
+          dx /= len; dy /= len;
+          const GAP = 22;   // 화면 픽셀 — 라벨이 오브젝트에서 멀어지지 않게
+          // 띄울 방향이 화면에서 사라지면(평면도의 높이 축 등) 위쪽으로 밀어 둔다.
+          if (!Number.isFinite(dx) || !Number.isFinite(dy) || len < 1e-4) { dx = 0; dy = -1; }
+          // 라벨이 캔버스 밖으로 나가지 않게 가장자리에서 붙잡는다.
+          const padX = 46, padY = 20;
+          const x = clampPx((_v.x * 0.5 + 0.5) * w + dx * GAP, padX, w - padX);
+          const y = clampPx((-_v.y * 0.5 + 0.5) * h + dy * GAP, padY, h - padY);
+          el.style.display = '';
+          el.classList.toggle('key', !!d.key);
+          el.textContent = `${Math.round(d.mm).toLocaleString('ko-KR')}mm`;
+          el.style.transform = `translate(-50%,-50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        }
+      },
+      dispose() { layer?.remove(); layer = null; pool = []; },
+    };
+  })();
 
   function resize() {
     const { w, h } = size();
@@ -470,6 +651,8 @@ export function createViewerGL(canvas, { onError } = {}) {
     if (moving || moved || needsRender) {
       needsRender = false;
       renderer.render(scene, camera);
+      const { w, h } = size();
+      labels.update(model, camera, w, h);
     }
   }
 
@@ -503,6 +686,8 @@ export function createViewerGL(canvas, { onError } = {}) {
       // 방이나 LED가 달라졌으면 카메라를 다시 앉힌다(같으면 보던 시점을 지킨다).
       if (first || !sameRoom) applyPreset(presetId, { animate: !first });
       needsRender = true;
+      const { w, h } = size();
+      labels.update(model, camera, w, h);
     },
     /** 시점 프리셋 선택. */
     setPreset(id, opts) { applyPreset(id, opts); },
@@ -538,7 +723,9 @@ export function createViewerGL(canvas, { onError } = {}) {
       controls?.dispose();
       disposeGroup(group);
       shared.glowTex.dispose();
+      gridTexCache?.dispose();
       screenTexCache?.dispose();
+      labels.dispose();
       renderer.dispose();
     },
   };

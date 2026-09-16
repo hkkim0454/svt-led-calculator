@@ -60,11 +60,17 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @param items room-presets의 배치 결과(STEP 1에서는 무대만 읽는다)
  * @returns { room, led, stage }  전부 unit
  */
-export function buildGLModel({ space, led, items }) {
+export function buildGLModel({ space, led, items, show }) {
   const room = { W: u(space.W), H: u(space.H), D: u(space.D) };
   const stageItem = (items || []).find(it => it && it.type === 'stage');
   return {
     room,
+    // 표시 토글(치수·바닥 격자·포인트 벽). 화면 상태를 그대로 받는다.
+    show: {
+      dims: show?.dims !== false,
+      grid: show?.grid !== false,
+      accentWall: show?.accentWall !== false,
+    },
     // 배치 목록은 mm 그대로 들고 간다 — 가구를 세우는 쪽(furniture-gl.js)에서 환산한다.
     //   여기서 미리 바꾸면 room-presets 결과와 대조하기 어려워진다.
     items: items || [],
@@ -92,6 +98,11 @@ export function buildGLModel({ space, led, items }) {
 //   corner-r  우측 코너에서
 //   iso       아이소메트릭. 방 전체 구조를 한눈에 보는 배치도(Reference B).
 //   top       평면도. 위에서 내려다본 배치. 여기만 정사투영(원근 없음)을 쓴다.
+// 포인트 벽 — **공간 좌표 기준 왼쪽 벽**에 고정한다(기존 Canvas 뷰 DEC-060과 같은 값).
+//   '카메라에서 보이는 옆벽'에 칠하면 시점을 돌릴 때 벽이 좌↔우로 옮겨 다닌다.
+//   실제로 칠해 둔 벽은 그럴 수 없다. 이 값은 카메라와 무관한 상수다.
+export const ACCENT_WALL_SIDE = 'left';
+
 export const CAMERA_PRESETS = Object.freeze([
   { id: 'interior', label: '실내',      ortho: false },
   { id: 'corner-l', label: '좌측 코너', ortho: false },

@@ -9,10 +9,10 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=357';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=357';
-import { createViewerGL } from './render3d-gl.js?v=357';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=357';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=359';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot } from './room-presets.js?v=359';
+import { createViewerGL } from './render3d-gl.js?v=359';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=359';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -839,6 +839,7 @@ function renderPreview3D() {
       cols: r.cols, rows: r.rows, depth: (m && m.depth) || 60,
     },
     items: lay.items,
+    show: { ...pv3dShow },
   }));
 
   // 배치 결과 안내 — 실제 놓인 좌석 수와, 방이 좁아 줄였을 때의 알림.
@@ -873,10 +874,12 @@ function syncPresetSel() {
 //   STEP 2에서 시점 선택칸과 ◀ ▶ 는 되살렸다. 남은 것은 사람·치수·격자·포인트 벽·PNG.
 function applyStagedUi() {
   const show = (el, on) => { if (el) el.hidden = !on; };
-  show($('#person3dSel')?.closest('.pv3dGroup'), false);   // 사람·치수·바닥 격자·포인트 벽 묶음
-  show($('#cubeView')?.closest('.pv3dField'), true);       // 시점 프리셋 — STEP 2에서 사용
+  show($('#person3dSel')?.closest('.pv3dGroup'), true);    // 치수·바닥 격자·포인트 벽 — STEP 4에서 사용
+  show($('[data-t3d="person"]'), false);                   // 사람은 다음 단계
+  show($('#person3dSel'), false);
+  show($('#cubeView')?.closest('.pv3dField'), true);       // 시점 프리셋 — STEP 2
   show($('#btn3dRotL'), true); show($('#btn3dRotR'), true);
-  show($('#btn3dPng'), false);
+  show($('#btn3dPng'), false);                             // PNG 저장은 다음 단계
 }
 
 // 공간 타입 선택 + 그 타입의 옵션 입력칸을 그린다(타입마다 옵션이 다르므로 매번 새로 만든다).

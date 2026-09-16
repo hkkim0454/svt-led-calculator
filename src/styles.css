@@ -947,7 +947,7 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .svBar .svSummary b{color:var(--ink)}
 .svBar .notice{padding:2px 6px}
 
-/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v357) ====
+/* ==== 03 미리보기 — 3D(아이소메트릭) 뷰. 큐브 시점 + 공간 타입 프리셋 (v359) ====
    방·가구는 제품 렌더처럼 항상 밝은 톤으로 그린다(캔버스 안에서 처리).
    여기서는 조작 막대와 캔버스 자리만 잡는다. */
 .viewseg{flex:0 0 auto}
@@ -978,3 +978,16 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 @media(max-width:680px){ .stage3d>canvas{height:clamp(260px,64vw,420px)} }
 /* 인쇄 시에도 캔버스가 그대로 나오도록(비트맵이라 별도 처리 불필요). */
 body.printing .stage3d>canvas{height:420px}
+
+/* ── 3D 치수 라벨(캔버스 위 HTML 오버레이) ────────────────────────────────
+   3D 문자는 각도마다 읽기 어렵고 무겁다. 알약을 캔버스 위에 띄우고 좌표만
+   매 프레임 따라가게 한다 — 글자는 늘 정면이고 정면 뷰와 같은 디자인이 된다. */
+.gl3dLabels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.gl3dDim{position:absolute;left:0;top:0;white-space:nowrap;
+  font:600 12px/1 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;
+  letter-spacing:-.01em;padding:6px 9px;border-radius:999px;
+  background:rgba(255,255,255,.94);color:var(--ink);
+  border:1px solid rgba(120,130,145,.20);
+  box-shadow:0 2px 8px rgba(30,40,55,.10)}
+/* 핵심 치수(LED 가로·세로)는 어두운 알약 — 정면 뷰와 같은 규칙. */
+.gl3dDim.key{background:rgba(17,21,27,.92);color:#fff;border-color:transparent}
