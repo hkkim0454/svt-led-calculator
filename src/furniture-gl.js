@@ -15,21 +15,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=423';
-import { createMaterialLibrary } from './materials-gl.js?v=423';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=423';
-import { GRADE_COLORS } from './viewangle.js?v=423';
-import { createGeometryCache } from './geometry-gl.js?v=423';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=423';
+import { u } from './gl-model.js?v=424';
+import { createMaterialLibrary } from './materials-gl.js?v=424';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=424';
+import { GRADE_COLORS } from './viewangle.js?v=424';
+import { createGeometryCache } from './geometry-gl.js?v=424';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=424';
 import {
   credenzaFinishForDesign, avFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
-} from './design-finish.js?v=423';
+} from './design-finish.js?v=424';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=423';
+} from './furniture-assets.js?v=424';
 
 const DEG = Math.PI / 180;
 
@@ -259,6 +259,14 @@ function boardroomTableMesh(items, mat, geoCache) {
   }
   // 세 조각의 **합쳐진 중심**에 놓는다 — 조각 하나의 좌표가 아니다.
   g.position.set(u(S.cx), 0, u(S.cz));
+  return orientUTable(g, S);
+}
+
+// U자 덩어리를 세울 때 돌린다. 도형·받침 좌표는 전부 **기준 방향(LED 쪽으로 열림)**으로
+//   만들어지므로, 방향이 다르면 다 만든 덩어리를 통째로 돌리기만 하면 된다.
+//   부호는 다른 가구와 같은 규칙이다(rotY = 0 이면 -Z 를 본다).
+function orientUTable(g, S) {
+  if (S.rotY) g.rotation.y = -S.rotY * DEG;
   return g;
 }
 
@@ -318,7 +326,7 @@ function largeUTableMesh(items, mat, geoCache) {
   }
 
   g.position.set(u(S.cx), 0, u(S.cz));
-  return g;
+  return orientUTable(g, S);
 }
 
 function plantMesh(mat, geoCache) {

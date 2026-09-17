@@ -54,8 +54,8 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=423';
-import { conferenceAVItems } from './conference-av.js?v=423';
+import { isOccupied } from './viewangle.js?v=424';
+import { conferenceAVItems } from './conference-av.js?v=424';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -97,6 +97,25 @@ export function wantsConferenceAV(designId) {
   return U_TABLE_AV_DESIGNS.includes(designId);
 }
 
+// ── 테이블 방향 옵션 ────────────────────────────────────────────────────────
+// **대회의실에만** 있는 옵션이다. 다른 공간에서는 화면에 나오지도, 적용되지도 않는다 —
+//   대기업·임원 회의실은 옵션 값이 저장돼 있더라도 **가로 배치 그대로**다.
+export const TABLE_DIR_DESIGNS = Object.freeze(['largeConference']);
+export function wantsTableDir(designId) {
+  return TABLE_DIR_DESIGNS.includes(designId);
+}
+/** 실제로 적용할 방향. 그 디자인에 옵션이 없으면 언제나 'across'(지금까지의 배치)다. */
+export function tableDirOf(o = {}) {
+  return (wantsTableDir(o.design) && o.tableDir === 'along') ? 'along' : 'across';
+}
+/**
+ * 그 공간 디자인에서 **화면에 보여 줄** 옵션 목록.
+ *   `designs`가 적힌 옵션은 거기 이름이 있는 디자인에서만 나온다(그 외에는 숨긴다).
+ */
+export function optionsForDesign(typeId, designId) {
+  return roomType(typeId).options.filter(o => !o.designs || o.designs.includes(designId));
+}
+
 // ── 공간 타입 ───────────────────────────────────────────────────────────────
 // depthFactor : '공간 깊이 D'를 비워뒀을 때 가로(W)에 곱해 쓰는 기본 비율.
 //               강당처럼 깊은 공간은 자동값도 깊어야 한다.
@@ -114,6 +133,14 @@ export const ROOM_TYPES = Object.freeze([
           { value: 'none', label: '없음' },
         ] },
       { key: 'seats', label: '좌석 수', type: 'number', default: 12, min: 0, max: 60 },
+      // **대회의실 전용 옵션**(designs). 다른 공간 디자인에서는 화면에 나오지도, 적용되지도 않는다.
+      //   가로 = 지금까지의 배치. 세로 = 깊이축이 긴 변이 되는 배치(세로로 긴 실제 도면 대응).
+      { key: 'tableDir', label: '테이블 방향', type: 'select', default: 'across',
+        designs: Object.freeze(['largeConference']),
+        choices: [
+          { value: 'across', label: '가로(권장)' },
+          { value: 'along', label: '세로' },
+        ] },
       { key: 'credenza', label: 'AV 수납장', type: 'toggle', default: true },
       // 아래 둘은 '가구 배치'가 아니라 정면 벽에 거는 화면이라 layoutMeeting이 쓰지 않는다.
       //   화면(app.js)이 이 값을 읽어 LED 옆에 모니터를 건다.
@@ -310,17 +337,16 @@ function layoutMeeting(o, W, D) {
 
   if (o.tableShape === 'u') return layoutUTable(o, W, D, cz, items);
 
-  // 사각형 · 보트형 — 긴 변(X) 양쪽 + 양 끝(Z)에 앉는다.
+  // 사각형 · 보트형 — 긴 변 양쪽 + 양 끝에 앉는다.
   //   테이블 길이는 '방 크기'가 아니라 '앉을 사람 수'에 맞춘다(방을 꽉 채우지 않게).
-  const maxW = clamp(usableW - F.chairClear * 2, 1600, 9000);    // 이 방에 들어가는 최대 테이블 가로
-  const tD = clamp(Math.min(1500, usableD - F.chairClear * 2), 900, 1800);
-  const ends = (tD >= 900) ? 2 : 0;
-  const capacity = fitCount(maxW - 400, F.chairPitch) * 2 + ends;
-  const n = clamp(o.seats, 0, capacity);
-  const perSideNeeded = Math.ceil(Math.max(0, n - ends) / 2);
-  const tW = clamp(perSideNeeded * F.chairPitch + 500, 1600, maxW);
-  const perSide = fitCount(tW - 400, F.chairPitch);
-  items.push({ type: 'table', shape: o.tableShape, x: W / 2, z: cz, rotY: 0, w: tW, d: tD });
+  //   셈법은 **가로·세로가 똑같다** — 어느 쪽이 긴 변인지만 다르다(rectTableFit 하나로 푼다).
+  const along = tableDirOf(o) === 'along';
+  const fit = rectTableFit(along ? usableD : usableW, along ? usableW : usableD, o.seats);
+  const { tLong, tShort, perSide, ends, capacity, n } = fit;
+  // 세로면 테이블을 90° 돌려 세운다 — 긴 변이 깊이축(Z)으로 간다.
+  //   상판 도형(보트의 불룩함·다리 자리)은 제 좌표계에서 만들어지므로 돌리기만 하면 된다.
+  items.push({ type: 'table', shape: o.tableShape, x: W / 2, z: cz, rotY: along ? 90 : 0,
+    w: tLong, d: tShort });
 
   // 양쪽 긴 변에 번갈아 채우고, 남으면 양 끝에 앉힌다.
   let left = n;
@@ -329,26 +355,49 @@ function layoutMeeting(o, W, D) {
   left -= sideN[0] + sideN[1];
   for (let s = 0; s < 2; s++) {
     // 테이블 긴 변 양쪽. 방향은 '바로 앞 테이블 면'을 바라보게 계산한다.
-    const zc = cz + (s === 0 ? 1 : -1) * (tD / 2 + F.chairClear);
+    const off = (s === 0 ? 1 : -1) * (tShort / 2 + F.chairClear);
     const span = (sideN[s] - 1) * F.chairPitch;
     for (let i = 0; i < sideN[s]; i++) {
-      const x = W / 2 - span / 2 + i * F.chairPitch;
-      items.push(chairAt(x, zc, x, cz));
+      const d = -span / 2 + i * F.chairPitch;
+      // 가로: 긴 변이 X → 좌석은 X로 늘어서고 Z로 비켜 앉는다. 세로는 그 반대다.
+      if (along) items.push(chairAt(W / 2 + off, cz + d, W / 2, cz + d));
+      else items.push(chairAt(W / 2 + d, cz + off, W / 2 + d, cz));
     }
   }
   for (let e = 0; e < Math.min(left, ends); e++) {   // 양 끝(상석)
     const sign = e === 0 ? 1 : -1;
-    items.push(chairAt(W / 2 + sign * (tW / 2 + F.chairClear), cz, W / 2, cz));
+    const far = sign * (tLong / 2 + F.chairClear);
+    if (along) items.push(chairAt(W / 2, cz + far, W / 2, cz));
+    else items.push(chairAt(W / 2 + far, cz, W / 2, cz));
   }
   if (n < o.seats) notes.push(`이 방 크기에서는 ${capacity}석까지 들어갑니다.`);
-  if (o.rug) items.push({ type: 'rug', x: W / 2, z: cz, rotY: 0, w: tW + 2600, d: tD + 2600 });
+  const rugW = (along ? tShort : tLong) + 2600, rugD = (along ? tLong : tShort) + 2600;
+  if (o.rug) items.push({ type: 'rug', x: W / 2, z: cz, rotY: 0, w: rugW, d: rugD });
   if (o.plant) addPlant(items, W, D);
   return { items, placed: { chairs: n }, capacity, notes };
 }
 
+/**
+ * 사각·보트형 테이블의 크기와 정원. **긴 변이 어느 축인지는 여기서 모른다** —
+ *   부르는 쪽이 '긴 쪽으로 쓸 수 있는 길이'와 '짧은 쪽'을 넘긴다. 가로·세로가 같은 셈법을 쓴다.
+ */
+export function rectTableFit(longAvail, shortAvail, seats) {
+  const F = FURNITURE;
+  const maxLong = clamp(longAvail - F.chairClear * 2, 1600, 9000);
+  const tShort = clamp(Math.min(1500, shortAvail - F.chairClear * 2), 900, 1800);
+  const ends = (tShort >= 900) ? 2 : 0;
+  const capacity = fitCount(maxLong - 400, F.chairPitch) * 2 + ends;
+  const n = clamp(seats, 0, capacity);
+  const perSideNeeded = Math.ceil(Math.max(0, n - ends) / 2);
+  const tLong = clamp(perSideNeeded * F.chairPitch + 500, 1600, maxLong);
+  return { tLong, tShort, perSide: fitCount(tLong - 400, F.chairPitch), ends, capacity, n };
+}
+
 // U자형 — LED 벽을 향해 열린 ㄷ 모양. 바깥쪽에 앉는다.
+//   **세로**를 고르면(대회의실 전용) 가로 상판이 옆벽에 서고 U자가 옆으로 열린다 → layoutUTableAlong.
 function layoutUTable(o, W, D, cz, seed = []) {
   const F = FURNITURE;
+  if (tableDirOf(o) === 'along') return layoutUTableAlong(o, W, D, seed);
   const items = [...seed], notes = [];   // seed = 이미 놓인 것(AV 수납장 등)
   // 상한은 공간 디자인이 정한다(§U_TABLE_LIMITS). 기본값이면 기존과 **완전히 같은 수**다 —
   //   예전 코드의 `clamp(min(x, 4500), 1600, 5000)`은 4500 < 5000 이라 `clamp(x, 1600, 4500)`과 같다.
@@ -391,13 +440,80 @@ function layoutUTable(o, W, D, cz, seed = []) {
   if (wantsConferenceAV(o.design)) {
     const av = conferenceAVItems({
       chairs: items.filter(i => i.type === 'chair'),
-      table: { cx: W / 2, cz, outerW: tW, outerD: tD, segW: seg },
+      table: { cx: W / 2, cz, outerW: tW, outerD: tD, segW: seg, dir: 'across' },
       chairClear: F.chairClear,
     });
     items.push(...av.items);
     avCount = av.monitors.length;
   }
   if (o.rug) items.push({ type: 'rug', x: W / 2, z: cz, rotY: 0, w: tW + 2600, d: tD + 2600 });
+  if (o.plant) addPlant(items, W, D);
+  const placed = { chairs: n };
+  if (avCount) { placed.monitors = avCount; placed.prompters = 1; }
+  return { items, placed, capacity, notes };
+}
+
+/**
+ * U자형 **세로** — 가로 상판(긴 띠)이 **오른쪽 옆벽**에 서고, U자가 왼쪽으로 열린다.
+ * ─────────────────────────────────────────────────────────────────────────
+ * 세로로 긴 실제 도면에 대응하고, 가운데 동선·AV 자리를 넓게 쓰기 위한 배치다(오너 결정).
+ *   **좌석 수를 늘리려는 배치가 아니다** — 앞쪽 날개(LED 쪽)에는 **앉히지 않는다.**
+ *   그 자리에 앉으면 LED를 등지게 되기 때문이다. 좌석 수가 목적이면 보트형·사각형 세로를 쓴다.
+ *
+ * 앉는 곳은 두 곳뿐이다.
+ *   ① 가로 상판 바깥(오른쪽) — 방을 가로질러 본다
+ *   ② 뒤쪽 날개 바깥(뒤) — LED를 정면으로 본다
+ */
+function layoutUTableAlong(o, W, D, seed = []) {
+  const F = FURNITURE;
+  const items = [...seed], notes = [];
+  const L = uTableLimits(o.design);
+  const seg = 900;                                   // 상판 폭
+  // 깊이축이 긴 변이다. 앞은 LED 여유, 뒤는 뒷 날개 좌석 자리까지 비운다.
+  const tLong = clamp(D - F.frontClear - F.wallClear - F.chairClear, 1600, L.maxTableW);
+  // 가로축이 짧은 변이다. 오른쪽은 가로 상판 좌석 자리, 왼쪽은 열린 쪽이라 벽 여유만 있으면 된다.
+  const tShort = clamp(W - F.wallClear * 2 - F.chairClear, 1600, L.maxTableD);
+  const cx = W - F.wallClear - F.chairClear - tShort / 2;
+  const cz = F.frontClear + tLong / 2;
+  const headX = cx + tShort / 2 - seg / 2;           // 가로 상판(긴 띠) 중심 x
+  const rearZ = cz + tLong / 2 - seg / 2;            // 뒤쪽 날개 — 여기 앉는다
+  const frontZ = cz - tLong / 2 + seg / 2;           // 앞쪽 날개 — **비운다**
+  items.push({ type: 'table', shape: 'rect', x: headX, z: cz, rotY: 0, w: seg, d: tLong });
+  items.push({ type: 'table', shape: 'rect', x: cx - seg / 2, z: rearZ, rotY: 0, w: tShort - seg, d: seg });
+  items.push({ type: 'table', shape: 'rect', x: cx - seg / 2, z: frontZ, rotY: 0, w: tShort - seg, d: seg });
+
+  const headN = fitCount(tLong - 400, F.chairPitch);
+  const wingN = fitCount(tShort - seg - 400, F.chairPitch);
+  const capacity = headN + wingN;                    // 앞쪽 날개는 정원에 넣지 않는다
+  const n = clamp(o.seats, 0, capacity);
+  const [nh, nw] = distributeSeats(n, [headN, wingN]);
+
+  // ① 가로 상판 바깥(오른쪽) — 상판을 바라본다.
+  const spanH = (nh - 1) * F.chairPitch;
+  for (let i = 0; i < nh; i++) {
+    const z = cz - spanH / 2 + i * F.chairPitch;
+    items.push(chairAt(headX + seg / 2 + F.chairClear, z, headX, z));
+  }
+  // ② 뒤쪽 날개 바깥(뒤) — 상판을 바라본다(= LED를 정면으로 본다).
+  const wingCx = cx - seg / 2;
+  const spanW = (nw - 1) * F.chairPitch;
+  for (let i = 0; i < nw; i++) {
+    const x = wingCx - spanW / 2 + i * F.chairPitch;
+    items.push(chairAt(x, rearZ + seg / 2 + F.chairClear, x, rearZ));
+  }
+  if (n < o.seats) notes.push(`세로 U자 배치에서는 ${capacity}석까지 들어갑니다(앞쪽 날개는 비웁니다).`);
+
+  let avCount = 0;
+  if (wantsConferenceAV(o.design)) {
+    const av = conferenceAVItems({
+      chairs: items.filter(i => i.type === 'chair'),
+      table: { cx, cz, outerW: tShort, outerD: tLong, segW: seg, dir: 'along' },
+      chairClear: F.chairClear,
+    });
+    items.push(...av.items);
+    avCount = av.monitors.length;
+  }
+  if (o.rug) items.push({ type: 'rug', x: cx, z: cz, rotY: 0, w: tShort + 2600, d: tLong + 2600 });
   if (o.plant) addPlant(items, W, D);
   const placed = { chairs: n };
   if (avCount) { placed.monitors = avCount; placed.prompters = 1; }

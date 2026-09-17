@@ -19,8 +19,8 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=423';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=423';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=424';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=424';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -657,6 +657,22 @@ export function boardroomUBounds(items = []) {
  * 최소 크기만 자산마다 다르다(각자의 계약이 정한다).
  */
 export function uTableBounds(items = [], minWidth = 0, minDepth = 0) {
+  // ① 기준 방향 — LED 쪽(-Z)으로 열린 U자. 지금까지 유일했던 모양이다.
+  const across = readUAcross(items, minWidth, minDepth);
+  if (across) return Object.freeze({ ...across, rotY: 0 });
+  // ② 세로 — 옆으로 열린 U자(테이블 방향 옵션). **판독기를 새로 쓰지 않는다** —
+  //    조각들을 기준 방향으로 -90° 돌려 같은 판독기에 넣고, 중심만 실제 좌표로 되돌린다.
+  //    (x, z) → (-z, x). 축이 바뀌므로 가로·세로 값도 서로 바꾼다.
+  const turned = items.map(it => (it && typeof it === 'object'
+    ? { ...it, x: -it.z, z: it.x, w: it.d, d: it.w } : it));
+  const along = readUAcross(turned, minWidth, minDepth);
+  if (!along) return null;
+  // 되돌리기 (x, z) → (z, -x). 나머지 값은 전부 **중심 기준 로컬**이라 그대로 둔다.
+  return Object.freeze({ ...along, cx: along.cz, cz: -along.cx, rotY: 270 });
+}
+
+// LED 쪽(-Z)으로 열린 U자만 읽는다. 다른 방향은 위 `uTableBounds`가 돌려서 넣어 준다.
+function readUAcross(items = [], minWidth = 0, minDepth = 0) {
   if (!Array.isArray(items) || items.length !== 3) return null;
   for (const it of items) {
     if (!it || it.type !== 'table') return null;
@@ -771,6 +787,8 @@ export function createBoardroomTable(items = []) {
     shape: 'u',
     outerW: B.outerW, outerD: B.outerD, segW: B.segW, innerW: B.innerW, innerD: B.innerD,
     cx: B.cx, cz: B.cz,
+    // 이 덩어리를 세울 때 돌려야 하는 각도. 0 = LED 쪽으로 열린 기준 방향.
+    rotY: B.rotY || 0,
     surfaceY: C.surfaceY, topThk: C.topThk, topBottom,
     frontR, rearR, innerR,
     topBevel: Math.round(C.topThk * 0.2),   // 상판 가장자리 살짝 죽임(30mm 판의 날을 없앤다)
@@ -875,6 +893,8 @@ export function createLargeUTable(items = []) {
     shape: 'u',
     outerW: B.outerW, outerD: B.outerD, segW: B.segW, innerW: B.innerW, innerD: B.innerD,
     cx: B.cx, cz: B.cz,
+    // 이 덩어리를 세울 때 돌려야 하는 각도. 0 = LED 쪽으로 열린 기준 방향.
+    rotY: B.rotY || 0,
     surfaceY: C.surfaceY, topThk: C.topThk, topBottom,
     frontR, rearR, innerR,
     topBevel: Math.round(C.topThk * 0.16),   // 얇은 상판의 날만 없앤다(장식 몰딩이 아니다)
