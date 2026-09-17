@@ -159,7 +159,9 @@ export const ROOM_DESIGNS = Object.freeze({
       credenza: 'darkGraphite',     // 새까만 장비가 아니라 프리미엄 AV 가구로 읽히게
     }),
     wallTreatment: planned('executiveWalls'),
-    lighting: planned('executivePremium'),
+    // PHASE 3-d.1 — 조명. 천장등을 줄이고 보조광을 올려 **벽이 바닥보다 밝은** 자연스러운
+    //   순서를 만든다. 화각은 여전히 planned 다(PHASE 3-d.2).
+    lighting: 'executiveSoft',
     camera: planned('executiveCamera'),     // 실내 34~40°, Rear View 기본
     accessories: planned('executiveAccessories'),
   }),
