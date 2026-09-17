@@ -160,10 +160,11 @@ test('고를 수 있는 목록 — 회의실 3종·상황실 1종, 나머지 용
 
 // ── PHASE 1-a 의 핵심 안전장치 ──────────────────────────────────────────────
 
-test('아직 구현하지 않은 2개 공간 — 적용해도 화면이 바뀌지 않는다(전부 INHERIT)', () => {
-  // PHASE 3-a 에서 임원 회의실에 **의자 하나**가 들어갔다(그 외 항목은 여전히 전부 planned).
-  //   대회의실·상황실 둘은 아직 하나도 없다.
-  for (const id of DESIGN_IDS.filter(x => !['corporateMeeting', 'executiveBoardroom'].includes(x))) {
+test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌지 않는다(전부 INHERIT)', () => {
+  // PHASE 4-a 에서 대회의실에 **의자 하나**가 들어갔다(그 외 항목은 여전히 전부 planned).
+  //   이제 아무것도 정하지 않은 공간은 상황실 하나뿐이다.
+  const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference'];
+  for (const id of DESIGN_IDS.filter(x => !STARTED.includes(x))) {
     assert.ok(isNeutralDesign(id), `${id}: 아직 화면을 바꾸면 안 된다`);
     const r = resolveDesign(id);
     for (const f of VALUE_FIELDS) {
@@ -171,6 +172,13 @@ test('아직 구현하지 않은 2개 공간 — 적용해도 화면이 바뀌�
     }
   }
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
+  // 대회의실은 **의자 하나만** 정했다 — 나머지는 전부 아직 planned 다.
+  assert.equal(isNeutralDesign('largeConference'), false, '대회의실은 이제 의자를 정한다');
+  const lc = resolveDesign('largeConference');
+  assert.equal(lc.furniture.chair, 'conferenceErgoChair');
+  for (const f of VALUE_FIELDS.filter(x => x !== 'furniture')) {
+    assert.equal(lc[f], INHERIT, `largeConference.${f} 가 아직 INHERIT가 아니다`);
+  }
 });
 
 test('corporateMeeting — PHASE 2-d.2 에서 가구·마감·조명·화각을 정한다(벽 구성·소품은 INHERIT)', () => {
@@ -218,7 +226,7 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
     'acousticPanel', 'blackEquipment', 'boardroomTable', 'carpetTileLight', 'carpetTileLight',
-    'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
+    'conferenceErgoChair', 'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright',
     'executiveChair', 'executiveProposal', 'executiveSoft', 'lightOak', 'neutralLaminate',
     'paintedWallWhite', 'paintedWallWhite',
