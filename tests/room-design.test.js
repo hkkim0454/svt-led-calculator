@@ -213,13 +213,14 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     // **적용되는 값은 반드시 실재해야 한다.** 이것이 '가짜 스펙 금지'의 핵심이다.
     for (const x of ids) assert.ok(exists(x), `${id}: 없는 자산·재질 ${x}`);
   }
-  // 지금 실제로 적용되는 값 — 대기업 회의실 한 벌 + 임원 회의실의 가구 2종(의자·U 테이블).
-  //   임원 회의실의 마감·조명·화각은 아직 planned 다(PHASE 3-c 이후).
+  // 지금 실제로 적용되는 값 — 대기업 회의실 한 벌 + 임원 회의실의 가구 2종과 마감 한 벌.
+  //   임원 회의실의 조명·화각·벽 구성은 아직 planned 다(PHASE 3-d 이후).
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
-    'blackEquipment', 'boardroomTable', 'carpetTileLight', 'corporateChair', 'corporateNeutral',
-    'corporateProposal', 'corporateSoft', 'corporateTable', 'darkGraphite', 'executiveChair',
-    'neutralLaminate', 'paintedWallWhite',
+    'acousticPanel', 'blackEquipment', 'boardroomTable', 'carpetTileLight', 'carpetTileLight',
+    'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
+    'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright',
+    'executiveChair', 'lightOak', 'neutralLaminate', 'paintedWallWhite', 'paintedWallWhite',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
