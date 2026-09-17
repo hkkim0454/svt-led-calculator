@@ -19,7 +19,7 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=414';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=415';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -521,6 +521,164 @@ export function createCorporateTable(item = {}) {
 }
 
 /**
+ * 임원 회의실 대형 U 테이블 (PHASE 3-b).
+ * ─────────────────────────────────────────────────────────────────────────
+ * **배치를 다시 계산하지 않는다.** 배치(room-presets의 U자 분기)는 상판을
+ *   직사각형 **세 조각**으로 준다 — 뒤 가로 상판 1 + 좌·우 날개 2.
+ *   그 세 조각을 그대로 세우면 이음매 세 줄이 그대로 보인다(계약이 금지한 모습).
+ *   그래서 여기서는 세 조각의 **합쳐진 테두리만 읽어** U자 한 덩어리를 만든다.
+ *   좌표·크기는 배치가 준 값 그대로다. 의자는 손대지 않는다.
+ *
+ * 하부 구조는 **판형 블레이드**다. 회의 테이블의 T형 받침을 크게 늘린 것이 아니다 —
+ *   임원 테이블은 사람이 **바깥쪽에만** 앉으므로, 받침을 피해야 할 방향이 다르다.
+ *   회의 테이블: 좌우(가로) 위치를 좌석 사이로 피한다(양쪽에 앉으므로).
+ *   임원 U 테이블: 띠의 **안쪽으로 물려** 피한다(한쪽에만 앉으므로 무릎이 들어오는 깊이가 정해진다).
+ */
+// 상판 폭 900 띠 안에서 무릎이 들어오는 깊이. 사무 인간공학 기준(무릎 높이 유효깊이 ≥ 450)에
+//   임원 의자(깊이 720·팔걸이 있는 하이백)를 감안해 여유를 더 둔 값이다.
+export const BOARDROOM_KNEE_CLEAR = 520;
+// 상판이 받침 없이 건너뛰는 최대 거리. 30mm 얇은 상판의 인상을 지키려면 이 이상 벌리지 않는다.
+export const BOARDROOM_MAX_SPAN = 2600;
+// 블레이드 한 장이 감당하는 상판 길이 = 좌석 1인 간격. room-presets의 FURNITURE.chairPitch 와
+//   같은 값이며, 어긋나지 않는지 테스트가 지킨다(모듈 순환 참조를 피하려고 값을 여기 둔다).
+export const BOARDROOM_SEAT_PITCH = 700;
+
+const BOARDROOM_TOL = 1;   // 배치 좌표 비교 허용 오차(mm)
+const near = (a, b) => Math.abs(a - b) <= BOARDROOM_TOL;
+
+/**
+ * 배치가 준 테이블 조각들이 **이 자산이 맡을 수 있는 U자인가.**
+ * 맞으면 합쳐진 치수를, 아니면 null을 돌려준다. **추측해서 맞추지 않는다** —
+ *   모르는 모양이면 null을 돌려주고 기존 테이블이 조각마다 그려지게 둔다(가짜 스펙 금지).
+ */
+export function boardroomUBounds(items = []) {
+  const C = FURNITURE_CONTRACTS.boardroomTable.dimensions;
+  if (!Array.isArray(items) || items.length !== 3) return null;
+  for (const it of items) {
+    if (!it || it.type !== 'table') return null;
+    if (it.shape && it.shape !== 'rect') return null;
+    if (it.rotY) return null;                                  // 돌아간 조각은 다루지 않는다
+    if (!(it.w > 0) || !(it.d > 0)) return null;
+    if (!Number.isFinite(it.x) || !Number.isFinite(it.z)) return null;
+  }
+  const minX = Math.min(...items.map(i => i.x - i.w / 2));
+  const maxX = Math.max(...items.map(i => i.x + i.w / 2));
+  const minZ = Math.min(...items.map(i => i.z - i.d / 2));
+  const maxZ = Math.max(...items.map(i => i.z + i.d / 2));
+  const outerW = Math.round(maxX - minX), outerD = Math.round(maxZ - minZ);
+  if (outerW < C.minWidth || outerD < C.minDepth) return null;
+
+  // 뒤 가로 상판 = 바깥 가로를 통째로 차지하는 조각. 나머지 둘이 날개다.
+  const header = items.find(i => near(i.w, outerW));
+  const wings = items.filter(i => i !== header);
+  if (!header || wings.length !== 2) return null;
+  const segW = Math.round(header.d);
+  if (!(segW > 0) || segW * 2 >= outerW || segW >= outerD) return null;
+  // 가로 상판은 U자의 **한쪽 끝**에 붙어 있고, 날개 둘이 그 반대쪽으로 뻗는다.
+  const atRear = near(header.z + header.d / 2, maxZ);
+  const atFront = near(header.z - header.d / 2, minZ);
+  if (!atRear && !atFront) return null;
+  const joint = atRear ? header.z - header.d / 2 : header.z + header.d / 2;   // 날개가 붙는 면
+  const tip = atRear ? minZ : maxZ;                                          // 날개 끝
+  for (const w of wings) {
+    if (!near(w.w, segW)) return null;                          // 날개 폭 = 띠 폭
+    if (!near(atRear ? w.z + w.d / 2 : w.z - w.d / 2, joint)) return null;   // 날개가 가로 상판에 붙는다
+    if (!near(atRear ? w.z - w.d / 2 : w.z + w.d / 2, tip)) return null;     // 날개 끝이 U자의 끝
+    const outerEdge = near(w.x - w.w / 2, minX) ? minX : (near(w.x + w.w / 2, maxX) ? maxX : null);
+    if (outerEdge === null) return null;                        // 날개 바깥면이 U자 바깥면과 같아야 한다
+  }
+  // **LED를 향해(-Z) 열려야 한다.** 반대로 열린 U자는 도형도 받침 자리도 전부 뒤집혀야 하는데,
+  //   지금 배치가 그런 U자를 만들지 않으므로 **만들 수 있는 척하지 않는다**(가짜 스펙 금지).
+  if (!atRear) return null;
+  if (near(wings[0].x, wings[1].x)) return null;                // 같은 쪽에 두 개일 수 없다
+  return Object.freeze({
+    outerW, outerD, segW,
+    innerW: outerW - segW * 2,
+    innerD: outerD - segW,
+    cx: Math.round((minX + maxX) / 2),
+    cz: Math.round((minZ + maxZ) / 2),
+  });
+}
+
+/** 이 테이블 조각들을 임원 U 테이블이 맡을 수 있는가. */
+export function fitsBoardroomTable(items = []) {
+  return boardroomUBounds(items) !== null;
+}
+
+// 길이 zoneLen 인 구간을 받침 없이 BOARDROOM_MAX_SPAN 이상 건너뛰지 않게 나눈 자리들.
+//   구간을 n등분하고 각 칸의 가운데에 한 장씩 둔다 — 좌우 대칭이 저절로 지켜진다.
+function bladeStops(zoneLen, zoneCenter) {
+  const n = Math.max(1, Math.min(4, Math.ceil(zoneLen / BOARDROOM_MAX_SPAN)));
+  const step = zoneLen / n;
+  return Array.from({ length: n }, (_, i) => Math.round(zoneCenter + (i - (n - 1) / 2) * step));
+}
+
+/**
+ * @param items 배치가 준 테이블 조각 3개(뒤 상판 + 날개 2). 좌표는 방 좌표계(mm).
+ * @returns 구성 명세, 또는 맡을 수 없는 모양이면 null.
+ */
+export function createBoardroomTable(items = []) {
+  const B = boardroomUBounds(items);
+  if (!B) return null;
+  const C = FURNITURE_CONTRACTS.boardroomTable.dimensions;
+  const topBottom = C.surfaceY - C.topThk;
+
+  // 모서리 반지름 — 세 자리의 성격이 다르다.
+  //   앞 끝  계약값(450) 그대로. 띠 폭의 절반이라 **날개 끝이 정확한 반원**이 된다(임원 테이블의 인상).
+  //   뒤 바깥 사람이 앉지 않는 쪽. 날카로워 보이지만 않으면 된다.
+  //   안쪽   오목한 자리를 메우는 곡면. 이것이 있어야 '직사각형 세 장'이 아니라 한 덩어리로 읽힌다.
+  const frontR = Math.max(0, Math.min(C.frontCornerR, B.segW / 2, B.outerD / 2, B.outerW / 2));
+  const rearR = Math.max(0, Math.min(Math.round(B.segW * 0.18), B.segW / 2));
+  const innerR = Math.max(0, Math.min(Math.round(B.segW / 3), B.innerW / 2, B.innerD / 2));
+
+  // 블레이드는 띠의 **안쪽**으로 물린다. 앉는 쪽 모서리에서 무릎 여유 + 두께 절반.
+  const bladeThk = 100;
+  // 블레이드 **길이**가 이 자산의 인상을 가른다. 좌석 간격(700)만큼 길게 잡았더니
+  //   정면에서 620 높이와 거의 정사각이 되어 **통짜 받침대**로 읽혔다(계약이 금지한 모습).
+  //   좌석 간격의 절반으로 줄여 세로로 선 얇은 판(지느러미)이 되게 한다.
+  const bladeL = Math.round(BOARDROOM_SEAT_PITCH / 2);
+  const inset = BOARDROOM_KNEE_CLEAR + bladeThk / 2;      // 앉는 모서리 ~ 블레이드 중심
+  const panelBottom = Math.max(0, topBottom - C.bodyDrop);
+
+  const supports = [];
+  // 뒤 가로 상판 — 띠가 X 방향으로 달린다. 앉는 쪽은 +Z(LED 반대편).
+  //   받침을 둘 구간은 두 날개 **사이**(innerW)다. 날개 위는 날개가 스스로 받친다.
+  const headerZ = B.cz + B.outerD / 2 - B.segW / 2;       // 뒤 상판 띠 중심
+  for (const dx of bladeStops(B.innerW, B.cx)) {
+    supports.push({
+      dx: dx - B.cx, dz: Math.round(headerZ + B.segW / 2 - inset) - B.cz,
+      w: bladeL, d: bladeThk, along: 'x',
+    });
+  }
+  // 좌·우 날개 — 띠가 Z 방향으로 달린다. 앉는 쪽은 바깥(±X).
+  const wingZoneLen = B.innerD;                           // 앞 끝 ~ 뒤 상판 앞면
+  const wingZoneCenter = B.cz - B.segW / 2;
+  for (const sign of [-1, 1]) {
+    const wingX = B.cx + sign * (B.outerW / 2 - B.segW / 2);
+    for (const dz of bladeStops(wingZoneLen, wingZoneCenter)) {
+      supports.push({
+        dx: Math.round(wingX + sign * (B.segW / 2 - inset)) - B.cx, dz: dz - B.cz,
+        w: bladeThk, d: bladeL, along: 'z',
+      });
+    }
+  }
+
+  return {
+    shape: 'u',
+    outerW: B.outerW, outerD: B.outerD, segW: B.segW, innerW: B.innerW, innerD: B.innerD,
+    cx: B.cx, cz: B.cz,
+    surfaceY: C.surfaceY, topThk: C.topThk, topBottom,
+    frontR, rearR, innerR,
+    topBevel: Math.round(C.topThk * 0.2),   // 상판 가장자리 살짝 죽임(30mm 판의 날을 없앤다)
+    bodyDrop: C.bodyDrop, panelBottom,
+    // 블레이드는 바닥에서 떠 있고, 그 아래를 **한 단 들어간 굽**이 받친다.
+    //   굽이 없으면 판이 공중에 뜨고, 굽이 같은 크기면 통짜 받침대(계약이 금지한 모습)가 된다.
+    toeInset: 70,
+    supports,
+  };
+}
+
+/**
  * AV 수납장 — 굽(토킥) + 몸통 + 상판 + 여닫이문 2짝. 아주 단순한 형태로 만든다.
  * 장식용 가구가 아니라 공간 현실감을 위한 보조 요소라 여기서 더 꾸미지 않는다.
  */
@@ -684,6 +842,8 @@ export const FURNITURE_ASSETS = Object.freeze({
   conferenceTable: { id: 'conferenceTable', label: '회의 테이블', instanced: false, sized: true, spec: it => createConferenceTable(it) },
   // PHASE 2-b — 대기업 회의실 전용 테이블. 기존 회의 테이블은 그대로 남는다.
   corporateTable: { id: 'corporateTable', label: '대기업 회의 테이블', instanced: false, sized: true, spec: it => createCorporateTable(it) },
+  // PHASE 3-b — 임원 회의실 대형 U 테이블. 조각 하나가 아니라 **테이블 조각 전체**를 받는다.
+  boardroomTable: { id: 'boardroomTable', label: '임원 회의실 대형 U 테이블', instanced: false, sized: true, spec: items => createBoardroomTable(items) },
 });
 
 /** V1에서 준비한 가구 자산 4종 — 보고·테스트용 목록. */

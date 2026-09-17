@@ -141,24 +141,24 @@ test('임원 등받이 — 허리에서 어깨까지 연속으로 좁아진다(�
 });
 
 // ⑪⑫⑬ 라우터
-test('라우터 — 임원 회의실은 임원 의자를 쓰고, 테이블은 아직 대체품이다', () => {
+test('라우터 — 임원 회의실은 임원 의자와 임원 U 테이블을 쓴다', () => {
   const chair = resolveFurnitureForDesign({ type: 'chair' }, 'executiveBoardroom');
   assert.equal(chair.requestedAsset, 'executiveChair');
   assert.equal(chair.runtimeAsset, 'executiveChair');
   assert.equal(chair.implemented, true);
   assert.equal(chair.fallbackUsed, false);
   assert.equal(chair.contractStatus, CONTRACT_STATUS.IMPLEMENTED);
-  // 테이블은 **아직 없다** — PHASE 3-b 몫이다.
+  // 테이블은 PHASE 3-b 에서 만들었다 — 더 이상 대체품을 쓰지 않는다.
   const table = resolveFurnitureForDesign({ type: 'table' }, 'executiveBoardroom');
   assert.equal(table.requestedAsset, 'boardroomTable');
-  assert.equal(table.implemented, false);
-  assert.equal(table.fallbackUsed, true);
-  assert.equal(table.runtimeAsset, 'conferenceTable');
-  assert.equal(hasRuntimeFurnitureAsset('boardroomTable'), false);
-  assert.equal(FURNITURE_CONTRACTS.boardroomTable.status, CONTRACT_STATUS.CONTRACT_READY);
-  // 디자인 선언 — 의자만 맨 문자열, 나머지는 여전히 '아직 없음' 표시다.
+  assert.equal(table.implemented, true);
+  assert.equal(table.fallbackUsed, false);
+  assert.equal(table.runtimeAsset, 'boardroomTable');
+  assert.equal(hasRuntimeFurnitureAsset('boardroomTable'), true);
+  assert.equal(FURNITURE_CONTRACTS.boardroomTable.status, CONTRACT_STATUS.IMPLEMENTED);
+  // 디자인 선언 — 의자·테이블 모두 맨 문자열이다(실제로 만들었다는 뜻).
   assert.equal(ROOM_DESIGNS.executiveBoardroom.furniture.chair, 'executiveChair');
-  assert.equal(typeof ROOM_DESIGNS.executiveBoardroom.furniture.table, 'object');
+  assert.equal(ROOM_DESIGNS.executiveBoardroom.furniture.table, 'boardroomTable');
   // 라우터 갈래 표에 한 줄만 늘었다(로직은 그대로).
   assert.equal(RUNTIME_CATEGORY.executiveChair, 'chair');
 });

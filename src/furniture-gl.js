@@ -15,17 +15,18 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=414';
-import { createMaterialLibrary } from './materials-gl.js?v=414';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=414';
-import { GRADE_COLORS } from './viewangle.js?v=414';
-import { createGeometryCache } from './geometry-gl.js?v=414';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=414';
-import { credenzaFinishForDesign, floorPartFinishForDesign } from './design-finish.js?v=414';
+import { u } from './gl-model.js?v=415';
+import { createMaterialLibrary } from './materials-gl.js?v=415';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=415';
+import { GRADE_COLORS } from './viewangle.js?v=415';
+import { createGeometryCache } from './geometry-gl.js?v=415';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=415';
+import { credenzaFinishForDesign, floorPartFinishForDesign } from './design-finish.js?v=415';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
-} from './furniture-assets.js?v=414';
+  createBoardroomTable, fitsBoardroomTable,
+} from './furniture-assets.js?v=415';
 
 const DEG = Math.PI / 180;
 
@@ -199,6 +200,65 @@ function corporateTableMesh(item, mat, geoCache) {
   return g;
 }
 
+/**
+ * 경사(bevel)를 준 **눕힌 판**을 정확한 치수로.
+ *   ExtrudeGeometry의 경사는 윤곽을 사방으로 넓힌다 — 눕힌 판에서는 가로·세로만 커지고
+ *   높이는 그대로다. 그래서 가로·세로를 미리 줄여서 굽는다.
+ *   (하이백 헤드레스트가 62mm 설계에 151mm로 나왔던 함정이 이것이다 — 얇은 부품일수록 크게 티가 난다.)
+ */
+function exactPlanSlab(geoCache, w, h, d, r, bevel) {
+  const b = Math.max(0.5, Math.min(bevel, w / 2 - 1, d / 2 - 1, h / 2 - 1));
+  return geoCache.slab(u(w - b * 2), u(h), u(d - b * 2),
+    { mode: 'plan', r: u(Math.max(0, r - b)), bevel: u(b) });
+}
+
+/**
+ * 임원 회의실 대형 U 테이블 (PHASE 3-b) — 이음매 없는 U자 상판 + 판형 블레이드 하부 구조.
+ *
+ * **조각 하나가 아니라 테이블 조각 전체를 받는다.** 배치는 U자를 직사각형 세 장으로 주는데,
+ *   세 장을 따로 세우면 이음매 세 줄이 그대로 보인다(계약이 금지한 모습).
+ *   치수·좌표는 전부 순수 명세(createBoardroomTable)가 정한다. 여기서는 세우기만 한다.
+ * 만들 수 없는 모양이면 **null**을 돌려준다 — 부르는 쪽이 기존 테이블로 되돌린다.
+ */
+function boardroomTableMesh(items, mat, geoCache) {
+  const S = createBoardroomTable(items);
+  if (!S) return null;
+  const g = new THREE.Group();
+
+  // 상판 — 한 덩어리. 윗면이 정확히 surfaceY 에 오도록 놓는다.
+  const top = new THREE.Mesh(
+    geoCache.uTop(u(S.outerW), u(S.outerD), u(S.segW), u(S.topThk), {
+      frontR: u(S.frontR), rearR: u(S.rearR), innerR: u(S.innerR), bevel: u(S.topBevel),
+    }), mat.boardroomTop);
+  top.position.y = u(S.topBottom + S.topThk / 2);
+  top.name = 'boardroomTop';
+  g.add(top);
+
+  // 판형 블레이드 — 상판 밑면에서 bodyDrop 만큼 내려온 얇은 세로 판.
+  //   통짜 받침대가 아니라 **띄운 판**이라 아래가 비어 보인다(임원 테이블의 가벼운 인상).
+  const bladeH = S.topBottom - S.panelBottom;
+  for (const sp of S.supports) {
+    const blade = new THREE.Mesh(exactPlanSlab(geoCache, sp.w, bladeH, sp.d, 20, 6), mat.boardroomBase);
+    blade.position.set(u(sp.dx), u(S.panelBottom + bladeH / 2), u(sp.dz));
+    blade.name = 'boardroomBase';
+    g.add(blade);
+    // 굽 — 블레이드보다 양 끝이 들어가 있어 판이 바닥에서 떠 보인다.
+    if (S.panelBottom > 0) {
+      const cut = S.toeInset * 2;
+      const tw = sp.along === 'x' ? Math.max(120, sp.w - cut) : sp.w;
+      const td = sp.along === 'z' ? Math.max(120, sp.d - cut) : sp.d;
+      const toe = new THREE.Mesh(
+        exactPlanSlab(geoCache, tw, S.panelBottom, td, 10, 4), mat.boardroomBase);
+      toe.position.set(u(sp.dx), u(S.panelBottom / 2), u(sp.dz));
+      toe.name = 'boardroomBase';
+      g.add(toe);
+    }
+  }
+  // 세 조각의 **합쳐진 중심**에 놓는다 — 조각 하나의 좌표가 아니다.
+  g.position.set(u(S.cx), 0, u(S.cz));
+  return g;
+}
+
 function plantMesh(mat, geoCache) {
   const S = DIMS.plant;
   const g = new THREE.Group();
@@ -285,11 +345,20 @@ export function buildFurnitureGroup(items, opts = {}) {
   // ── 반복 가구는 InstancedMesh 로 묶는다 ──
   const buckets = new Map();
   const singles = [];
-  // 이 배치에 테이블이 몇 조각인가. 한 조각이면 '가운데 회의 테이블', 여러 조각이면 U자형 등이다.
-  const oneTable = items.filter(x => x.type === 'table').length === 1;
+  // 디자인이 있으면 먼저 가구를 갈아 끼운다 — 그래야 '어떤 테이블인가'를 한 번에 판단할 수 있다.
+  const routed = [];
   for (const raw of items) {
     if (raw.type === 'stage') continue;         // 무대는 방 구조와 함께 그린다
-    const it = routeItem(raw, designId);        // 디자인이 있으면 가구를 갈아 끼운다
+    routed.push(routeItem(raw, designId));
+  }
+  const tableItems = routed.filter(x => x.type === 'table');
+  // 이 배치에 테이블이 몇 조각인가. 한 조각이면 '가운데 회의 테이블', 여러 조각이면 U자형 등이다.
+  const oneTable = tableItems.length === 1;
+  // 임원 U 테이블 — 조각 전체가 U자 하나로 읽힐 때만. 아니면 null = 기존 테이블이 조각마다 선다.
+  const boardroomU = (tableItems.length > 0
+    && tableItems.every(x => assetFor(x) === 'boardroomTable')
+    && fitsBoardroomTable(tableItems)) ? tableItems : null;
+  for (const it of routed) {
     const key = assetKey(it);
     if (key) {
       if (!buckets.has(key)) buckets.set(key, []);
@@ -324,6 +393,10 @@ export function buildFurnitureGroup(items, opts = {}) {
     }
   }
 
+  // 임원 U 테이블은 **조각마다가 아니라 한 번에** 세운다. 세울 수 없으면 null이고,
+  //   그때는 아래 반복문이 기존 테이블로 조각마다 그린다(화면에서 테이블이 사라지지 않게).
+  const boardroomMesh = boardroomU ? boardroomTableMesh(boardroomU, mat, geoCache) : null;
+
   // ── 하나씩 놓는 가구 ──
   for (const it of singles) {
     let obj = null;
@@ -332,6 +405,7 @@ export function buildFurnitureGroup(items, opts = {}) {
     //   U자형처럼 여러 조각으로 나뉜 배치에서는 조각마다 마감이 달라져 이음매가 드러난다 —
     //   그런 배치는 전용 변형(executive-u)이 생길 때까지 기존 테이블이 통째로 맡는다.
     if (it.type === 'table') {
+      if (boardroomMesh) continue;              // U자는 조각마다가 아니라 따로 **한 번에** 세운다
       const useCorporate = assetFor(it) === 'corporateTable' && oneTable && fitsCorporateTable(it);
       obj = useCorporate ? corporateTableMesh(it, mat, geoCache) : tableMesh(it, mat, geoCache);
     }
@@ -359,6 +433,9 @@ export function buildFurnitureGroup(items, opts = {}) {
     obj.name = it.type;
     g.add(obj);
   }
+
+  // ── 임원 U 테이블 — 조각이 아니라 한 덩어리로 딱 하나 ──
+  if (boardroomMesh) { boardroomMesh.name = 'boardroomTable'; g.add(boardroomMesh); }
 
   // 공용 자원은 Group에 매달아 두었다가 버릴 때 함께 반납한다.
   g.userData.shared = { geoCache, materials: Object.values(mat), lib };
