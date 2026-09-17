@@ -22,9 +22,9 @@
 //   `hasRuntimeFurnitureAsset('corporateChair')`가 true가 되면서 저절로 그것을 고른다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_ASSETS, assetFor } from './furniture-assets.js?v=426';
-import { furnitureContract, hasFurnitureContract } from './furniture-contracts.js?v=426';
-import { roomDesign, isPlanned } from './room-design.js?v=426';
+import { FURNITURE_ASSETS, assetFor } from './furniture-assets.js?v=427';
+import { furnitureContract, hasFurnitureContract } from './furniture-contracts.js?v=427';
+import { roomDesign, isPlanned } from './room-design.js?v=427';
 
 /**
  * 지금 실제로 세울 수 있는 가구의 갈래.

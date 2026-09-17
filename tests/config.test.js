@@ -7,6 +7,7 @@ test('정상 구성은 값이 그대로 왕복(roundtrip)된다', () => {
   const cfg = {
     spaceW: 6000, spaceH: 3400, baseHeight: 800, ledW: 3200, ledH: 1800,
     spaceD: 7000, roomType: 'classroom', roomOpts: { rows: 5, cols: 4, aisle: true },
+    roomDesign: 'largeConference',
     mode: 'manual', manCols: 8, manRows: 6,
     redundancy: true, cs4b: true, gbicFB: false, highWork: true,
     spareRate: '7', spareEdited: true, sboxSpare: 2, signalMode: 'uhd',
@@ -34,6 +35,19 @@ test('저장한 시점(customViews) — 형태가 맞는 것만 남는다', () =
   // 너무 많으면 앞에서 24개까지만
   const many = Array.from({ length: 40 }, (_, i) => ({ id: 'v' + i, position: [0, 0, 0], target: [0, 0, 0] }));
   assert.equal(normalizeConfig({ customViews: many }).customViews.length, 24);
+});
+
+test('공간 디자인(roomDesign) — 문자열이면 그대로, 아니면 null', () => {
+  // 이 파일은 **어떤 디자인이 실재하는지 모른다**(roomOpts와 같은 방침). 문자열인지만 본다.
+  //   실재 여부·용도 일치는 화면이 normalizeDesign()으로 판단해 그 타입의 기본값으로 떨어뜨린다.
+  assert.equal(normalizeConfig({ roomDesign: 'executiveBoardroom' }).roomDesign, 'executiveBoardroom');
+  assert.equal(normalizeConfig({ roomDesign: '없는디자인' }).roomDesign, '없는디자인');
+  for (const v of [undefined, null, 42, {}, [], true]) {
+    assert.equal(normalizeConfig({ roomDesign: v }).roomDesign, null, String(v));
+  }
+  // 예전 저장본(항목 자체가 없음)도 null 이다 — 화면에서 대기업 회의실로 떨어진다.
+  assert.equal(normalizeConfig({}).roomDesign, null);
+  assert.equal(CONFIG_DEFAULTS.roomDesign, null);
 });
 
 test('벽 두께 — 숫자가 아니면 기본값', () => {
