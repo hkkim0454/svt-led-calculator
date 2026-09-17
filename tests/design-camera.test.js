@@ -196,14 +196,20 @@ test('아이소·평면도 동결 — 이 계획이 손대지 않는다', () => 
 
 // ⑱ 다른 공간은 그대로
 test('다른 공간 — 카메라가 한 값도 바뀌지 않는다', () => {
+  const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal' };
   for (const id of DESIGN_IDS) {
-    if (id === 'corporateMeeting') continue;
+    if (CAM[id]) { assert.equal(resolveDesign(id).camera, CAM[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각을 적용하면 안 된다`);
     for (const pre of CORPORATE_CAMERA_PRESETS) {
       assert.equal(corporateCameraPlanId(id, pre), null, `${id}/${pre}`);
     }
     assert.deepEqual([...corporateCameraPresets(id)], []);
   }
+  // 임원 회의실은 **임원 계열**을 쓴다 — 대기업 계열로는 절대 풀리지 않는다.
+  for (const pre of CORPORATE_CAMERA_PRESETS) {
+    assert.equal(corporateCameraPlanId('executiveBoardroom', pre), null, `임원이 대기업 계열로 풀렸다: ${pre}`);
+  }
+  assert.deepEqual([...corporateCameraPresets('executiveBoardroom')], []);
   for (const id of [null, undefined, '', '없는디자인', 0, {}]) {
     assert.equal(corporateCameraPlanId(id, 'interior'), null, String(id));
     assert.equal(cameraPlanForDesign(id, 'interior', modelFor(...ROOMS[1].slice(1)), 1.24), null, String(id));

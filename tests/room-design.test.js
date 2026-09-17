@@ -21,7 +21,7 @@ import { MATERIAL_PRESETS, MATERIAL_IDS, resolveMaterialId, floorFinishFor, mood
 import { designPalette } from '../src/design-finish.js';
 import { lightingPreset } from '../src/design-lighting.js';
 // 화각 계획 이름 — 실재하는 계획인지 확인하기 위한 목록(가짜 스펙 금지).
-const CAMERA_PLAN_IDS = new Set(['corporateProposal']);
+const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal']);
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
 const ROOM_TYPE_IDS = ROOM_TYPES.map(t => t.id);
@@ -220,8 +220,8 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     'acousticPanel', 'blackEquipment', 'boardroomTable', 'carpetTileLight', 'carpetTileLight',
     'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright',
-    'executiveChair', 'executiveSoft', 'lightOak', 'neutralLaminate', 'paintedWallWhite',
-    'paintedWallWhite',
+    'executiveChair', 'executiveProposal', 'executiveSoft', 'lightOak', 'neutralLaminate',
+    'paintedWallWhite', 'paintedWallWhite',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
@@ -298,8 +298,9 @@ test('기존 계산 무변경 ② LED — 삼성 검증 기준값(MP012F 6×3.4m
   assert.ok(Math.abs(r.heatMaxBTU - 20916) < 20, `btu=${r.heatMaxBTU}`);
   // 디자인 모듈은 이 값에 닿을 수 없다 — 계산에 넘기는 인자가 하나도 없다.
   //   디자인이 정하는 것은 **가구의 생김새와 마감**뿐이고, 조명·화각은 아직 전부 INHERIT 다.
+  const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal' };
   for (const id of [...DESIGN_IDS, undefined]) {
-    if (id === 'corporateMeeting') continue;
+    if (CAM[id]) { assert.equal(resolveDesign(id).camera, CAM[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각은 아직 디자인이 정하지 않는다`);
   }
 });
