@@ -9,8 +9,8 @@
 //   rotY = 0 이면 LED 벽(-Z)을 바라본다. 의자도 가구도 같은 규칙이다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=423';
-import { panelSize } from './monitors.js?v=423';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=424';
+import { panelSize } from './monitors.js?v=424';
 
 const DEG = Math.PI / 180;
 
@@ -80,14 +80,20 @@ export function conferenceAVItems({ chairs = [], table = null, chairClear = 650 
 
   let prompter = null;
   if (table && table.outerD > 0 && table.segW > 0) {
-    // 뒤 상판 안쪽면에서 일정 거리 앞. **좌우 치우침은 0**(오너 지침 §14).
-    const headerInnerZ = table.cz + table.outerD / 2 - table.segW;
+    // 가로 상판 안쪽면에서 일정 거리 앞. **가운데 축에서 치우치지 않는다**(오너 지침 §14).
+    //   세로 배치(테이블 방향 옵션)면 그 상판이 옆벽에 서 있으므로 기준 축만 바뀐다 —
+    //   거리·높이·바라보는 대상(상석)은 똑같다.
+    const along = table.dir === 'along';
+    const innerEdge = along
+      ? table.cx + table.outerW / 2 - table.segW     // 세로: 가로 상판이 +X 쪽에 있다
+      : table.cz + table.outerD / 2 - table.segW;    // 가로: 가로 상판이 +Z(뒤) 쪽에 있다
+    const set = Math.round(innerEdge - PROMPTER_HEADER_GAP);
     prompter = {
       type: 'prompter', asset: 'prompter',
-      x: Math.round(table.cx),
-      z: Math.round(headerInnerZ - PROMPTER_HEADER_GAP),
+      x: along ? set : Math.round(table.cx),
+      z: along ? Math.round(table.cz) : set,
       y: 0,                              // 바닥에 선다(U자 가운데에는 상판이 없다)
-      rotY: 180,                         // 상석(뒤 상판) 쪽을 바라본다
+      rotY: along ? 90 : 180,            // 상석(가로 상판) 쪽을 바라본다
     };
   }
   return Object.freeze({
