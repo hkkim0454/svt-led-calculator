@@ -136,8 +136,9 @@ export const ROOM_DESIGNS = Object.freeze({
     status: DESIGN_STATUS.PLANNED,
     phase: 3,
     furniture: Object.freeze({
-      chair: planned('executiveChair'),     // 하이백 + 헤드레스트. 회의용보다 실루엣이 크다
-      table: planned('boardroomTable'),     // 대형 U, 앞 모서리 둥근 일체형
+      // PHASE 3-a — 의자만 실제로 만들었다. `planned(...)`가 아니라 **맨 문자열**이라는 점이 중요하다.
+      chair: 'executiveChair',              // 하이백 + 헤드레스트. 회의용보다 실루엣이 크다
+      table: planned('boardroomTable'),     // 대형 U, 앞 모서리 둥근 일체형 — 아직 없다(PHASE 3-b)
       av: Object.freeze([planned('avCredenza')]),
     }),
     palette: planned('executivePalette'),

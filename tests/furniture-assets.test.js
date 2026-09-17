@@ -29,10 +29,13 @@ function assertSaneParts(parts, label) {
   assert.ok(Array.isArray(parts) && parts.length > 0, `${label}: 부품이 있어야 한다`);
   for (const p of parts) {
     // 색은 팔레트(기존 가구) 또는 새 마감 표(기업 AV 가구) 중 한 곳에서 온다.
-    assert.ok(FURNITURE_COLORS[p.kind] || PART_FINISH[p.kind]?.color,
+    //   마감 표는 별칭도 따라간다 — 헤드레스트는 방석 마감을 그대로 쓴다(계약 finishParts).
+    assert.ok(FURNITURE_COLORS[p.kind] || finishForPart(p.kind)?.color,
       `${label}: 색이 없는 부품 kind=${p.kind}`);
     // star = 5발 캐스터 받침(허브+다리+바퀴를 한 덩어리로 구운 것). w/h/d 로 공간을 차지한다.
-    assert.ok(['box', 'cyl', 'sph', 'star'].includes(p.shape), `${label}: 원시 도형은 box/cyl/sph/star만`);
+    // taper = 위로 갈수록 좁아지는 휜 판(하이백 등받이). wBottom/wTop/thk 로 공간을 차지한다.
+    assert.ok(['box', 'cyl', 'sph', 'star', 'taper'].includes(p.shape),
+      `${label}: 원시 도형은 box/cyl/sph/star/taper만`);
     const nums = p.shape === 'cyl' ? [p.r, p.h] : p.shape === 'sph' ? [p.r] : [p.w, p.h, p.d];
     for (const n of [...nums, p.dx, p.y, p.dz]) {
       assert.ok(Number.isFinite(n), `${label}: 숫자가 아닌 치수 (kind=${p.kind})`);

@@ -19,7 +19,7 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=413';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=414';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -60,6 +60,8 @@ export const DIMS = Object.freeze({
   //   여기서 다시 적지 않고 `FURNITURE_CONTRACTS.corporateChair.dimensions`를 그대로 읽는다.
   //   두 곳에 적으면 언젠가 어긋나고, 어느 쪽이 맞는지 알 수 없게 된다.
   corporateChair: FURNITURE_CONTRACTS.corporateChair.dimensions,
+  // 임원 회의용 하이백 의자(PHASE 3-a) — 여기서도 **치수의 기준은 계약**이다.
+  executiveChair: FURNITURE_CONTRACTS.executiveChair.dimensions,
   // 강당 고정 객석 — 좌석고 440 / 폭 500 (좌석 피치 550과 맞물린다)
   auditoriumChair: Object.freeze({
     seatTop: 440, seatThk: 75, seatW: 500, seatD: 460,
@@ -129,6 +131,14 @@ const star = (kind, y, spec) => ({
   w: spec.reach * 2, d: spec.reach * 2, h: spec.casterH + spec.hubH,
   ...spec,
 });
+// 위로 갈수록 좁아지는 휜 판 — 하이백 등받이 전용(PHASE 3-a).
+//   `box`+`sag`(휜 판)는 높이 어디서나 폭이 같다. 이것은 아래 폭에서 위 폭까지 **연속으로** 줄어든다.
+const taper = (kind, dx, y, dz, wBottom, wTop, h, thk, tiltX, sag) => {
+  const p = { kind, shape: 'taper', dx, y, dz, wBottom, wTop, h, thk, sag,
+    w: Math.max(wBottom, wTop), d: thk + sag };   // w/d 는 차지하는 공간(검사·배치용)
+  if (tiltX) p.tiltX = tiltX;
+  return p;
+};
 // 구 — 머리처럼 둥근 것에만 쓴다(저폴리 12×8 분할 하나를 공유한다).
 const sph = (kind, dx, y, dz, r) => ({ kind, shape: 'sph', dx, y, dz, r });
 
@@ -233,6 +243,95 @@ export function createCorporateChair() {
     // ⑪⑫ 팔걸이 패드 — 얇고 길게.
     box('chairArmPad', -armDx, S.seatTop + 210, -15, 62, 26, 250, 0, { r: 13, mode: 'plan' }),
     box('chairArmPad', armDx, S.seatTop + 210, -15, 62, 26, 250, 0, { r: 13, mode: 'plan' }),
+  ];
+}
+
+/**
+ * 임원 회의용 하이백 의자(PHASE 3-a) — 회의용 의자와 **실루엣으로** 갈린다.
+ *
+ * 무엇이 다른가. 크기만 키운 것이 아니다.
+ *   ① **등받이가 연속으로 좁아진다.** 회의용 의자는 폭이 일정한 판 위에 좁은 가로대를 얹어
+ *      '위가 좁아 보이게' 했다 — 가까이서 보면 단이 진다(PHASE 2-a의 알려진 문제).
+ *      여기서는 허리에서 어깨까지 **한 덩어리로** 줄어드는 껍데기를 쓴다(`taper`).
+ *   ② **헤드레스트가 있다.** 좌판 위 780mm까지 올라가는 하이백의 마지막 마디다.
+ *      등받이 어깨선보다 좁고 얇게 — 게이밍 체어의 베개나 자동차 헤드레스트가 되면 안 된다.
+ *   ③ 좌판이 조금 넓고(530×500), 받침이 조금 크다(700). 다만 **가죽 임원 의자로 가지 않는다** —
+ *      두툼한 쿠션·묵직한 팔걸이는 오래된 중역실 언어다. 목표는 '밝고 절제된 현대 임원실'이다.
+ *
+ * 치수는 전부 계약(FURNITURE_CONTRACTS.executiveChair.dimensions)에서 읽는다.
+ */
+export function createExecutiveChair() {
+  const S = DIMS.executiveChair;
+  const seatThk = 80;                                 // 회의용(75)보다 아주 조금만 — 소파가 되면 안 된다
+  const seatBottom = S.seatTop - seatThk;             // 380
+  const baseR = S.casterBase / 2;                     // 350
+
+  // 5발 받침 — 회의용과 같은 방식을 그대로 쓰되(§13 재사용 허용) 계약의 700mm에 맞춘다.
+  const base = { legs: 5, reach: baseR, hubR: 66, hubH: 100, legW: 78, legH: 48, casterR: 32, casterH: 60 };
+  const baseH = base.casterH + base.hubH;             // 160
+
+  // 등받이 축 — 좌판 뒤에서 위로, 뒤로 13° 기울어 올라간다.
+  //   기울기는 **깊이 계약(720mm)이 정한다.** 더 젖히면 하이백 꼭대기가 뒤로 많이 나가
+  //   의자가 계약 발자국을 벗어난다(15°로 잡았더니 깊이가 757mm로 넘쳤다).
+  const tilt = 13, rad = tilt * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const pivotY = S.seatTop + 30, pivotZ = S.seatD / 2 - 85;
+  const onAxis = (L, push = 0) => ({
+    y: pivotY + L * cos - push * sin,
+    dz: pivotZ + L * sin - push * cos,
+  });
+
+  // 꼭대기는 계약이 정한다 — 좌판 위 780mm(backAboveSeat)에서 **실제로** 끝나야 한다.
+  //   기울어진 상자는 모서리가 중심보다 높으므로, 그 모서리까지 계산에 넣어 축 길이를 역산한다.
+  //   (넣지 않으면 계약보다 6~7mm 높게 끝난다 — 계약은 '대략'이 아니다.)
+  const headH = S.headrestH;                          // 190
+  // 두께는 **휨(sag)과 모서리 둥글림까지 합친 값이 실제 두께**다.
+  //   처음에 thk 62 · sag 54 · r 14 로 두었더니 화면에서 151mm로 부풀어 베개가 됐다
+  //   (휜 판의 둥글림은 도형을 사방으로 밀어낸다 — PHASE 2-a에서 등받이로 한 번 겪은 함정).
+  //   42 + 22 + 둥글림 ≈ 85mm. 실제 헤드레스트 두께와 같은 범위다.
+  const headThk = 42, headSag = 22, headPush = 4;
+  const headL = (S.seatTop + S.backAboveSeat - pivotY + headPush * sin
+    - (headH * cos + headThk * sin) / 2) / cos;
+  const gap = 34;                                     // 등받이와 헤드레스트 사이 목 트임
+  const backH = headL - headH / 2 - gap;              // 등받이 높이(축 위)
+  const backL = backH / 2;                            // 등받이 중심
+
+  // 폭 — 허리에서 어깨로 갈수록 좁아진다. 좌판(530)보다 좁게 시작한다.
+  // 좁아지는 정도 — 470 → 340(0.72). 0.79로 두었더니 등받이 아래의 브래킷(178)에서
+  //   등받이(470)로 벌어지는 변화가 훨씬 커서 **좁아지는 것이 눈에 띄지 않았다.**
+  const backWBottom = 470, backWTop = 340;
+  const meshInset = 46;                               // 메시는 테두리보다 이만큼 좁다
+  const armDx = S.overallW / 2 - 35;                  // 팔걸이 기둥 중심(폭 계약 안에 들어오게)
+
+  const b = onAxis(backL);
+  const mesh = onAxis(backL, 9);                      // 메시는 테두리보다 9mm 앞
+  const head = onAxis(headL, headPush);
+
+  return [
+    // ① 5발 캐스터 받침 — 조각 11개를 한 덩어리로(그리기 호출 1개).
+    star('chairCaster', baseH / 2, base),
+    // ② 가스 실린더.
+    cyl('chairColumn', 0, (baseH + seatBottom) / 2, 0, 40, seatBottom - baseH),
+    // ③ 좌판 아래 기구부.
+    box('chairFrame', 0, seatBottom - 34, 10, 230, 68, 270, 0, { r: 28, mode: 'plan' }),
+    // ④ 좌판 — 회의용보다 넓지만 두께는 거의 그대로. 앞쪽 끝이 부드럽게 말린 인체공학 좌판.
+    box('chairCushion', 0, seatBottom + seatThk / 2, 0, S.seatW, seatThk, S.seatD, 0, { r: 100, mode: 'plan' }),
+    // ⑤ 등받이 지지 브래킷 — 좌판 뒤에 붙여 등받이에 가려지게 둔다.
+    box('chairFrame', 0, S.seatTop + 8, S.seatD / 2 - 20, 178, 136, 66, tilt, { r: 32, mode: 'face' }),
+    // ⑥ 등받이 테두리 — **위로 갈수록 좁아진다.** 이 한 덩어리가 회의용 의자와 가장 크게 갈리는 곳이다.
+    taper('chairFrame', 0, b.y, b.dz, backWBottom, backWTop, backH, 36, tilt, 72),
+    // ⑦ 메시 등받이 — 테두리 안쪽에서 같은 비율로 좁아진다.
+    taper('chairMesh', 0, mesh.y, mesh.dz,
+      backWBottom - meshInset, backWTop - meshInset, backH - 44, 18, tilt, 72),
+    // ⑧ 헤드레스트 — 어깨선보다 **좁고 얇게**. 살짝 휘어 목을 받친다.
+    //    베개처럼 두꺼워지면 게이밍 체어가 된다(오너 지침 §11).
+    box('chairHeadrest', 0, head.y, head.dz, backWTop - 58, headH, headThk, tilt, { sag: headSag, r: 10 }),
+    // ⑨⑩ 팔걸이 기둥 — 가늘게. 임원 의자라고 굵어지면 안 된다.
+    box('chairFrame', -armDx, S.seatTop + 116, 58, 30, 216, 66),
+    box('chairFrame', armDx, S.seatTop + 116, 58, 30, 216, 66),
+    // ⑪⑫ 팔걸이 패드 — 얇고 길게.
+    box('chairArmPad', -armDx, S.seatTop + 226, -16, 66, 28, 264, 0, { r: 14, mode: 'plan' }),
+    box('chairArmPad', armDx, S.seatTop + 226, -16, 66, 28, 264, 0, { r: 14, mode: 'plan' }),
   ];
 }
 
@@ -568,6 +667,8 @@ export const FURNITURE_ASSETS = Object.freeze({
   //   이 한 줄이 등록되는 순간 `hasRuntimeFurnitureAsset('corporateChair')`가 true가 되고,
   //   라우터(furniture-routing.js)는 **고치지 않아도** 이것을 고르기 시작한다.
   corporateChair: { id: 'corporateChair', label: '대기업 회의용 인체공학 의자', instanced: true, sized: false, build: () => createCorporateChair() },
+  // PHASE 3-a — 임원 회의용 하이백 의자. 이 한 줄이 등록되는 순간 라우터가 저절로 이것을 고른다.
+  executiveChair: { id: 'executiveChair', label: '임원 회의용 하이백 의자', instanced: true, sized: false, build: () => createExecutiveChair() },
   auditoriumChair: { id: 'auditoriumChair', label: '강당 고정 객석', instanced: true, sized: false, build: () => createAuditoriumChair() },
   trainingChair: { id: 'trainingChair', label: '강의용 의자', instanced: true, sized: false, build: () => createTrainingChair() },
   trainingDesk: { id: 'trainingDesk', label: '강의용 책상', instanced: true, sized: true, build: it => createTrainingDesk(it.w, it.d) },

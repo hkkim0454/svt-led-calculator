@@ -87,9 +87,9 @@ test('대기업 회의 의자 — PHASE 2-a 에서 실제로 만들어져 대체
   assert.equal(r.category, 'chair');
 });
 
-test('나머지 의자 3종 — 아직 도형이 없다(기존 의자로 대신 그린다)', () => {
+test('나머지 의자 2종 — 아직 도형이 없다(기존 의자로 대신 그린다)', () => {
+  // 임원 의자는 PHASE 3-a 에서 만들어져 이 목록에서 빠졌다.
   const CASES = [
-    ['executiveBoardroom', 'executiveChair'],
     ['largeConference', 'conferenceErgoChair'],
     ['controlRoom', 'taskChair'],
   ];
@@ -235,10 +235,11 @@ test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한�
       assert.equal(s.runtimeAsset, s.implemented ? s.requested : null, d);
     }
   }
-  // 지금 구현된 것 — PHASE 2-a 에서 대기업 회의 의자가 하나 늘었다.
+  // 지금 구현된 것 — PHASE 3-a 에서 임원 하이백 의자가 하나 더 늘었다.
   const done = DESIGN_IDS.flatMap(d => furnitureStatusForDesign(d))
     .filter(s => s.implemented).map(s => s.requested);
-  assert.deepEqual([...new Set(done)].sort(), ['avCredenza', 'corporateChair', 'corporateTable']);
+  assert.deepEqual([...new Set(done)].sort(),
+    ['avCredenza', 'corporateChair', 'corporateTable', 'executiveChair']);
 });
 
 test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수납장·러그·화분은 그대로)', () => {
@@ -284,7 +285,7 @@ test('불변 — 라우터 결과와 표를 밖에서 고칠 수 없다', () => 
   // 결과를 고쳐도 다음 호출에 영향이 없다(얼려 두었으므로 조용히 무시된다).
   try { r.runtimeAsset = '엉뚱한가구'; } catch { /* strict mode 에서는 예외 */ }
   assert.equal(resolveFurnitureForDesign({ type: 'chair' }, 'executiveBoardroom').runtimeAsset,
-    'conferenceChair');
+    'executiveChair');
 });
 
 test('렌더러 연결 범위 — 라우터를 쓰는 곳은 가구를 세우는 한 곳뿐이다', () => {

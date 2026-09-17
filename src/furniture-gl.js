@@ -15,17 +15,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=413';
-import { createMaterialLibrary } from './materials-gl.js?v=413';
-import { PART_MATERIAL, PART_FINISH, finishForPart } from './materials.js?v=413';
-import { GRADE_COLORS } from './viewangle.js?v=413';
-import { createGeometryCache } from './geometry-gl.js?v=413';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=413';
-import { credenzaFinishForDesign, floorPartFinishForDesign } from './design-finish.js?v=413';
+import { u } from './gl-model.js?v=414';
+import { createMaterialLibrary } from './materials-gl.js?v=414';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=414';
+import { GRADE_COLORS } from './viewangle.js?v=414';
+import { createGeometryCache } from './geometry-gl.js?v=414';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=414';
+import { credenzaFinishForDesign, floorPartFinishForDesign } from './design-finish.js?v=414';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
-} from './furniture-assets.js?v=413';
+} from './furniture-assets.js?v=414';
 
 const DEG = Math.PI / 180;
 
@@ -66,6 +66,11 @@ function partGeometry(geoCache, part, detail) {
   if (part.shape === 'sph') return geoCache.sph(u(part.r), { detail });
   const w = u(part.w), h = u(part.h), d = u(part.d);
   // 살짝 휜 판(등받이) → 모서리가 둥근 판 → 각진 상자 순으로 고른다.
+  // 위로 갈수록 좁아지는 휜 판(하이백 등받이) — 폭이 높이에 따라 변하므로 전용 도형을 쓴다.
+  if (part.shape === 'taper') {
+    return geoCache.taperedBack(u(part.wBottom), u(part.wTop), u(part.h), u(part.thk),
+      { sag: u(part.sag || 0), detail });
+  }
   if (part.sag > 0) return geoCache.arc(w, h, d, { sag: u(part.sag), r: u(part.r || 0), detail });
   if (part.r > 0) return geoCache.slab(w, h, d, { mode: part.mode || 'plan', r: u(part.r), detail });
   return geoCache.box(w, h, d);
@@ -257,7 +262,9 @@ export function buildFurnitureGroup(items, opts = {}) {
   //   기업 AV 디자인 시스템 가구(대기업 회의 의자 등)는 색·거칠기·금속성을 마감 표가 정한다.
   //   **기존 가구는 영향을 받지 않는다** — 마감 표의 부품 이름은 기존 부품 이름과 겹치지 않는다
   //   (materials.js에서 그렇게 지었고 테스트가 지킨다).
-  for (const kind of Object.keys(PART_FINISH)) {
+  //   별칭도 함께 돈다 — 헤드레스트처럼 **기존 마감을 그대로 쓰는 부품**은 마감 표에 제 줄이 없다.
+  //   빠뜨리면 그 부품만 재질이 없어 **하얗게** 뜬다(임원 의자 첫 검수에서 실제로 그랬다).
+  for (const kind of [...Object.keys(PART_FINISH), ...Object.keys(PART_FINISH_ALIASES)]) {
     const fin = finishForPart(kind);
     if (!fin || !fin.color) continue;          // 색이 없는 항목은 아직 쓰이지 않는다
     const extra = {};
