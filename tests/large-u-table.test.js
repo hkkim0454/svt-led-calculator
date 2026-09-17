@@ -69,7 +69,8 @@ test('② 계약이 구현됨으로 바뀌었고 **치수는 하나도 바뀌지
   assert.equal(C.instancing, 'custom');
   assert.deepEqual([...C.rooms], ['largeConference']);
   assert.deepEqual([...C.shapes], ['u']);
-  assert.deepEqual([...C.parts], ['corporateTop', 'tableBase']);
+  // PHASE 4-d.1 — 부품 이름이 제 이름으로 바뀌었다(마감이 다른 테이블로 새지 않게).
+  assert.deepEqual([...C.parts], ['conferenceTop', 'conferenceBase']);
 });
 
 test('③ 상판 윗면이 계약값(740mm) 그대로다', () => {
@@ -373,8 +374,8 @@ test('㉗ 상황실 AV 는 그대로 미구현이다(대회의실 AV 는 PHASE 4
   assert.equal(d.furniture.table, 'largeUTable');
   assert.equal(d.furniture.chair, 'conferenceErgoChair');
   assert.deepEqual(d.furniture.av.slice(0, 2), ['personalMonitor', 'prompter']);
-  // 마감·조명·화각은 아직 대회의실 전용이 없다(PHASE 4-d).
-  for (const k of ['palette', 'wallTreatment', 'lighting', 'camera', 'accessories']) {
+  // 조명·화각은 아직 대회의실 전용이 없다(마감은 PHASE 4-d.1 에서 생겼다).
+  for (const k of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
     assert.ok(isPlanned(d[k]), `${k}: 이번 단계에서 건드렸다`);
   }
 });
@@ -386,7 +387,7 @@ test('㉘ 정식 재질 13종이 그대로다(새로 만들지 않았다)', () =
   // 쓰는 부품 이름은 전부 기존 마감 표에 있다(하얗게 뜨지 않게).
   const body = glSrc.match(/function largeUTableMesh[\s\S]*?\n}\n/)[0];
   const used = [...new Set([...body.matchAll(/mat\.([A-Za-z]+)/g)].map(m => m[1]))];
-  assert.deepEqual(used.sort(), ['corporateTop', 'tableBase']);
+  assert.deepEqual(used.sort(), ['conferenceBase', 'conferenceTop']);
   for (const k of used) {
     // 색은 **기존 두 경로 중 하나**로 붙는다 — 새 마감도, 새 재질도 만들지 않았다.
     //   상판(corporateTop) 새 마감 표 · 하부(tableBase) 기존 부품 색 + 재질 대응표.

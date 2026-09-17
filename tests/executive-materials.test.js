@@ -306,12 +306,18 @@ test('⑳ 어댑터 — 테이블 부품 마감을 실제로 갈아 끼우고, �
 
 test('㉑ 마감을 선언하지 않은 공간은 여전히 전부 null 이다', () => {
   for (const id of DESIGN_IDS) {
-    if (id === 'corporateMeeting' || id === EX) continue;
+    // 대회의실은 PHASE 4-d.1 에서 제 마감을 갖게 됐다(임원 것을 물려받은 것이 아니다).
+    if (id === 'corporateMeeting' || id === EX || id === 'largeConference') continue;
     for (const fn of [roomFinishForDesign, credenzaFinishForDesign,
       floorPartFinishForDesign, tablePartFinishForDesign]) {
       assert.equal(fn(id), null, `${id}: ${fn.name} 가 null 이 아니다`);
     }
   }
+  // 대회의실이 임원 테이블 부품에는 손대지 않는다(이름을 나눠 둔 이유다).
+  const lc = tablePartFinishForDesign('largeConference');
+  assert.ok(lc && lc.conferenceTop && lc.conferenceBase);
+  assert.equal(lc.boardroomTop, undefined, '대회의실이 임원 상판 마감까지 정한다');
+  assert.equal(lc.boardroomBase, undefined, '대회의실이 임원 하부 마감까지 정한다');
   for (const id of [null, undefined, '', '없는디자인', 0, {}]) {
     assert.equal(roomFinishForDesign(id), null, String(id));
     assert.equal(tablePartFinishForDesign(id), null, String(id));

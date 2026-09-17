@@ -172,11 +172,13 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
     }
   }
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
-  // 대회의실은 **의자 하나만** 정했다 — 나머지는 전부 아직 planned 다.
-  assert.equal(isNeutralDesign('largeConference'), false, '대회의실은 이제 의자를 정한다');
+  // 대회의실은 가구·AV(4-a~4-c)와 마감(4-d.1)까지 정했다 — 조명·화각·벽 구성은 아직 planned 다.
+  assert.equal(isNeutralDesign('largeConference'), false, '대회의실은 이제 가구를 정한다');
   const lc = resolveDesign('largeConference');
   assert.equal(lc.furniture.chair, 'conferenceErgoChair');
-  for (const f of VALUE_FIELDS.filter(x => x !== 'furniture')) {
+  assert.equal(lc.furniture.table, 'largeUTable');
+  assert.equal(lc.palette, 'conferenceBright');
+  for (const f of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
     assert.equal(lc[f], INHERIT, `largeConference.${f} 가 아직 INHERIT가 아니다`);
   }
 });
@@ -221,14 +223,16 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     // **적용되는 값은 반드시 실재해야 한다.** 이것이 '가짜 스펙 금지'의 핵심이다.
     for (const x of ids) assert.ok(exists(x), `${id}: 없는 자산·재질 ${x}`);
   }
-  // 지금 실제로 적용되는 값 — 대기업 회의실 한 벌 + 임원 회의실 한 벌 +
-  //   대회의실의 가구 2종(PHASE 4-a 의자·PHASE 4-b 테이블). 대회의실의 마감·조명·화각은 아직 planned 다.
+  // 지금 실제로 적용되는 값 — 세 회의실의 가구·AV·마감 한 벌씩.
+  //   대회의실의 조명·화각·벽 구성은 아직 planned 다(다음 단계).
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
-    'acousticPanel', 'blackEquipment', 'boardroomTable', 'carpetTileLight', 'carpetTileLight',
-    'conferenceErgoChair', 'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
-    'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright',
-    'executiveChair', 'executiveProposal', 'executiveSoft', 'largeUTable', 'lightOak', 'neutralLaminate',
+    'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileLight',
+    'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
+    'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
+    'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
+    'darkGraphite', 'executiveBright', 'executiveChair', 'executiveProposal', 'executiveSoft',
+    'largeUTable', 'lightAsh', 'lightOak', 'neutralLaminate', 'paintedWallWhite',
     'paintedWallWhite', 'paintedWallWhite', 'personalMonitor', 'prompter',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {

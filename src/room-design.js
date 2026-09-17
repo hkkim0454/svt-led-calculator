@@ -185,12 +185,18 @@ export const ROOM_DESIGNS = Object.freeze({
       // PHASE 4-c — 개인 모니터·중앙 프롬프터. 맨 문자열 = 실제로 만들었다는 뜻이다.
       av: Object.freeze(['personalMonitor', 'prompter', planned('avCredenza')]),
     }),
-    palette: planned('largeConferencePalette'),
+    // PHASE 4-d.1 — 마감을 켠다. 이름은 전부 **기존 13종 또는 그 별칭**이다(정식 재질을 새로 만들지 않았다).
+    //   임원과 갈리는 지점: 포인트 벽을 **질감(흡음 패널)으로 꾸미지 않는다** — 도장 벽에 색 한 단만.
+    //   참석자 30명·모니터 30대가 깔리는 방이라 마감이 조용할수록 장비가 읽힌다.
+    palette: 'conferenceBright',
     materials: Object.freeze({
-      floor: planned('carpetTileLight'),
-      wall: planned('paintedWallWhite'),
-      tableTop: planned('lightOak'),
-      chair: planned('darkGraphite'),
+      floor: 'carpetTileLight',     // → carpetTile (별칭). 밝은 중성 회색 카펫
+      wall: 'paintedWallWhite',     // → paintedWall (별칭). 포인트 벽도 같은 도장 벽이다
+      tableTop: 'lightAsh',         // → neutralLaminate (별칭). 결이 거의 없는 작업면
+      tableBase: 'darkGraphite',    // 대형 U 테이블 하부(conferenceBase)에 실제로 붙는다
+      chair: 'darkGraphite',        // PHASE 4-a 에서 이미 의자에 붙어 있다(기록용 — 건드리지 않는다)
+      av: 'blackEquipment',         // 개인 모니터·중앙 프롬프터. 꺼진 화면도 이 질감을 쓴다
+      credenza: 'darkGraphite',     // LED 아래 낮은 AV 가구. 흰 상자로 남지 않게
     }),
     wallTreatment: planned('largeConferenceWalls'),
     lighting: planned('corporateBright'),

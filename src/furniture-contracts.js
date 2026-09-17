@@ -269,8 +269,14 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     }),
     footprint: null,
     shapes: Object.freeze(['u']),
-    parts: Object.freeze(['corporateTop', 'tableBase']),
-    finishParts: Object.freeze({ corporateTop: SELF('corporateTop'), tableBase: null }),
+    // PHASE 4-d.1 — 부품 이름을 `corporateTop`·`tableBase`에서 제 이름으로 바꿨다.
+    //   기존 이름을 그대로 쓰면 대회의실 마감을 정하는 순간 **대기업 회의 테이블·강의용 책상까지**
+    //   같이 바뀐다(임원 U 테이블이 PHASE 3-b에서 같은 이유로 제 이름을 갖게 된 것과 같다).
+    //   치수(dimensions)는 하나도 바꾸지 않았다.
+    parts: Object.freeze(['conferenceTop', 'conferenceBase']),
+    finishParts: Object.freeze({
+      conferenceTop: SELF('conferenceTop'), conferenceBase: SELF('conferenceBase'),
+    }),
     note: '개인 모니터·중앙 프롬프터가 얹힌다. 임원 테이블보다 밀도가 높다.',
   }),
 
