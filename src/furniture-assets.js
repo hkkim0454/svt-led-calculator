@@ -19,7 +19,7 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=419';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=421';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -644,6 +644,16 @@ const near = (a, b) => Math.abs(a - b) <= BOARDROOM_TOL;
  */
 export function boardroomUBounds(items = []) {
   const C = FURNITURE_CONTRACTS.boardroomTable.dimensions;
+  return uTableBounds(items, C.minWidth, C.minDepth);
+}
+
+/**
+ * 배치가 준 테이블 조각들의 **합쳐진 U자 테두리**. 맞지 않으면 null.
+ * 임원 U 테이블과 대회의실 U 테이블이 **같은 배치 모양**(뒤 가로 상판 + 날개 2)을 받으므로
+ *   읽는 법을 한 곳에만 둔다 — 두 곳에 적으면 언젠가 서로 다른 U자를 읽게 된다.
+ * 최소 크기만 자산마다 다르다(각자의 계약이 정한다).
+ */
+export function uTableBounds(items = [], minWidth = 0, minDepth = 0) {
   if (!Array.isArray(items) || items.length !== 3) return null;
   for (const it of items) {
     if (!it || it.type !== 'table') return null;
@@ -657,7 +667,7 @@ export function boardroomUBounds(items = []) {
   const minZ = Math.min(...items.map(i => i.z - i.d / 2));
   const maxZ = Math.max(...items.map(i => i.z + i.d / 2));
   const outerW = Math.round(maxX - minX), outerD = Math.round(maxZ - minZ);
-  if (outerW < C.minWidth || outerD < C.minDepth) return null;
+  if (outerW < minWidth || outerD < minDepth) return null;
 
   // 뒤 가로 상판 = 바깥 가로를 통째로 차지하는 조각. 나머지 둘이 날개다.
   const header = items.find(i => near(i.w, outerW));
@@ -766,6 +776,116 @@ export function createBoardroomTable(items = []) {
     //   굽이 없으면 판이 공중에 뜨고, 굽이 같은 크기면 통짜 받침대(계약이 금지한 모습)가 된다.
     toeInset: 70,
     supports,
+  };
+}
+
+/**
+ * 대회의실 대형 U 테이블 (PHASE 4-b).
+ * ─────────────────────────────────────────────────────────────────────────
+ * 임원 U 테이블을 크게 늘린 것이 **아니다.** 성격이 다르다.
+ *   임원  적은 인원 · 두꺼운 상판 · 앞 끝 반원(반지름 450) · 판형 블레이드 하부
+ *   대회의 많은 인원 · 얇은 상판(25) · 모서리만 살짝 죽인 각진 U ·
+ *          **가는 기둥 + 긴 보(beam)** 하부 — 좌석마다 개인 모니터가 놓일 자리를 비워 둔다.
+ *
+ * 배치는 여기서도 직사각형 세 조각으로 온다. 세 조각을 따로 세우면 이음매가 보이므로
+ *   합쳐진 테두리만 읽어 **한 덩어리** U자를 만든다(읽는 법은 uTableBounds 하나뿐이다).
+ */
+// 앉는 모서리에서 다리·보를 비워 두는 깊이. 무릎이 들어오는 자리이자, 앞으로 개인 모니터
+//   받침이 놓일 자리이기도 하다(PHASE 4-c). 사무 인간공학 기준(유효깊이 ≥ 450)에 여유를 더했다.
+export const LARGE_U_KNEE_CLEAR = 500;
+// 상판이 받침 없이 건너뛰는 최대 거리. 25mm 얇은 상판이므로 임원(2,600)보다 짧게 잡는다.
+export const LARGE_U_MAX_SPAN = 2400;
+// 참석자 1인 간격 — room-presets의 FURNITURE.chairPitch 와 같은 값이다(테스트가 지킨다).
+export const LARGE_U_SEAT_PITCH = 700;
+// 날개 앞 끝에서 보를 물리는 양. 보가 상판 끝까지 나오면 앞에서 훤히 보인다.
+const LARGE_U_BEAM_END_INSET = 220;
+// 가는 사각 기둥 + 낮은 굽. **좌석마다 하나가 아니라** 몇 좌석마다 하나다(계약이 금지한 모습).
+const LARGE_U_POST = Object.freeze({ w: 160, d: 70, footGrow: 120, footH: 18 });
+// 기둥을 잇는 긴 보 — 이것이 있어야 '조각 세 장'이 아니라 **짜인 구조물**로 읽힌다.
+const LARGE_U_BEAM = Object.freeze({ w: 70, h: 90 });
+
+/** 이 테이블 조각들을 대회의실 U 테이블이 맡을 수 있는가. */
+export function fitsLargeUTable(items = []) {
+  return largeUBounds(items) !== null;
+}
+
+/** 대회의실 U 테이블이 읽어 낸 합쳐진 테두리. 맡을 수 없는 모양이면 null. */
+export function largeUBounds(items = []) {
+  const C = FURNITURE_CONTRACTS.largeUTable.dimensions;
+  return uTableBounds(items, C.minWidth, C.minDepth);
+}
+
+// 길이 len 인 구간을 받침 없이 LARGE_U_MAX_SPAN 이상 건너뛰지 않게 나눈 자리들(구간 가운데마다 하나).
+function postStops(len, center) {
+  const n = Math.max(1, Math.ceil(len / LARGE_U_MAX_SPAN));
+  const step = len / n;
+  return Array.from({ length: n }, (_, i) => Math.round(center + (i - (n - 1) / 2) * step));
+}
+
+/**
+ * @param items 배치가 준 테이블 조각 3개(뒤 상판 + 날개 2). 좌표는 방 좌표계(mm).
+ * @returns 구성 명세, 또는 맡을 수 없는 모양이면 null. 좌표는 **테이블 중심 기준**(dx·dz)이다.
+ */
+export function createLargeUTable(items = []) {
+  const B = largeUBounds(items);
+  if (!B) return null;
+  const C = FURNITURE_CONTRACTS.largeUTable.dimensions;
+  const topBottom = C.surfaceY - C.topThk;
+
+  // 모서리 — 임원(450 반원)을 **복사하지 않는다.** 계약에 그런 규칙이 없고, 성격도 다르다.
+  //   앞 끝  살짝 죽인 정도. 반원이 되면 임원 테이블로 읽힌다.
+  //   안쪽   오목한 자리를 잇는 최소 곡면. 이것이 없으면 직각으로 꺾여 세 장처럼 보인다.
+  //   뒤     거의 각. 사람이 앉지 않는 쪽이라 날카로워 보이지만 않으면 된다.
+  const frontR = Math.max(0, Math.min(180, B.segW / 2, B.outerD / 2, B.outerW / 2));
+  const innerR = Math.max(0, Math.min(120, B.innerW / 2, B.innerD / 2));
+  const rearR = Math.max(0, Math.min(60, B.segW / 2));
+
+  // 기둥·보는 앉는 모서리에서 무릎 깊이만큼 **안으로 물린다**(한쪽에만 앉으므로 방향이 정해진다).
+  const inset = LARGE_U_KNEE_CLEAR + LARGE_U_BEAM.w / 2;
+  const halfW = B.outerW / 2, halfD = B.outerD / 2;
+  const beamZ = Math.round(halfD - inset);            // 뒤 가로 상판의 보 — X 방향으로 달린다
+  const beamX = Math.round(halfW - inset);            // 좌·우 날개의 보 — Z 방향으로 달린다
+  const beamEndZ = Math.round(-halfD + LARGE_U_BEAM_END_INSET);
+
+  // 보 3줄이 **서로 만나** ㄷ자 한 줄이 된다(끊긴 세 도막으로 보이지 않게 모서리를 겹친다).
+  const beams = [
+    { dx: 0, dz: beamZ, len: beamX * 2 + LARGE_U_BEAM.w, along: 'x' },
+    { dx: -beamX, dz: Math.round((beamZ + beamEndZ) / 2), len: beamZ - beamEndZ, along: 'z' },
+    { dx: beamX, dz: Math.round((beamZ + beamEndZ) / 2), len: beamZ - beamEndZ, along: 'z' },
+  ];
+
+  const supports = [];
+  for (const dx of postStops(beamX * 2, 0)) supports.push({ dx, dz: beamZ, along: 'x' });
+  for (const sign of [-1, 1]) {
+    for (const dz of postStops(beamZ - beamEndZ, (beamZ + beamEndZ) / 2)) {
+      supports.push({ dx: sign * beamX, dz, along: 'z' });
+    }
+  }
+  // 실제로 받침 없이 건너뛰는 가장 먼 거리(보고용) — 기둥 사이 간격 중 최댓값이다.
+  const gap = (len, n) => (n > 0 ? Math.round(len / n) : 0);
+  const maxSpan = Math.max(
+    gap(beamX * 2, postStops(beamX * 2, 0).length),
+    gap(beamZ - beamEndZ, postStops(beamZ - beamEndZ, 0).length),
+  );
+
+  return {
+    shape: 'u',
+    outerW: B.outerW, outerD: B.outerD, segW: B.segW, innerW: B.innerW, innerD: B.innerD,
+    cx: B.cx, cz: B.cz,
+    surfaceY: C.surfaceY, topThk: C.topThk, topBottom,
+    frontR, rearR, innerR,
+    topBevel: Math.round(C.topThk * 0.16),   // 얇은 상판의 날만 없앤다(장식 몰딩이 아니다)
+    kneeClear: LARGE_U_KNEE_CLEAR, inset,
+    post: Object.freeze({
+      w: LARGE_U_POST.w, d: LARGE_U_POST.d,
+      h: topBottom - LARGE_U_POST.footH, y: LARGE_U_POST.footH + (topBottom - LARGE_U_POST.footH) / 2,
+    }),
+    foot: Object.freeze({
+      w: LARGE_U_POST.w + LARGE_U_POST.footGrow, d: LARGE_U_POST.d,
+      h: LARGE_U_POST.footH, y: LARGE_U_POST.footH / 2,
+    }),
+    beam: Object.freeze({ w: LARGE_U_BEAM.w, h: LARGE_U_BEAM.h, y: topBottom - LARGE_U_BEAM.h / 2 }),
+    beams, supports, maxSpan,
   };
 }
 
@@ -937,6 +1057,9 @@ export const FURNITURE_ASSETS = Object.freeze({
   corporateTable: { id: 'corporateTable', label: '대기업 회의 테이블', instanced: false, sized: true, spec: it => createCorporateTable(it) },
   // PHASE 3-b — 임원 회의실 대형 U 테이블. 조각 하나가 아니라 **테이블 조각 전체**를 받는다.
   boardroomTable: { id: 'boardroomTable', label: '임원 회의실 대형 U 테이블', instanced: false, sized: true, spec: items => createBoardroomTable(items) },
+  // PHASE 4-b — 대회의실 대형 U 테이블. 임원 것과 같은 배치(조각 3장)를 받지만 **다른 자산**이다.
+  //   이 한 줄이 등록되는 순간 라우터는 고치지 않아도 이것을 고른다.
+  largeUTable: { id: 'largeUTable', label: '대회의실 대형 U 테이블', instanced: false, sized: true, spec: items => createLargeUTable(items) },
 });
 
 /** V1에서 준비한 가구 자산 4종 — 보고·테스트용 목록. */

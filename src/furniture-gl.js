@@ -15,20 +15,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=419';
-import { createMaterialLibrary } from './materials-gl.js?v=419';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=419';
-import { GRADE_COLORS } from './viewangle.js?v=419';
-import { createGeometryCache } from './geometry-gl.js?v=419';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=419';
+import { u } from './gl-model.js?v=421';
+import { createMaterialLibrary } from './materials-gl.js?v=421';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=421';
+import { GRADE_COLORS } from './viewangle.js?v=421';
+import { createGeometryCache } from './geometry-gl.js?v=421';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=421';
 import {
   credenzaFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
-} from './design-finish.js?v=419';
+} from './design-finish.js?v=421';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
-  createBoardroomTable, fitsBoardroomTable,
-} from './furniture-assets.js?v=419';
+  createBoardroomTable,
+  createLargeUTable,
+} from './furniture-assets.js?v=421';
 
 const DEG = Math.PI / 180;
 
@@ -261,6 +262,65 @@ function boardroomTableMesh(items, mat, geoCache) {
   return g;
 }
 
+/**
+ * 대회의실 대형 U 테이블 (PHASE 4-b) — 얇은 U자 상판 + 가는 기둥 + 긴 보.
+ *
+ * 임원 테이블과 같은 순서로 세우지만 **하부 구조가 다르다.** 임원은 판형 블레이드,
+ *   여기는 기둥과 보다 — 좌석이 훨씬 많고 좌석마다 개인 모니터가 놓일 자리를 비워야 한다.
+ * 기둥·굽은 수가 많고 크기가 모두 같으므로 **InstancedMesh 두 덩어리**로 묶는다
+ *   (테이블이 아무리 길어져도 그리기 호출이 늘지 않는다).
+ * 치수·좌표는 전부 순수 명세(createLargeUTable)가 정한다. 여기서는 세우기만 한다.
+ */
+function largeUTableMesh(items, mat, geoCache) {
+  const S = createLargeUTable(items);
+  if (!S) return null;
+  const g = new THREE.Group();
+
+  // 상판 — 한 덩어리. 윗면이 정확히 surfaceY 에 오도록 놓는다.
+  const top = new THREE.Mesh(
+    geoCache.uTop(u(S.outerW), u(S.outerD), u(S.segW), u(S.topThk), {
+      frontR: u(S.frontR), rearR: u(S.rearR), innerR: u(S.innerR), bevel: u(S.topBevel),
+    }), mat.corporateTop);
+  top.position.y = u(S.topBottom + S.topThk / 2);
+  top.name = 'corporateTop';
+  g.add(top);
+
+  // 긴 보 — 상판 바로 아래에서 기둥을 잇는다. 길이가 다르므로 하나씩 세운다(3줄뿐이다).
+  for (const b of S.beams) {
+    const along = b.along === 'x';
+    const beam = new THREE.Mesh(
+      geoCache.box(u(along ? b.len : S.beam.w), u(S.beam.h), u(along ? S.beam.w : b.len)),
+      mat.tableBase);
+    beam.position.set(u(b.dx), u(S.beam.y), u(b.dz));
+    beam.name = 'tableBase';
+    g.add(beam);
+  }
+
+  // 기둥과 굽 — 크기가 모두 같다. 방향(띠를 따라 눕는 쪽)만 인스턴스 행렬로 돌린다.
+  const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1);
+  const pos = new THREE.Vector3(), yAxis = new THREE.Vector3(0, 1, 0);
+  for (const [name, box, y] of [
+    ['post', { w: S.post.w, h: S.post.h, d: S.post.d }, S.post.y],
+    ['foot', { w: S.foot.w, h: S.foot.h, d: S.foot.d }, S.foot.y],
+  ]) {
+    const im = new THREE.InstancedMesh(
+      geoCache.slab(u(box.w), u(box.h), u(box.d), { mode: 'plan', r: u(12), bevel: u(4) }),
+      mat.tableBase, S.supports.length);
+    im.name = `tableBase:${name}`;
+    for (let i = 0; i < S.supports.length; i++) {
+      const sp = S.supports[i];
+      qt.setFromAxisAngle(yAxis, sp.along === 'z' ? Math.PI / 2 : 0);
+      im.setMatrixAt(i, m4.compose(pos.set(u(sp.dx), u(y), u(sp.dz)), qt, sc));
+    }
+    im.instanceMatrix.needsUpdate = true;
+    im.frustumCulled = false;
+    g.add(im);
+  }
+
+  g.position.set(u(S.cx), 0, u(S.cz));
+  return g;
+}
+
 function plantMesh(mat, geoCache) {
   const S = DIMS.plant;
   const g = new THREE.Group();
@@ -298,6 +358,15 @@ function routeItem(item, designId) {
   if (!r.runtimeAsset || r.runtimeAsset === assetFor(item)) return item;
   return { ...item, asset: r.runtimeAsset };
 }
+
+/**
+ * U자 상판을 **한 덩어리로** 세우는 자산들. 이름 한 줄을 더하면 그 자산이 U자를 맡는다.
+ *   각 함수는 맡을 수 없는 모양이면 null을 돌려주고, 그때는 기존 테이블이 조각마다 선다.
+ */
+const U_TABLE_MESH = Object.freeze({
+  boardroomTable: boardroomTableMesh,
+  largeUTable: largeUTableMesh,
+});
 
 export function buildFurnitureGroup(items, opts = {}) {
   const g = new THREE.Group();
@@ -364,10 +433,10 @@ export function buildFurnitureGroup(items, opts = {}) {
   const tableItems = routed.filter(x => x.type === 'table');
   // 이 배치에 테이블이 몇 조각인가. 한 조각이면 '가운데 회의 테이블', 여러 조각이면 U자형 등이다.
   const oneTable = tableItems.length === 1;
-  // 임원 U 테이블 — 조각 전체가 U자 하나로 읽힐 때만. 아니면 null = 기존 테이블이 조각마다 선다.
-  const boardroomU = (tableItems.length > 0
-    && tableItems.every(x => assetFor(x) === 'boardroomTable')
-    && fitsBoardroomTable(tableItems)) ? tableItems : null;
+  // U자 전용 테이블 — 조각 전체가 **같은 U자 자산 하나**로 읽힐 때만. 아니면 null =
+  //   기존 테이블이 조각마다 선다(화면에서 테이블이 사라지지 않게).
+  const uTableId = (tableItems.length > 0 && U_TABLE_MESH[assetFor(tableItems[0])]
+    && tableItems.every(x => assetFor(x) === assetFor(tableItems[0]))) ? assetFor(tableItems[0]) : null;
   for (const it of routed) {
     const key = assetKey(it);
     if (key) {
@@ -405,7 +474,7 @@ export function buildFurnitureGroup(items, opts = {}) {
 
   // 임원 U 테이블은 **조각마다가 아니라 한 번에** 세운다. 세울 수 없으면 null이고,
   //   그때는 아래 반복문이 기존 테이블로 조각마다 그린다(화면에서 테이블이 사라지지 않게).
-  const boardroomMesh = boardroomU ? boardroomTableMesh(boardroomU, mat, geoCache) : null;
+  const uTableMesh = uTableId ? U_TABLE_MESH[uTableId](tableItems, mat, geoCache) : null;
 
   // ── 하나씩 놓는 가구 ──
   for (const it of singles) {
@@ -415,7 +484,7 @@ export function buildFurnitureGroup(items, opts = {}) {
     //   U자형처럼 여러 조각으로 나뉜 배치에서는 조각마다 마감이 달라져 이음매가 드러난다 —
     //   그런 배치는 전용 변형(executive-u)이 생길 때까지 기존 테이블이 통째로 맡는다.
     if (it.type === 'table') {
-      if (boardroomMesh) continue;              // U자는 조각마다가 아니라 따로 **한 번에** 세운다
+      if (uTableMesh) continue;                 // U자는 조각마다가 아니라 따로 **한 번에** 세운다
       const useCorporate = assetFor(it) === 'corporateTable' && oneTable && fitsCorporateTable(it);
       obj = useCorporate ? corporateTableMesh(it, mat, geoCache) : tableMesh(it, mat, geoCache);
     }
@@ -444,8 +513,8 @@ export function buildFurnitureGroup(items, opts = {}) {
     g.add(obj);
   }
 
-  // ── 임원 U 테이블 — 조각이 아니라 한 덩어리로 딱 하나 ──
-  if (boardroomMesh) { boardroomMesh.name = 'boardroomTable'; g.add(boardroomMesh); }
+  // ── U자 테이블 — 조각이 아니라 한 덩어리로 딱 하나 ──
+  if (uTableMesh) { uTableMesh.name = uTableId; g.add(uTableMesh); }
 
   // 공용 자원은 Group에 매달아 두었다가 버릴 때 함께 반납한다.
   g.userData.shared = { geoCache, materials: Object.values(mat), lib };
