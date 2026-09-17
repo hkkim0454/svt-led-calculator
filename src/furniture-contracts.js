@@ -106,7 +106,8 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '임원 회의용 하이백 의자',
     category: 'chair',
     family: 'executiveHighBack',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    // PHASE 3-a — 실제 도형이 생겼다. 등록 여부는 런타임 목록이 답하지만, 계약도 함께 갱신한다.
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 3,
     rooms: Object.freeze(['executiveBoardroom']),
     instancing: 'instanced',

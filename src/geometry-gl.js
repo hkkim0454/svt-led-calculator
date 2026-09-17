@@ -135,6 +135,68 @@ function mergeGeometries(list) {
 }
 
 /**
+ * **위로 갈수록 좁아지는 휜 판** — 임원 의자의 하이백 등받이. (PHASE 3-a 신규)
+ *
+ * `arc()`와 무엇이 다른가: `arc()`는 윤곽 하나를 그대로 밀어내므로(ExtrudeGeometry)
+ *   **높이 어디서나 폭이 같다.** 회의용 의자는 그래서 등받이 위에 좁은 가로대를 따로 얹어
+ *   '위가 좁아 보이게' 했다 — 가까이서 보면 단이 진다(PHASE 2-a에 남긴 알려진 문제).
+ *   여기서는 아래 폭에서 위 폭까지 **연속으로** 줄어드는 껍데기를 직접 짠다.
+ *
+ * 만드는 방법: 높이를 몇 칸으로 나누고, 각 칸마다 그 높이의 폭으로 **휜 단면**을 만든 뒤
+ *   이웃한 단면끼리 이어 붙인다(로프트). 위·아래는 부채꼴로 막아 닫힌 덩어리로 만든다.
+ *   분할 수는 낮게 — 실루엣만 살면 되고, 좌석이 여럿이면 삼각형이 그만큼 곱해진다.
+ *
+ * @param wBottom 아래쪽(허리) 폭
+ * @param wTop    위쪽(어깨) 폭 — wBottom 보다 작아야 좁아진다
+ * @param h       높이
+ * @param thk     두께
+ * @param sag     가운데가 뒤로 물러난 깊이(몸을 감싸는 곡률)
+ */
+function taperedBackGeometry(wBottom, wTop, h, thk, sag, d) {
+  const nU = Math.max(6, d.curve * 3);      // 폭 방향 분할
+  const nV = Math.max(3, d.curve + 2);      // 높이 방향 분할
+  // 한 높이(v)에서의 단면 둘레 점들. 바깥면(뒤) → 안쪽면(앞)을 한 바퀴 돈다.
+  const ring = (v) => {
+    const w = wBottom + (wTop - wBottom) * v;
+    const y = (v - 0.5) * h;
+    const pts = [];
+    const curve = t => sag * (1 - (2 * t - 1) ** 2);
+    for (let i = 0; i <= nU; i++) { const t = i / nU; pts.push([-w / 2 + w * t, y, curve(t) + thk / 2]); }
+    for (let i = nU; i >= 0; i--) { const t = i / nU; pts.push([-w / 2 + w * t, y, curve(t) - thk / 2]); }
+    return pts;
+  };
+  const rings = [];
+  for (let j = 0; j <= nV; j++) rings.push(ring(j / nV));
+  const pos = [];
+  const tri = (a, b, c) => { pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); };
+  const m = rings[0].length;
+  // 옆면 — 이웃한 두 단면을 잇는다.
+  for (let j = 0; j < nV; j++) {
+    const lo = rings[j], hi = rings[j + 1];
+    for (let i = 0; i < m; i++) {
+      const k = (i + 1) % m;
+      tri(lo[i], hi[i], hi[k]);
+      tri(lo[i], hi[k], lo[k]);
+    }
+  }
+  // 위·아래 막음 — 단면 가운데를 중심으로 한 부채꼴.
+  const capAt = (r, up) => {
+    const c = [0, r[0][1], 0];
+    for (let i = 0; i < m; i++) {
+      const k = (i + 1) % m;
+      if (up) tri(c, r[i], r[k]); else tri(c, r[k], r[i]);
+    }
+  };
+  capAt(rings[nV], true);
+  capAt(rings[0], false);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/**
  * 오피스 체어 5발 받침 — 허브 + 방사형 다리 + 바퀴를 **한 덩어리**로 만든다.
  *   실제 의자에서 이 부분은 하나로 움직이고 색도 같다. 조각마다 따로 그릴 이유가 없다.
  *   다리는 **낮고 길게** 뻗어야 한다 — 굵고 짧으면 장난감처럼 보인다.
@@ -249,6 +311,16 @@ export function createGeometryCache() {
         geo.rotateX(-Math.PI / 2);   // 밀어낸 방향(두께)을 위아래로 눕힌다
         return geo;
       });
+    },
+
+    /**
+     * 위로 갈수록 좁아지는 휜 판(하이백 등받이). `arc()`와 달리 **폭이 연속으로** 줄어든다.
+     * 캐시 열쇠 머리글자가 `arc`(a|…)와 다르다 — 섞이면 서로의 등받이를 덮어쓴다.
+     */
+    taperedBack(wBottom, wTop, h, thk, { sag = 0, detail = 'high' } = {}) {
+      const dd = q(detail);
+      const key = `k|${wBottom}|${wTop}|${h}|${thk}|${sag}|${detail}`;
+      return take(key, () => taperedBackGeometry(wBottom, wTop, h, thk, sag, dd));
     },
 
     /**

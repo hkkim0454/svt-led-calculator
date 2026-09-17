@@ -342,12 +342,21 @@ export const PART_FINISH = Object.freeze({
 });
 
 /**
+ * **같은 마감을 쓰는 부품의 다른 이름.** 새 마감을 만들지 않고 기존 것을 가리킨다.
+ *   헤드레스트는 실제 의자에서도 방석·등받이와 같은 마감이다 — 계약(finishParts)이 그렇게 적어 두었고,
+ *   여기서 그 선언을 그대로 따른다. 새 항목을 만들면 두 곳이 언젠가 어긋난다.
+ */
+export const PART_FINISH_ALIASES = Object.freeze({
+  chairHeadrest: 'chairCushion',
+});
+
+/**
  * 부품 → 마감. **모르는 부품이면 null**(= 지금 동작 그대로).
  * 돌려주는 값은 정식 재질 id로 풀어 둔 것이라, 받는 쪽이 별칭을 또 해석할 필요가 없다.
  * @returns {{material:string, roughness?:number, metalness?:number}|null}
  */
 export function finishForPart(partId) {
-  const f = PART_FINISH[partId];
+  const f = PART_FINISH[partId] || PART_FINISH[PART_FINISH_ALIASES[partId]];
   if (!f) return null;
   const material = resolveMaterialId(f.material);
   if (!material) return null;   // 없는 재질을 가리키면 없는 것으로 친다(가짜 스펙 금지)

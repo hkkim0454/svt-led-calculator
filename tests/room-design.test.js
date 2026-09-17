@@ -160,9 +160,10 @@ test('고를 수 있는 목록 — 회의실 3종·상황실 1종, 나머지 용
 
 // ── PHASE 1-a 의 핵심 안전장치 ──────────────────────────────────────────────
 
-test('아직 구현하지 않은 3개 공간 — 적용해도 화면이 바뀌지 않는다(전부 INHERIT)', () => {
-  // PHASE 2-a 에서 대기업 회의실만 실제 값(의자)이 들어갔다. 나머지 셋은 여전히 전부 INHERIT 다.
-  for (const id of DESIGN_IDS.filter(x => x !== 'corporateMeeting')) {
+test('아직 구현하지 않은 2개 공간 — 적용해도 화면이 바뀌지 않는다(전부 INHERIT)', () => {
+  // PHASE 3-a 에서 임원 회의실에 **의자 하나**가 들어갔다(그 외 항목은 여전히 전부 planned).
+  //   대회의실·상황실 둘은 아직 하나도 없다.
+  for (const id of DESIGN_IDS.filter(x => !['corporateMeeting', 'executiveBoardroom'].includes(x))) {
     assert.ok(isNeutralDesign(id), `${id}: 아직 화면을 바꾸면 안 된다`);
     const r = resolveDesign(id);
     for (const f of VALUE_FIELDS) {
@@ -216,7 +217,8 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
     'blackEquipment', 'carpetTileLight', 'corporateChair', 'corporateNeutral', 'corporateProposal',
-    'corporateSoft', 'corporateTable', 'darkGraphite', 'neutralLaminate', 'paintedWallWhite',
+    'corporateSoft', 'corporateTable', 'darkGraphite', 'executiveChair', 'neutralLaminate',
+    'paintedWallWhite',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
