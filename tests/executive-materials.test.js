@@ -264,13 +264,13 @@ test('⑯ 기존 테이블 동결 — 회의 테이블·대기업 테이블의 �
   assert.equal(corp.supports.length, 2);
 });
 
-test('⑰ 조명·화각은 이번 단계에서 건드리지 않았다 — 임원은 아직 둘 다 없다', () => {
-  assert.equal(lightingForDesign(EX), null, '임원 조명이 켜졌다 — PHASE 3-d.1 몫이다');
+test('⑰ 화각은 아직 건드리지 않았다 — 조명만 PHASE 3-d.1 에서 켰다', () => {
   assert.equal(cameraPlanForDesign(EX, 'interior', { room: { W: 11, H: 3.8, D: 9 }, led: { w: 5.76, h: 2.16, y: 2 } }, 1.6), null,
     '임원 화각이 켜졌다 — PHASE 3-d.2 몫이다');
   const d = ROOM_DESIGNS[EX];
-  assert.equal(typeof d.lighting, 'object', 'lighting 이 planned 가 아니다');
   assert.equal(typeof d.camera, 'object', 'camera 가 planned 가 아니다');
+  // 조명은 PHASE 3-d.1 에서 켜졌다(마감 단계에서 켠 것이 아니다).
+  assert.equal(d.lighting, 'executiveSoft');
   // 대기업 조명·화각은 그대로 살아 있어야 한다.
   assert.ok(lightingForDesign('corporateMeeting'), '대기업 조명이 사라졌다');
 });

@@ -18,15 +18,15 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=416';
-import { createMaterialLibrary } from './materials-gl.js?v=416';
-import { MOODS } from './materials.js?v=416';
-import { roomFinishForDesign } from './design-finish.js?v=416';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=417';
+import { createMaterialLibrary } from './materials-gl.js?v=417';
+import { MOODS } from './materials.js?v=417';
+import { roomFinishForDesign } from './design-finish.js?v=417';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
-} from './design-lighting.js?v=416';
-import { ledImageFit } from './led-image.js?v=416';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=416';
+} from './design-lighting.js?v=417';
+import { ledImageFit } from './led-image.js?v=417';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=417';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -34,7 +34,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=416';
+} from './gl-model.js?v=417';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
