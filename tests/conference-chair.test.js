@@ -202,7 +202,7 @@ test('⑫ 상황실 자산은 그대로 미구현이다 (대회의실 테이블�
   assert.equal(t.runtimeAsset, 'largeUTable');
   // 대회의실 디자인에서 아직 정하지 않은 것들은 여전히 planned 다(조명·화각·벽 구성).
   const d = ROOM_DESIGNS.largeConference;
-  for (const f of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
+  for (const f of ['wallTreatment', 'camera', 'accessories']) {
     assert.ok(isPlanned(d[f]), `largeConference.${f} 가 벌써 정해졌다`);
   }
 });

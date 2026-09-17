@@ -374,8 +374,8 @@ test('㉗ 상황실 AV 는 그대로 미구현이다(대회의실 AV 는 PHASE 4
   assert.equal(d.furniture.table, 'largeUTable');
   assert.equal(d.furniture.chair, 'conferenceErgoChair');
   assert.deepEqual(d.furniture.av.slice(0, 2), ['personalMonitor', 'prompter']);
-  // 조명·화각은 아직 대회의실 전용이 없다(마감은 PHASE 4-d.1 에서 생겼다).
-  for (const k of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
+  // 화각은 아직 대회의실 전용이 없다(마감 4-d.1 · 조명 4-d.2 에서 생겼다).
+  for (const k of ['wallTreatment', 'camera', 'accessories']) {
     assert.ok(isPlanned(d[k]), `${k}: 이번 단계에서 건드렸다`);
   }
 });

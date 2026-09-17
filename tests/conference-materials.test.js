@@ -281,9 +281,8 @@ test('⑮⑯⑰ U 테이블·모니터·프롬프터 형상이 그대로다', ()
   assert.equal(res.capacity, 30);
 });
 
-test('⑱⑲⑳ LED·조명·화각을 건드리지 않았다', () => {
+test('⑱⑲⑳ LED·화각을 건드리지 않았다(조명은 PHASE 4-d.2)', () => {
   const d = ROOM_DESIGNS[LC];
-  assert.ok(isPlanned(d.lighting), '조명이 켜졌다');
   assert.ok(isPlanned(d.camera), '화각이 켜졌다');
   assert.ok(isPlanned(d.wallTreatment));
   // 마감 층이 LED·조명·그림자·노출을 건드리지 않는다(§16·§17).

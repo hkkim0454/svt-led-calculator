@@ -199,7 +199,9 @@ export const ROOM_DESIGNS = Object.freeze({
       credenza: 'darkGraphite',     // LED 아래 낮은 AV 가구. 흰 상자로 남지 않게
     }),
     wallTreatment: planned('largeConferenceWalls'),
-    lighting: planned('corporateBright'),
+    // PHASE 4-d.2 — 조명. 천장등을 크게 줄여 상판·바닥을 내리고, 보조광·환경광을 올려
+    //   옆벽을 끌어올린다. 어느 조명이 어느 면에 닿는지 실측해서 고른 배수다(design-lighting.js).
+    lighting: 'conferenceSoft',
     camera: planned('largeConferenceCamera'),
     accessories: planned('largeConferenceAccessories'),
   }),

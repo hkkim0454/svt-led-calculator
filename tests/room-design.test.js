@@ -178,7 +178,8 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   assert.equal(lc.furniture.chair, 'conferenceErgoChair');
   assert.equal(lc.furniture.table, 'largeUTable');
   assert.equal(lc.palette, 'conferenceBright');
-  for (const f of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
+  assert.equal(lc.lighting, 'conferenceSoft');
+  for (const f of ['wallTreatment', 'camera', 'accessories']) {
     assert.equal(lc[f], INHERIT, `largeConference.${f} 가 아직 INHERIT가 아니다`);
   }
 });
@@ -229,11 +230,11 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   assert.deepEqual(applied.slice().sort(), [
     'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileLight',
     'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
-    'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
-    'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
-    'darkGraphite', 'executiveBright', 'executiveChair', 'executiveProposal', 'executiveSoft',
-    'largeUTable', 'lightAsh', 'lightOak', 'neutralLaminate', 'paintedWallWhite',
-    'paintedWallWhite', 'paintedWallWhite', 'personalMonitor', 'prompter',
+    'conferenceSoft', 'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft',
+    'corporateTable', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
+    'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright', 'executiveChair',
+    'executiveProposal', 'executiveSoft', 'largeUTable', 'lightAsh', 'lightOak', 'neutralLaminate',
+    'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite', 'personalMonitor', 'prompter',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
