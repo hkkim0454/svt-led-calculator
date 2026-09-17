@@ -19,7 +19,7 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=418';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=419';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -62,6 +62,8 @@ export const DIMS = Object.freeze({
   corporateChair: FURNITURE_CONTRACTS.corporateChair.dimensions,
   // 임원 회의용 하이백 의자(PHASE 3-a) — 여기서도 **치수의 기준은 계약**이다.
   executiveChair: FURNITURE_CONTRACTS.executiveChair.dimensions,
+  // 대회의실용 인체공학 의자(PHASE 4-a) — 여기서도 **치수의 기준은 계약**이다.
+  conferenceErgoChair: FURNITURE_CONTRACTS.conferenceErgoChair.dimensions,
   // 강당 고정 객석 — 좌석고 440 / 폭 500 (좌석 피치 550과 맞물린다)
   auditoriumChair: Object.freeze({
     seatTop: 440, seatThk: 75, seatW: 500, seatD: 460,
@@ -521,6 +523,95 @@ export function createCorporateTable(item = {}) {
 }
 
 /**
+ * 대회의실용 인체공학 의자 (PHASE 4-a).
+ * ─────────────────────────────────────────────────────────────────────────
+ * **셋 중 가장 가볍고 낮은 의자다.** 앞의 두 의자와 크기만 다른 것이 아니라
+ *   등받이를 **만드는 방식**이 다르다 — 그래야 멀리서도 다른 의자로 읽힌다(오너 지침 §4).
+ *
+ *   대기업(2-a) 두꺼운 테두리 판 + 메시 + 어깨 가로대 = 판 세 장이 겹쳐 올라간다.
+ *   임원(3-a)   위로 갈수록 좁아지는 한 덩어리 껍데기 + 헤드레스트.
+ *   대회의(여기) **뒤판이 없다.** 가는 세로 레일 두 개가 메시를 양쪽에서 잡고,
+ *               허리 높이에 가로대 하나가 지나간다. 뒤가 비어 있어 시각적으로 가볍다.
+ *
+ * 왜 그렇게 만드는가 — 대회의실은 **좌석이 20석 넘게 한 화면에 들어온다.**
+ *   의자 하나가 조금만 무거워도 화면이 검은 덩어리로 뭉친다(오너 지침 §7·§18).
+ *   그래서 헤드레스트도, 어깨 가로대도, 두꺼운 뒤판도 두지 않는다.
+ *
+ * 치수는 전부 계약(FURNITURE_CONTRACTS.conferenceErgoChair)에서 온다.
+ */
+// 팔걸이·받침이 계약 폭(650) 안에 들어오도록 빼 두는 여유(mm).
+//   둥글림(bevel)이 도형을 사방으로 밀어내기 때문에, 선언 치수 그대로 두면 계약을 넘는다
+//   — 임원 의자에서 실제로 그렇게 됐다(선언 710, 화면 실측 718.3).
+//   여기서는 **화면에서 잰 폭이 계약 안에 들어오도록** 미리 뺀다.
+export const ERGO_BEVEL_MARGIN = 14;
+// 같은 이유로 **위쪽**에도 여유를 둔다. 기울어 있으면 두께의 일부가 높이로 바뀐다.
+export const ERGO_TOP_MARGIN = 6;
+
+export function createConferenceErgoChair() {
+  const S = DIMS.conferenceErgoChair;
+  const seatThk = 68;                                 // 대기업 75보다 얇다 — 가벼운 인상
+  const seatBottom = S.seatTop - seatThk;             // 382
+  const halfW = S.overallW / 2;                       // 325 — 이 선을 넘는 부품이 없어야 한다
+  const baseR = halfW - ERGO_BEVEL_MARGIN;            // 311
+
+  // 5발 받침 — 대기업(330)·임원(350)보다 작다. 다리도 한 단 가늘다.
+  const base = { legs: 5, reach: baseR, hubR: 56, hubH: 88, legW: 64, legH: 40, casterR: 27, casterH: 52 };
+  const baseH = base.casterH + base.hubH;             // 140
+
+  // 등받이 축 — 좌판 뒤에서 12° 뒤로. 대기업(14°)보다 세워 둔다:
+  //   개인 모니터를 보는 자세라 더 곧추앉는다.
+  const tilt = 12, rad = tilt * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const pivotY = S.seatTop + 26, pivotZ = S.seatD / 2 - 60;
+  const onAxis = (L, push = 0) => ({
+    y: pivotY + L * cos - push * sin,
+    dz: pivotZ + L * sin - push * cos,
+  });
+  // 등받이 꼭대기는 계약이 정한다 — 좌판 위 560mm(backAboveSeat)에서 끝나도록 역산한다.
+  const topL = (S.seatTop + S.backAboveSeat - ERGO_TOP_MARGIN - pivotY) / cos;   // 축 위 거리
+
+  const meshW = 400;                                  // 좌판(490)보다 좁다 — 메시 등받이는 원래 좁다
+  const railW = 30, railDx = meshW / 2 + 16;          // 세로 레일은 메시 **바깥**을 잡는다
+  const railH = topL - 20;                            // 레일이 등받이 꼭대기까지 그대로 올라간다
+  const rail = onAxis(20 + railH / 2);
+  const meshH = railH - 34;                           // 메시는 레일 안쪽에 걸린다
+  const mesh = onAxis(20 + 17 + meshH / 2, 6);        // 메시는 레일보다 6mm 앞
+  const lumbar = onAxis(110, -10);                    // 허리 받침 — 메시보다 10mm 뒤(뒤에서 받친다)
+  const armDx = 262;
+
+  return [
+    // ① 5발 캐스터 받침 — 조각 11개를 한 덩어리로(그리기 호출 1개).
+    star('chairCaster', baseH / 2, base),
+    // ② 가스 실린더.
+    cyl('chairColumn', 0, (baseH + seatBottom) / 2, 0, 34, seatBottom - baseH),
+    // ③ 좌판 아래 기구부 — 좌판이 기둥에 바로 꽂힌 것처럼 보이지 않게.
+    box('chairFrame', 0, seatBottom - 28, 8, 184, 56, 224, 0, { r: 22, mode: 'plan' }),
+    // ④ 좌판 — 얇고 앞쪽 끝이 부드럽게 말린 인체공학 좌판.
+    box('chairCushion', 0, seatBottom + seatThk / 2, 0, S.seatW, seatThk, S.seatD, 0, { r: 88, mode: 'plan' }),
+    // ⑤ 등받이 브래킷 — 좌판 뒤에서 등받이로 이어진다. 등받이에 가려지도록 뒤쪽 가장자리에.
+    box('chairFrame', 0, S.seatTop + 2, S.seatD / 2 - 16, 150, 124, 54, tilt, { r: 24, mode: 'face' }),
+    // ⑥⑦ **세로 레일 두 개** — 이 의자의 정체성. 뒤판 대신 메시를 양쪽에서 잡는다.
+    //     가늘어서 멀리서는 선 두 줄로 읽히고, 그 사이가 비어 보여 화면이 가벼워진다.
+    //     **휘지도 둥글리지도 않는다** — 메시가 휘는 곡선의 양 끝(휨 0인 자리)에 서 있고,
+    //     30mm 각재는 둥글려도 화면에서 보이지 않는다(삼각형만 는다).
+    box('chairFrame', -railDx, rail.y, rail.dz, railW, railH, 26, tilt),
+    box('chairFrame', railDx, rail.y, rail.dz, railW, railH, 26, tilt),
+    // ⑧ 메시 등받이 — 레일 사이에 걸린 얇은 면. **위에 가로대를 얹지 않는다** —
+    //    어깨 가로대는 대기업 의자의 특징이고, 여기서는 그것이 없어야 가볍게 읽힌다.
+    //    메시 윗변을 넉넉히 둥글려 잘린 판이 아니라 마감된 등받이로 보이게 한다.
+    box('chairMesh', 0, mesh.y, mesh.dz, meshW, meshH, 14, tilt, { sag: 58, r: 26 }),
+    // ⑨ 허리 받침 — 메시 **뒤**에서 받치는 가로대. 인체공학 의자의 허리 곡선이 여기서 읽힌다.
+    box('chairFrame', 0, lumbar.y, lumbar.dz, meshW - 70, 62, 22, tilt, { sag: 58, r: 8 }),
+    // ⑩⑪ 팔걸이 기둥 — 가늘게. 좌석이 빼곡해서 팔걸이가 두꺼우면 화면이 지저분해진다.
+    box('chairFrame', -armDx, S.seatTop + 96, 48, 24, 178, 54),
+    box('chairFrame', armDx, S.seatTop + 96, 48, 24, 178, 54),
+    // ⑫⑬ 팔걸이 패드 — 얇고 짧게. 계약 폭(650) 안에 들어오도록 기둥과 폭을 맞춘다.
+    box('chairArmPad', -armDx, S.seatTop + 186, -12, 54, 22, 220, 0, { r: 11, mode: 'plan' }),
+    box('chairArmPad', armDx, S.seatTop + 186, -12, 54, 22, 220, 0, { r: 11, mode: 'plan' }),
+  ];
+}
+
+/**
  * 임원 회의실 대형 U 테이블 (PHASE 3-b).
  * ─────────────────────────────────────────────────────────────────────────
  * **배치를 다시 계산하지 않는다.** 배치(room-presets의 U자 분기)는 상판을
@@ -827,6 +918,8 @@ export const FURNITURE_ASSETS = Object.freeze({
   corporateChair: { id: 'corporateChair', label: '대기업 회의용 인체공학 의자', instanced: true, sized: false, build: () => createCorporateChair() },
   // PHASE 3-a — 임원 회의용 하이백 의자. 이 한 줄이 등록되는 순간 라우터가 저절로 이것을 고른다.
   executiveChair: { id: 'executiveChair', label: '임원 회의용 하이백 의자', instanced: true, sized: false, build: () => createExecutiveChair() },
+  // PHASE 4-a — 대회의실용 인체공학 의자. 등록 한 줄로 라우터가 저절로 이것을 고른다.
+  conferenceErgoChair: { id: 'conferenceErgoChair', label: '대회의실용 인체공학 의자', instanced: true, sized: false, build: () => createConferenceErgoChair() },
   auditoriumChair: { id: 'auditoriumChair', label: '강당 고정 객석', instanced: true, sized: false, build: () => createAuditoriumChair() },
   trainingChair: { id: 'trainingChair', label: '강의용 의자', instanced: true, sized: false, build: () => createTrainingChair() },
   trainingDesk: { id: 'trainingDesk', label: '강의용 책상', instanced: true, sized: true, build: it => createTrainingDesk(it.w, it.d) },

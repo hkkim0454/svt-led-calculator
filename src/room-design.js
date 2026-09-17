@@ -178,7 +178,8 @@ export const ROOM_DESIGNS = Object.freeze({
     status: DESIGN_STATUS.PLANNED,
     phase: 4,
     furniture: Object.freeze({
-      chair: planned('conferenceErgoChair'),
+      // PHASE 4-a — 의자만 실제로 만들었다. 맨 문자열 = 실제로 있다는 뜻이다.
+      chair: 'conferenceErgoChair',
       table: planned('largeUTable'),
       av: Object.freeze([planned('personalMonitor'), planned('prompter'), planned('avCredenza')]),
     }),

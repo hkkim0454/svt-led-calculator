@@ -139,7 +139,8 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '대회의실용 인체공학 의자',
     category: 'chair',
     family: 'ergonomicMesh',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    // PHASE 4-a — 실제 도형이 생겼다.
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 4,
     rooms: Object.freeze(['largeConference']),
     instancing: 'instanced',

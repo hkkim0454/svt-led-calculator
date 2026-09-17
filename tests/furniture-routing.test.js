@@ -87,10 +87,9 @@ test('대기업 회의 의자 — PHASE 2-a 에서 실제로 만들어져 대체
   assert.equal(r.category, 'chair');
 });
 
-test('나머지 의자 2종 — 아직 도형이 없다(기존 의자로 대신 그린다)', () => {
-  // 임원 의자는 PHASE 3-a 에서 만들어져 이 목록에서 빠졌다.
+test('남은 의자 1종 — 아직 도형이 없다(기존 의자로 대신 그린다)', () => {
+  // 임원 의자는 PHASE 3-a, 대회의실 의자는 PHASE 4-a 에서 만들어져 이 목록에서 빠졌다.
   const CASES = [
-    ['largeConference', 'conferenceErgoChair'],
     ['controlRoom', 'taskChair'],
   ];
   for (const [design, want] of CASES) {
@@ -239,7 +238,8 @@ test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한�
   const done = DESIGN_IDS.flatMap(d => furnitureStatusForDesign(d))
     .filter(s => s.implemented).map(s => s.requested);
   assert.deepEqual([...new Set(done)].sort(),
-    ['avCredenza', 'boardroomTable', 'corporateChair', 'corporateTable', 'executiveChair']);
+    ['avCredenza', 'boardroomTable', 'conferenceErgoChair', 'corporateChair', 'corporateTable',
+      'executiveChair']);
 });
 
 test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수납장·러그·화분은 그대로)', () => {
