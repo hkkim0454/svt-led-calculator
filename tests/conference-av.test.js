@@ -363,9 +363,10 @@ test('㉗㉘ 상황실 모니터·키보드는 그대로 미구현이다', () =>
   }
 });
 
-test('㉙㉚㉛ 대회의실 화각은 그대로 planned 다 (마감 4-d.1 · 조명 4-d.2)', () => {
+test('㉙㉚㉛ 대회의실 벽 구성·소품은 그대로 planned 다 (마감 4-d.1 · 조명 4-d.2 · 화각 4-d.3)', () => {
   const d = ROOM_DESIGNS.largeConference;
-  for (const k of ['wallTreatment', 'camera', 'accessories']) {
+  assert.equal(d.camera, 'conferenceProposal', '화각은 PHASE 4-d.3 에서 켜졌다');
+  for (const k of ['wallTreatment', 'accessories']) {
     assert.ok(isPlanned(d[k]), `${k}: 이번 단계에서 건드렸다`);
   }
   assert.deepEqual(d.furniture.av.slice(0, 2), ['personalMonitor', 'prompter']);

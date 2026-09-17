@@ -9,10 +9,10 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=425';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=425';
+import { floorFinishFor, moodFor } from './materials.js?v=426';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=426';
 
-import { cameraPlanForDesign } from './design-camera.js?v=425';
+import { cameraPlanForDesign } from './design-camera.js?v=426';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -66,16 +66,80 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @returns { room, led, stage }  전부 unit
  */
 /**
- * 배치의 테이블 조각들을 합친 바닥 발자국(단위 m). 조각이 여럿이면 **전부 감싸는** 사각형이다.
- * 테이블이 없으면 null — 그러면 카메라 계획도 '테이블 가시성'을 답하지 않는다(모르면 모른다고 한다).
+ * 배치 조각들을 합친 바닥 발자국(단위 m). 조각이 여럿이면 **전부 감싸는** 사각형이다.
+ * 해당하는 조각이 없으면 null — 그러면 카메라 계획도 그 항목을 답하지 않는다(모르면 모른다고 한다).
+ *
+ * **놓인 방향(rotY)을 반영한다.** 90°·270°로 세운 조각은 가로·세로가 뒤바뀐다 —
+ *   반영하지 않으면 세로로 세운 보트형·사각형 테이블의 발자국이 90° 틀어진 채 나온다
+ *   (가로 배치는 전부 rotY = 0 이라 예전과 값이 **완전히 같다**).
  */
-function tableFootprint(items) {
-  const t = (items || []).filter(i => i && i.type === 'table'
+function footprintOf(items, match) {
+  const t = (items || []).filter(i => i && match(i)
     && i.w > 0 && i.d > 0 && Number.isFinite(i.x) && Number.isFinite(i.z));
   if (!t.length) return null;
+  // 세워 놓은 조각은 화면에서 차지하는 가로·세로가 서로 바뀐다.
+  const box = i => {
+    const turned = Math.round(Math.abs(((i.rotY || 0) % 180 + 180) % 180)) === 90;
+    return { w: turned ? i.d : i.w, d: turned ? i.w : i.d };
+  };
   return Object.freeze({
-    x0: u(Math.min(...t.map(i => i.x - i.w / 2))), x1: u(Math.max(...t.map(i => i.x + i.w / 2))),
-    z0: u(Math.min(...t.map(i => i.z - i.d / 2))), z1: u(Math.max(...t.map(i => i.z + i.d / 2))),
+    x0: u(Math.min(...t.map(i => i.x - box(i).w / 2))), x1: u(Math.max(...t.map(i => i.x + box(i).w / 2))),
+    z0: u(Math.min(...t.map(i => i.z - box(i).d / 2))), z1: u(Math.max(...t.map(i => i.z + box(i).d / 2))),
+  });
+}
+
+/** 테이블 조각들의 바닥 발자국. */
+function tableFootprint(items) {
+  return footprintOf(items, i => i.type === 'table');
+}
+
+/**
+ * 카메라가 '무엇이 화면에 남는가'를 판단할 때 쓰는 **범위 묶음**(단위 m).
+ *   seats    의자들이 깔린 범위 — 좌석 밀도가 화면에 읽히는가(대회의실 §13)
+ *   monitors 개인 모니터 줄 범위 — 같은 목적
+ *   prompter 중앙 프롬프터 한 점 {x, z} — 화면에 남는가(§14)
+ * 없는 항목은 null이다. **배치·형상은 전혀 건드리지 않고 읽기만 한다.**
+ */
+function framingFields(items) {
+  const one = (items || []).find(i => i && i.type === 'prompter'
+    && Number.isFinite(i.x) && Number.isFinite(i.z));
+  const seats = (items || []).filter(i => i && i.type === 'chair'
+    && Number.isFinite(i.x) && Number.isFinite(i.z));
+  // 테이블 **조각 하나하나**의 사각형(단위 m). 감싸는 상자 하나로는 U자 가운데의 **빈 곳**까지
+  //   테이블로 세어 버린다 — 실제로 화면에 상판이 얼마나 남는지 재려면 조각이 필요하다.
+  const parts = (items || []).filter(i => i && i.type === 'table'
+    && i.w > 0 && i.d > 0 && Number.isFinite(i.x) && Number.isFinite(i.z)).map(i => {
+    const turned = Math.round(Math.abs(((i.rotY || 0) % 180 + 180) % 180)) === 90;
+    const w = turned ? i.d : i.w, d = turned ? i.w : i.d;
+    return Object.freeze({ x0: u(i.x - w / 2), x1: u(i.x + w / 2), z0: u(i.z - d / 2), z1: u(i.z + d / 2) });
+  });
+  const pts = type => Object.freeze((items || []).filter(i => i && i.type === type
+    && Number.isFinite(i.x) && Number.isFinite(i.z))
+    .map(i => Object.freeze({ x: u(i.x), z: u(i.z) })));
+  return Object.freeze({
+    tableParts: parts.length ? Object.freeze(parts) : null,
+    seatPoints: pts('chair').length ? pts('chair') : null,
+    monitorPoints: pts('monitor').length ? pts('monitor') : null,
+    seats: seats.length ? Object.freeze({
+      x0: u(Math.min(...seats.map(i => i.x))), x1: u(Math.max(...seats.map(i => i.x))),
+      z0: u(Math.min(...seats.map(i => i.z))), z1: u(Math.max(...seats.map(i => i.z))),
+      count: seats.length,
+    }) : null,
+    // 개인 모니터는 w·d를 들고 다니지 않는다(자산이 크기를 안다) — 중심점으로 감싼다.
+    monitors: pointBounds(items, 'monitor'),
+    prompter: one ? Object.freeze({ x: u(one.x), z: u(one.z) }) : null,
+  });
+}
+
+/** 크기를 들고 다니지 않는 조각들(개인 모니터 등)의 중심점만으로 만든 범위. */
+function pointBounds(items, type) {
+  const t = (items || []).filter(i => i && i.type === type
+    && Number.isFinite(i.x) && Number.isFinite(i.z));
+  if (!t.length) return null;
+  return Object.freeze({
+    x0: u(Math.min(...t.map(i => i.x))), x1: u(Math.max(...t.map(i => i.x))),
+    z0: u(Math.min(...t.map(i => i.z))), z1: u(Math.max(...t.map(i => i.z))),
+    count: t.length,
   });
 }
 
@@ -126,6 +190,9 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
     //   잘리지 않고 남는가'를 판단하는 데만 쓴다(design-camera.js). 배치·형상은 건드리지 않는다.
     //   테이블이 없는 공간(강당 등)이면 null.
     table: tableFootprint(items),
+    // 좌석·개인 모니터·프롬프터의 범위. **카메라 구도 판단 전용**이다(design-camera.js).
+    //   배치·형상·수량을 바꾸지 않는다 — 이미 놓인 것을 감싸기만 한다.
+    fields: framingFields(items),
     led: {
       x: u(led.marginW),          // 왼쪽 벽 ~ LED 왼쪽 끝
       y: u(led.mount),            // 바닥 ~ LED 아래(하단 높이)

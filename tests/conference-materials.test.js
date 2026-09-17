@@ -283,7 +283,9 @@ test('⑮⑯⑰ U 테이블·모니터·프롬프터 형상이 그대로다', ()
 
 test('⑱⑲⑳ LED·화각을 건드리지 않았다(조명은 PHASE 4-d.2)', () => {
   const d = ROOM_DESIGNS[LC];
-  assert.ok(isPlanned(d.camera), '화각이 켜졌다');
+  // 화각은 **이 단계 뒤(PHASE 4-d.3)** 에 켜졌다 — 마감 층이 켠 것이 아니다.
+  //   여기서 지키는 것은 '마감 층이 화각·조명 모듈에 손대지 않는다'는 쪽이다(아래 import 검사).
+  assert.equal(d.camera, 'conferenceProposal');
   assert.ok(isPlanned(d.wallTreatment));
   // 마감 층이 LED·조명·그림자·노출을 건드리지 않는다(§16·§17).
   //   ('lightAsh'·'carpetTileLight' 같은 **재질 이름**은 조명이 아니므로 식별자로만 본다.)
