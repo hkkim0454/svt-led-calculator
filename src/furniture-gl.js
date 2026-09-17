@@ -15,18 +15,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=415';
-import { createMaterialLibrary } from './materials-gl.js?v=415';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=415';
-import { GRADE_COLORS } from './viewangle.js?v=415';
-import { createGeometryCache } from './geometry-gl.js?v=415';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=415';
-import { credenzaFinishForDesign, floorPartFinishForDesign } from './design-finish.js?v=415';
+import { u } from './gl-model.js?v=416';
+import { createMaterialLibrary } from './materials-gl.js?v=416';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=416';
+import { GRADE_COLORS } from './viewangle.js?v=416';
+import { createGeometryCache } from './geometry-gl.js?v=416';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=416';
+import {
+  credenzaFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
+} from './design-finish.js?v=416';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable, fitsBoardroomTable,
-} from './furniture-assets.js?v=415';
+} from './furniture-assets.js?v=416';
 
 const DEG = Math.PI / 180;
 
@@ -337,9 +339,17 @@ export function buildFurnitureGroup(items, opts = {}) {
   //   **형상은 그대로 두고 마감만 바꾼다.** AV 수납장은 여러 공간이 함께 쓰는 자산이라
   //   자산 자체의 색을 바꾸면 그 공간들이 전부 같이 바뀐다. 디자인이 정한 공간에서만 갈아 끼운다.
   //   디자인이 마감을 정하지 않았으면 null이므로 아무 일도 일어나지 않는다.
-  for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId)]) {
+  for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId),
+    tablePartFinishForDesign(designId)]) {
     if (!fin) continue;
-    for (const [part, f] of Object.entries(fin)) mat[part] = lib.get(f.material, f.color);
+    for (const [part, f] of Object.entries(fin)) {
+      // 거칠기·금속성은 **부품 마감표가 정한 값을 그대로 나른다**(design-finish가 실어 보낸다).
+      //   여기서 빠뜨리면 디자인을 켜는 순간 그 부품만 조용히 반질반질해진다.
+      const extra = {};
+      if (typeof f.roughness === 'number') extra.roughness = f.roughness;
+      if (typeof f.metalness === 'number') extra.metalness = f.metalness;
+      mat[part] = lib.get(f.material, f.color, Object.keys(extra).length ? extra : undefined);
+    }
   }
 
   // ── 반복 가구는 InstancedMesh 로 묶는다 ──

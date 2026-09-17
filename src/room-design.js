@@ -142,12 +142,21 @@ export const ROOM_DESIGNS = Object.freeze({
       table: 'boardroomTable',
       av: Object.freeze([planned('avCredenza')]),
     }),
-    palette: planned('executivePalette'),
+    // PHASE 3-c — 마감을 켠다. 이름은 전부 **기존 13종 또는 그 별칭**이다(정식 재질을 새로 만들지 않았다).
+    //   색은 팔레트가 따로 정한다 — 같은 질감에 공간마다 다른 색을 입히는 방식이다.
+    //   조명·화각은 여전히 planned 다(PHASE 3-d).
+    palette: 'executiveBright',
     materials: Object.freeze({
-      floor: planned('carpetTileLight'),    // 라이트 그레이 프리미엄 카펫
-      wall: planned('paintedWallWhite'),
-      tableTop: planned('lightOak'),
-      chair: planned('darkGraphite'),
+      floor: 'carpetTileLight',     // → carpetTile (별칭). 라이트 그레이 프리미엄 카펫
+      wall: 'paintedWallWhite',     // → paintedWall (별칭)
+      // 포인트 벽만 **색이 아니라 질감**으로 차이를 준다 — 흡음 패널.
+      //   임원 회의실이 대기업 회의실보다 한 단 정제돼 보이는 지점이고,
+      //   새 형상을 만들지 않고 기존 벽면에 재질만 바꾸는 방법이다(§11).
+      wallAccent: 'acousticPanel',
+      tableTop: 'lightOak',         // → woodTable (별칭). PHASE 3-b 상판에 실제로 붙는다
+      tableBase: 'darkGraphite',    // PHASE 3-b 하부(boardroomBase)에 실제로 붙는다
+      chair: 'darkGraphite',        // PHASE 3-a 에서 이미 의자에 붙어 있다(기록용 — 건드리지 않는다)
+      credenza: 'darkGraphite',     // 새까만 장비가 아니라 프리미엄 AV 가구로 읽히게
     }),
     wallTreatment: planned('executiveWalls'),
     lighting: planned('executivePremium'),

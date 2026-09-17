@@ -157,10 +157,11 @@ test('AV 수납장 형상 무변경 — 마감만 바뀌고 치수·부품은 �
   assert.equal(PART_MATERIAL.credenzaToe, 'metalFrame');
 });
 
-// ⑫ 다른 공간은 마감이 없다 — 이 단계에서 가장 중요한 테스트
-test('마감이 다른 공간으로 새지 않는다 — 대기업 회의실 말고는 전부 null이다', () => {
+// ⑫ 마감이 붙은 공간은 '마감을 선언한 공간'뿐이다 — 이 단계에서 가장 중요한 테스트
+const FINISHED = new Set(['corporateMeeting', 'executiveBoardroom']);   // PHASE 2-c · 3-c
+test('마감이 다른 공간으로 새지 않는다 — 마감을 선언한 공간 말고는 전부 null이다', () => {
   for (const id of DESIGN_IDS) {
-    if (id === 'corporateMeeting') continue;
+    if (FINISHED.has(id)) continue;
     assert.equal(roomFinishForDesign(id), null, `${id} 에 방 마감이 붙었다`);
     assert.equal(credenzaFinishForDesign(id), null, `${id} 에 수납장 마감이 붙었다`);
     assert.equal(floorPartFinishForDesign(id), null, `${id} 에 러그 마감이 붙었다`);
@@ -255,8 +256,8 @@ test('러그 — 바닥과 같은 질감을 쓰고, 색은 바닥과 같은 계�
   const d = lum(r.rug.color) - lum(f.floor.color);
   assert.ok(d > 0, '러그가 바닥보다 어두우면 구역이 아니라 얼룩으로 읽힌다');
   assert.ok(d < 0.10, `러그가 바닥과 너무 갈린다(차이 ${d.toFixed(3)}) — 밝은 판처럼 도드라진다`);
-  // 러그도 대기업 회의실 밖으로 새지 않는다.
+  // 러그도 마감을 선언하지 않은 공간으로는 새지 않는다.
   for (const id of DESIGN_IDS) {
-    if (id !== 'corporateMeeting') assert.equal(floorPartFinishForDesign(id), null, id);
+    if (!FINISHED.has(id)) assert.equal(floorPartFinishForDesign(id), null, id);
   }
 });

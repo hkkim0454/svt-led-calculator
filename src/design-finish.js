@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=415';
-import { resolveMaterialId } from './materials.js?v=415';
+import { roomDesign, isPlanned } from './room-design.js?v=416';
+import { resolveMaterialId, finishForPart } from './materials.js?v=416';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -37,6 +37,13 @@ export const ROOM_FINISH_ROLES = Object.freeze([
  *   낮은 시점에서는 **바뀐 바닥이 거의 보이지 않는다**(실제로 검수에서 그렇게 나왔다).
  */
 export const FLOOR_PARTS = Object.freeze(['rug']);
+
+/**
+ * 테이블에서 **공간 디자인이 마감을 정하는** 부품.
+ *   임원 U 테이블 전용 이름이다(PHASE 3-b에서 그렇게 지었다) — 기존 `tableTop`·`tableBase`와
+ *   겹치지 않으므로 여기에 색을 붙여도 회의 테이블·강의용 책상은 영향을 받지 않는다.
+ */
+export const TABLE_PARTS = Object.freeze(['boardroomTop', 'boardroomBase']);
 
 /** AV 수납장에서 마감이 붙는 부품. 기존 부품 그대로다 — 새 부품을 만들지 않는다. */
 export const CREDENZA_PARTS = Object.freeze([
@@ -69,6 +76,44 @@ export const DESIGN_PALETTES = Object.freeze({
     credenzaToe: '#15181c',  // 바닥에 닿는 굽은 가장 어둡게(그늘진 자리)
     rug: '#c6c5c1',          // 좌석 구역 러그 — 바닥보다 아주 조금만 밝게(같은 계열, 톤만 다르게)
   }),
+
+  /**
+   * **임원 회의실 — 밝고 절제된 프리미엄.** (PHASE 3-c)
+   *
+   * 가장 흔한 오해부터 적어 둔다 — **'임원실'이라고 어둡게 만들지 않는다.**
+   *   어두운 월넛과 짙은 벽은 20년 전 임원실이다. 오너가 준 실제 대표이사 회의실 사진은
+   *   흰 벽 · 밝은 회색 카펫 · 밝은 나무 테이블 · 검정 하이백 의자 · 와이드 LED다.
+   *
+   * 대기업 회의실(corporateNeutral)과의 관계 — **다른 건물이 아니라 같은 회사의 윗층**이다.
+   *   같은 계열을 유지하되 한 단씩만 움직인다: 벽은 조금 더 밝고 따뜻하게,
+   *   바닥은 조금 더 밝게, 수납장은 완전한 검정 대신 한 단 밝은 차콜로.
+   *   차이를 크게 주면 두 공간이 서로 다른 프로젝트처럼 보인다.
+   *
+   *   대기업 → 임원 (같은 자리끼리)
+   *     바닥   #b9bab8 → #c3c1bc   한 단 밝게, 초록기를 빼고 아주 살짝 따뜻하게
+   *     정면벽 #f1efea → #f4f1ec   더 밝은 웜 오프화이트(순백은 아니다 — LED가 주인공이어야 한다)
+   *     수납장 #262a30 → #33373d   새까만 장비 상자가 아니라 **프리미엄 AV 가구**로 읽히게
+   */
+  executiveBright: Object.freeze({
+    id: 'executiveBright', label: '임원 밝은 프리미엄 마감',
+    floor: '#c3c1bc',        // 밝은 중성 회색 카펫 — 의자·테이블을 받쳐 주되 튀지 않는다
+    wallFront: '#f4f1ec',    // LED가 붙는 정면 벽
+    wallSide: '#eeeae3',
+    wallAccent: '#e3ded4',   // 포인트 벽 — 색이 아니라 **질감**으로만 차이를 준다(아래 wallAccent 재질)
+    baseboard: '#e2ddd3',
+    // 임원 U 테이블 — 이 두 자리가 이 공간의 인상을 만든다.
+    boardroomTop: '#dbcdb6',   // 페일 오크/애시. 채도를 낮춰 **주황·노랑기를 뺀다**(§6)
+    boardroomBase: '#34383e',  // 짙은 그라파이트. 순수 검정도, 금속 광택도 아니다(§7)
+    // AV 수납장 — 의자(#3a3e44)보다 아주 조금 밝고 더 매트하게. 검은 덩어리로 뭉치지 않게.
+    credenzaBody: '#33373d',
+    credenzaDoor: '#2c3036',
+    credenzaTop: '#3d424a',  // 상판만 한 단 밝게 — 수평면이 빛을 받아 형태가 살아난다
+    credenzaToe: '#1e2126',
+    // 러그 — 오너가 준 Reference는 **전체 카펫**이고 따로 깔린 러그가 없다.
+    //   배치가 주는 러그를 없애지는 않되(형상·크기·위치는 동결), 바닥과 거의 같은 톤으로
+    //   낮춰 '파란 판때기'가 좌석 구역을 가르지 않게 한다(§9).
+    rug: '#c7c5bf',
+  }),
 });
 
 /** 팔레트 이름 → 색 묶음. 모르는 이름이면 null. */
@@ -84,9 +129,17 @@ function materialName(v) {
   return resolveMaterialId(v) ? v : null;      // 정식 id로 풀리지 않는 이름은 없는 것으로 친다
 }
 
-const finish = (material, color) => (material && color
-  ? Object.freeze({ material, color, canonical: resolveMaterialId(material) })
-  : null);
+// 부품 마감표(PART_FINISH)가 그 부품의 거칠기·금속성을 이미 정해 두었으면 **그대로 나른다.**
+//   디자인이 바꾸는 것은 '무슨 재질에 무슨 색'이지 '얼마나 번들거리는가'가 아니다 —
+//   여기서 빠뜨리면 디자인을 켜는 순간 그 부품만 조용히 반질반질해진다.
+const finish = (material, color, partId) => {
+  if (!material || !color) return null;
+  const base = partId ? finishForPart(partId) : null;
+  const out = { material, color, canonical: resolveMaterialId(material) };
+  if (base && typeof base.roughness === 'number') out.roughness = base.roughness;
+  if (base && typeof base.metalness === 'number') out.metalness = base.metalness;
+  return Object.freeze(out);
+};
 
 // 디자인에서 재질·팔레트를 함께 꺼낸다. 둘 중 하나라도 없으면 마감을 적용하지 않는다.
 function sourcesOf(designId) {
@@ -113,9 +166,12 @@ export function roomFinishForDesign(designId) {
     if (f) out.floor = f;
   }
   if (wallMat) {
-    // 벽 계열은 질감이 하나다 — 도장 벽. 자리마다 다른 것은 **색**뿐이다.
+    // 벽 계열은 기본적으로 질감이 하나다 — 도장 벽. 자리마다 다른 것은 색뿐이다.
+    //   **포인트 벽만 예외로 재질을 따로 정할 수 있다**(§11) — 임원 회의실은 색이 아니라
+    //   질감(흡음 패널)으로 차이를 준다. 정하지 않은 공간은 지금처럼 도장 벽 그대로다.
+    const accentMat = materialName(src.m.wallAccent) || wallMat;
     for (const role of ['wallFront', 'wallSide', 'wallAccent', 'baseboard']) {
-      const f = finish(wallMat, src.pal[role]);
+      const f = finish(role === 'wallAccent' ? accentMat : wallMat, src.pal[role]);
       if (f) out[role] = f;
     }
   }
@@ -136,7 +192,25 @@ export function floorPartFinishForDesign(designId) {
   if (!mat) return null;
   const out = {};
   for (const part of FLOOR_PARTS) {
-    const f = finish(mat, src.pal[part]);
+    const f = finish(mat, src.pal[part], part);
+    if (f) out[part] = f;
+  }
+  return Object.keys(out).length ? Object.freeze(out) : null;
+}
+
+/**
+ * 테이블 부품(임원 U 테이블 상판·하부)의 마감.
+ *   **형상은 그대로 두고 마감만 갈아 끼운다** — 같은 U 테이블을 다른 공간이 쓰게 되어도
+ *   그 공간의 팔레트로 마감만 바꾸면 된다.
+ * 디자인이 상판·하부 재질이나 색을 정하지 않았으면 그 자리는 빠진다(= 부품 마감표 그대로).
+ */
+export function tablePartFinishForDesign(designId) {
+  const src = sourcesOf(designId);
+  if (!src) return null;
+  const byPart = { boardroomTop: materialName(src.m.tableTop), boardroomBase: materialName(src.m.tableBase) };
+  const out = {};
+  for (const part of TABLE_PARTS) {
+    const f = finish(byPart[part], src.pal[part], part);
     if (f) out[part] = f;
   }
   return Object.keys(out).length ? Object.freeze(out) : null;
@@ -151,7 +225,7 @@ export function credenzaFinishForDesign(designId) {
   const byPart = { credenzaBody: body, credenzaDoor: body, credenzaTop: 'darkGraphite', credenzaToe: body };
   const out = {};
   for (const part of CREDENZA_PARTS) {
-    const f = finish(materialName(byPart[part]), src.pal[part]);
+    const f = finish(materialName(byPart[part]), src.pal[part], part);
     if (f) out[part] = f;
   }
   return Object.keys(out).length ? Object.freeze(out) : null;
@@ -162,10 +236,12 @@ export function finishStatusForDesign(designId) {
   const room = roomFinishForDesign(designId);
   const credenza = credenzaFinishForDesign(designId);
   const floorParts = floorPartFinishForDesign(designId);
+  const tableParts = tablePartFinishForDesign(designId);
   return Object.freeze({
     palette: roomDesign(designId).palette || null,
     room: room ? Object.freeze(Object.keys(room)) : null,
     credenza: credenza ? Object.freeze(Object.keys(credenza)) : null,
     floorParts: floorParts ? Object.freeze(Object.keys(floorParts)) : null,
+    tableParts: tableParts ? Object.freeze(Object.keys(tableParts)) : null,
   });
 }
