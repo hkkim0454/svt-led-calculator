@@ -16,6 +16,10 @@ export const CONFIG_DEFAULTS = Object.freeze({
   spaceD: 0,             // 공간 깊이(mm). 0 = 비움(공간 타입별 자동) — 3D 뷰 전용
   roomType: 'meeting',   // 3D 뷰 공간 타입(회의실·강의실·강당·상황실)
   roomOpts: null,        // 그 타입의 옵션(테이블 모양·좌석 수 등). null = 타입 기본값
+  // 3D 뷰 공간 디자인(대기업 회의실·임원 회의실·대회의실). null = 그 타입의 기본 디자인.
+  //   **여기서는 문자열인지만 본다** — 어떤 디자인이 실재하는지는 room-design.js가 안다
+  //   (이 파일이 가구·마감 규칙을 알 필요는 없다. roomOpts와 같은 방침이다).
+  roomDesign: null,
   wallThk: 100,          // 벽 두께(mm) — 3D 뷰 전용. 방 안쪽 치수(W×H×D)는 그대로 둔다
   customViews: null,     // 3D 뷰에서 사용자가 저장한 시점 목록. null = 없음
   baseHeight: 1000,      // 바닥에서 LED 아래까지(mm)
@@ -70,6 +74,8 @@ export function normalizeConfig(raw) {
     // 옵션은 타입마다 항목이 달라 여기서는 '객체면 그대로' 두고, 화면에서 타입 스키마로 정리한다
     //   (room-presets.js의 normalizeOptions). 이 파일이 가구 규칙을 알 필요는 없다.
     roomOpts: (r.roomOpts && typeof r.roomOpts === 'object' && !Array.isArray(r.roomOpts)) ? { ...r.roomOpts } : D.roomOpts,
+    // 모르는 값·빈 값은 그대로 null로 둔다 → 화면이 normalizeDesign()으로 그 타입의 기본 디자인으로 떨어뜨린다.
+    roomDesign: asStr(r.roomDesign, D.roomDesign),
     wallThk: asNum(r.wallThk, D.wallThk),
     // 저장된 시점은 형태만 확인하고 그대로 둔다(카메라 좌표의 의미는 3D 뷰가 안다).
     customViews: Array.isArray(r.customViews)

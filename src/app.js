@@ -9,17 +9,17 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=426';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=427';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign,
-} from './room-presets.js?v=426';
-import { createViewerGL } from './render3d-gl.js?v=426';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=426';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=426';
-import { normalizeDesign } from './room-design.js?v=426';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=426';
-import { sideMonitorLayout } from './monitors.js?v=426';
-import { ledImageFit } from './led-image.js?v=426';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=426';
+} from './room-presets.js?v=427';
+import { createViewerGL } from './render3d-gl.js?v=427';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=427';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=427';
+import { normalizeDesign, designsFor } from './room-design.js?v=427';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=427';
+import { sideMonitorLayout } from './monitors.js?v=427';
+import { ledImageFit } from './led-image.js?v=427';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=427';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -268,6 +268,10 @@ const pvShow = { person: true, eye: true, grid: true, dims: true, cellgrid: true
 let pvView = '2d';
 let roomTypeId = DEFAULT_ROOM_TYPE;
 let roomOpts = defaultOptions(DEFAULT_ROOM_TYPE);
+// 공간 디자인(대기업 회의실·임원 회의실·대회의실). **이 변수 하나가 유일한 출처다**(오너 지침 §3) —
+//   배치·가구·마감·조명·화각이 전부 여기서 갈라진다. 렌더러가 화면 값을 직접 읽지 않는다.
+//   값이 없거나 그 용도에 없는 디자인이면 normalizeDesign()이 **그 용도의 기본 디자인**으로 떨어뜨린다.
+let designId = normalizeDesign(undefined, DEFAULT_ROOM_TYPE);
 let cubeViewId = DEFAULT_CUBE_VIEW;   // (구 Canvas 뷰의 시점 id — 구성 저장 호환용으로만 남긴다)
 let presetId = DEFAULT_PRESET;        // 3D 카메라 시점 프리셋
 let customViews = [];                 // 사용자가 저장한 시점(구성과 함께 저장된다)
@@ -828,7 +832,6 @@ function renderPreview3D() {
   // 공간 디자인 — 아직 고르는 화면이 없으므로 용도별 기본값을 쓴다(PHASE 2-a, §24).
   //   회의실 → corporateMeeting · 상황실 → controlRoom · 나머지 → null(디자인 없음)
   //   배치와 렌더가 **같은 값**을 봐야 한다(PHASE 4-b) — 대회의실 U자 테이블 상한이 여기서 갈린다.
-  const designId = normalizeDesign(undefined, roomTypeId);
   const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D, ledBottom: mount, design: designId });
 
   // 3D 뷰어는 처음 열 때 한 번만 만든다. WebGL을 못 쓰는 환경이면 정면 뷰 안내로 되돌린다.
@@ -1096,6 +1099,8 @@ function buildInspector() {
   const s1 = inspectorSection('공간 설정');
   const typeField = $('#roomType')?.closest('.pv3dField');
   if (typeField) s1.body.appendChild(typeField);     // 이동(복제 아님)
+  const designField = $('#roomDesignField');
+  if (designField) s1.body.appendChild(designField);
   s1.body.appendChild(buildSizeProxy());
   s1.body.appendChild(buildWallThkField());
 
@@ -1250,6 +1255,24 @@ function personFor3D(r, mount, sW, D, items) {
 }
 
 // 공간 타입 선택 + 그 타입의 옵션 입력칸을 그린다(타입마다 옵션이 다르므로 매번 새로 만든다).
+/**
+ * 공간 디자인 선택칸을 채운다.
+ *   **고를 것이 둘 이상일 때만 보여 준다** — 하나뿐이면 '선택'이 아니라 안내 문구일 뿐이고,
+ *   아직 디자인이 붙지 않은 용도(강의실·강당·아이디에이션)는 목록 자체가 비어 있다.
+ *   지금 이 규칙이 실제로 뜻하는 것은 '**회의실에만** 나온다'이다(상황실은 디자인이 1종).
+ *   용도 이름을 코드에 박지 않았으므로, 나중에 상황실 디자인이 2종이 되면 저절로 따라온다.
+ */
+function renderRoomDesigns() {
+  const sel = $('#roomDesign'); const field = $('#roomDesignField');
+  if (!sel || !field) return;
+  const list = designsFor(roomTypeId);
+  const show = list.length > 1;
+  field.hidden = !show;
+  if (!show) { sel.innerHTML = ''; return; }
+  sel.innerHTML = list.map(d => `<option value="${esc(d.id)}">${esc(d.label)}</option>`).join('');
+  sel.value = designId;
+}
+
 function renderRoomOptions() {
   const sel = $('#roomType'); if (!sel) return;
   if (!sel.options.length) sel.innerHTML = ROOM_TYPES.map(t => `<option value="${t.id}">${esc(t.label)}</option>`).join('');
@@ -1257,7 +1280,7 @@ function renderRoomOptions() {
   const box = $('#roomOpts'); if (!box) return;
   // 옵션 중에는 **특정 공간 디자인에서만** 쓰는 것이 있다(대회의실 테이블 방향).
   //   그 디자인이 아니면 화면에 내보내지 않는다 — 눌러도 적용되지 않는 칸을 보여 주지 않는다.
-  box.innerHTML = optionsForDesign(roomTypeId, normalizeDesign(undefined, roomTypeId)).map(o => {
+  box.innerHTML = optionsForDesign(roomTypeId, designId).map(o => {
     const v = roomOpts[o.key];
     if (o.type === 'toggle') {
       return `<button type="button" class="pvTog${v ? ' on' : ''}" data-ropt="${o.key}"><span class="dot"></span>${esc(o.label)}</button>`;
@@ -1298,7 +1321,7 @@ function setPreviewView(v) {
   }
   if ($('#signalMode')) $('#signalMode').hidden = is3d;
   if (!is3d && $('#stage3d')) { $('#stage3d').hidden = true; $('#stage').hidden = false; }
-  if (is3d) { renderRoomOptions(); applyStagedUi(); syncPresetSel(); }
+  if (is3d) { renderRoomDesigns(); renderRoomOptions(); applyStagedUi(); syncPresetSel(); }
   renderPreview();
 }
 
@@ -1316,7 +1339,15 @@ $('#person3dSel')?.addEventListener('change', () => {
 $('#roomType')?.addEventListener('change', () => {
   roomTypeId = roomType($('#roomType').value).id;
   roomOpts = defaultOptions(roomTypeId);   // 타입이 바뀌면 그 타입의 기본 옵션으로
-  renderRoomOptions(); renderPreview();
+  // 디자인도 그 용도의 것으로 다시 정한다 — 회의실 디자인이 강당에 따라붙으면 안 된다.
+  designId = normalizeDesign(designId, roomTypeId);
+  renderRoomDesigns(); renderRoomOptions(); renderPreview(); saveLastSession();
+});
+
+// 공간 디자인 — 고른 값을 상태에 넣고, 그 디자인에서만 쓰는 옵션(대회의실 테이블 방향)을 다시 그린다.
+$('#roomDesign')?.addEventListener('change', () => {
+  designId = normalizeDesign($('#roomDesign').value, roomTypeId);
+  renderRoomDesigns(); renderRoomOptions(); renderPreview(); saveLastSession();
 });
 
 // 옵션 — 토글은 클릭, 숫자·선택은 input. 숫자 입력 중에는 다시 그리지 않아야(포커스 유지) 하므로
@@ -1325,13 +1356,14 @@ $('#roomOpts')?.addEventListener('click', e => {
   const b = e.target.closest('button[data-ropt]'); if (!b) return;
   roomOpts = normalizeOptions(roomTypeId, { ...roomOpts, [b.dataset.ropt]: !roomOpts[b.dataset.ropt] });
   b.classList.toggle('on', !!roomOpts[b.dataset.ropt]);
+  saveLastSession();
   renderPreview();
 });
 $('#roomOpts')?.addEventListener('input', e => {
   const el = e.target.closest('input[data-ropt],select[data-ropt]'); if (!el) return;
   const raw = el.tagName === 'INPUT' ? num(el.value) : el.value;
   roomOpts = normalizeOptions(roomTypeId, { ...roomOpts, [el.dataset.ropt]: raw });
-  renderPreview();
+  renderPreview(); saveLastSession();
 });
 $('#roomOpts')?.addEventListener('change', () => renderRoomOptions());
 
@@ -3030,7 +3062,7 @@ function gatherConfig() {
   const m = models.find(x => x.id === selectedId) || null;
   return {
     spaceW: spaceWmm(), spaceH: spaceHmm(), spaceD: spaceDmm(),
-    roomType: roomTypeId, roomOpts: { ...roomOpts },
+    roomType: roomTypeId, roomOpts: { ...roomOpts }, roomDesign: designId,
     wallThk: num($('#wallThk')?.value) || CONFIG_DEFAULTS.wallThk,
     customViews: customViews.map(v => ({ ...v })),
     baseHeight: num($('#baseHeight').value), ledW: num($('#ledW').value), ledH: num($('#ledH').value),
@@ -3058,6 +3090,8 @@ function applyConfig(raw) {
   if ($('#spaceD')) $('#spaceD').value = c.spaceD > 0 ? c.spaceD / 1000 : '';    // 0 = 비움(자동)
   roomTypeId = roomType(c.roomType).id;
   roomOpts = normalizeOptions(roomTypeId, c.roomOpts);
+  // 저장값이 없거나(예전 세션)·모르는 값이거나·용도가 안 맞으면 **그 용도의 기본 디자인**으로.
+  designId = normalizeDesign(c.roomDesign, roomTypeId);
   if ($('#wallThk')) $('#wallThk').value = c.wallThk;
   customViews = Array.isArray(c.customViews) ? c.customViews.map(v => ({ ...v })) : [];
   renderPresetBar();

@@ -39,7 +39,11 @@ test('① 옵션이 대회의실에만 노출된다', () => {
   }
   assert.ok(optionsForDesign('meeting', LC).some(o => o.key === 'tableDir'), '대회의실에 옵션이 없다');
   // 화면도 이 목록을 그대로 쓴다(직접 roomType(...).options 를 그리지 않는다).
-  assert.match(appSrc, /optionsForDesign\(roomTypeId, normalizeDesign\(undefined, roomTypeId\)\)/);
+  //   PHASE 4-d.4 부터는 **사용자가 고른 디자인**(designId)을 넘긴다 — 예전에는 언제나
+  //   그 용도의 기본 디자인을 넘겨서, 대회의실을 골라도 테이블 방향 칸이 나오지 않았다.
+  assert.match(appSrc, /optionsForDesign\(roomTypeId, designId\)/);
+  assert.ok(!/optionsForDesign\(roomTypeId, normalizeDesign\(undefined/.test(appSrc),
+    '옵션 목록이 아직 기본 디자인에 묶여 있다');
 });
 
 test('② 선택지는 가로(기본)·세로 두 가지뿐 — 자동은 없다', () => {
