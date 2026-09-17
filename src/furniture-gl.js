@@ -15,21 +15,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=421';
-import { createMaterialLibrary } from './materials-gl.js?v=421';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=421';
-import { GRADE_COLORS } from './viewangle.js?v=421';
-import { createGeometryCache } from './geometry-gl.js?v=421';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=421';
+import { u } from './gl-model.js?v=422';
+import { createMaterialLibrary } from './materials-gl.js?v=422';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=422';
+import { GRADE_COLORS } from './viewangle.js?v=422';
+import { createGeometryCache } from './geometry-gl.js?v=422';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=422';
 import {
   credenzaFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
-} from './design-finish.js?v=421';
+} from './design-finish.js?v=422';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=421';
+} from './furniture-assets.js?v=422';
 
 const DEG = Math.PI / 180;
 
@@ -384,7 +384,7 @@ export function buildFurnitureGroup(items, opts = {}) {
     if (token) { mat[k] = lib.get(token, c); continue; }
     // 7종 프리셋에 없는 것 — 화면(모니터·이동식 디스플레이)과 잎은 여기서 직접 만든다.
     //   화면은 실내 마감재가 아니라서 재질 라이브러리에 두지 않는다(LED와 같은 이유).
-    const screen = k === 'monitor' || k === 'standPanel';
+    const screen = k === 'monitor' || k === 'standPanel' || k === 'screen';
     mat[k] = new THREE.MeshStandardMaterial({
       color: c, roughness: screen ? 0.35 : 0.9, metalness: screen ? 0.1 : 0,
     });

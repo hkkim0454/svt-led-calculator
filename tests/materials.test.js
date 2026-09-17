@@ -127,8 +127,9 @@ test('무늬 간격 — 방이 커지면 반복도 같이 늘어난다(확대·�
 });
 
 test('가구 부품 — 모든 색 이름이 재질과 이어진다(모니터·잎 제외)', () => {
-  // 7종 프리셋에 없는 것 — 화면 2종(모니터·이동식 디스플레이)과 잎.
-  const EXEMPT = new Set(['monitor', 'standPanel', 'plantLeaf']);
+  // 7종 프리셋에 없는 것 — 화면 3종(모니터·이동식 디스플레이·개인 모니터/프롬프터)과 잎.
+  //   화면은 실내 마감재가 아니라서 재질 라이브러리에 두지 않는다(LED와 같은 이유).
+  const EXEMPT = new Set(['monitor', 'standPanel', 'screen', 'plantLeaf']);
   for (const kind of Object.keys(FURNITURE_COLORS)) {
     if (EXEMPT.has(kind)) continue;
     const token = PART_MATERIAL[kind];

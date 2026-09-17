@@ -326,7 +326,8 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '참석자 개인 모니터',
     category: 'av',
     family: 'displayDevice',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    // PHASE 4-c — 실제 도형이 생겼다.
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 4,
     rooms: Object.freeze(['largeConference']),
     instancing: 'instanced',
@@ -349,7 +350,8 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '중앙 프롬프터',
     category: 'av',
     family: 'displayDevice',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    // PHASE 4-c — 실제 도형이 생겼다.
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 4,
     rooms: Object.freeze(['largeConference']),
     instancing: 'instanced',
@@ -359,7 +361,9 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     footprint: Object.freeze({ w: 520, d: 260 }),
     parts: Object.freeze(['prompterBody', 'screen']),
     finishParts: Object.freeze({ prompterBody: SELF('prompterBody'), screen: null }),
-    note: 'U자 가운데를 향해 마주 보게 2대. 영상 재생 기능은 범위 밖이다.',
+    // PHASE 4-c — 오너 지침(§14·§22)이 **1대·좌우 치우침 0**으로 정했다.
+    //   처음 계약을 적을 때의 '마주 보게 2대' 구상은 채택하지 않았다(보고서에 명시).
+    note: 'U자 가운데에 1대. 좌우 치우침 0, 상석을 바라본다. 영상 재생 기능은 범위 밖이다.',
   }),
 
   consoleMonitor: Object.freeze({

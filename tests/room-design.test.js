@@ -229,7 +229,7 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     'conferenceErgoChair', 'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright',
     'executiveChair', 'executiveProposal', 'executiveSoft', 'largeUTable', 'lightOak', 'neutralLaminate',
-    'paintedWallWhite', 'paintedWallWhite',
+    'paintedWallWhite', 'paintedWallWhite', 'personalMonitor', 'prompter',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
