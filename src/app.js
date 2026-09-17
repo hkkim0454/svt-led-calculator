@@ -1815,7 +1815,7 @@ function vpItemHTML(item, rank) {
 // 프로세서 제품 사진(앞/뒤)이 있는 모델 id. 파일: src/img/processors/<id>-front|back.jpg (이사 제공 이미지).
 const PROC_IMG_IDS = new Set([
   'ns-h2', 'ns-h5', 'ns-h9', 'ns-h15', 'ns-h20',
-  'cl-universe-u6max', 'cl-universe-u9max', 'cl-x100pro-2u', 'cl-x100pro-4u', 'cl-x100pro-7u',
+  'cl-universe-u3max', 'cl-universe-u6max', 'cl-universe-u9max', 'cl-universe-u15max', 'cl-x100pro-2u', 'cl-x100pro-4u', 'cl-x100pro-7u',
   'aw-midra-pulse-4k', 'aw-midra-eikos-4k', 'aw-alta-zenith-100', 'aw-alta-zenith-200',
   'aw-aquilon-rsalpha', 'aw-aquilon-rs1', 'aw-aquilon-rs2', 'aw-aquilon-rs3', 'aw-aquilon-rs4', 'aw-aquilon-rs5', 'aw-aquilon-rs6', 'aw-aquilon-cmini', 'aw-aquilon-cmax',
   'aw-aquilon-c', 'aw-aquilon-cplus', 'cl-x100pro-11u',   // 신규 3종(사양 확인중, 이미지만)
