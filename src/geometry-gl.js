@@ -93,6 +93,71 @@ function boatShape(w, d, bulge, seg) {
   return s;
 }
 
+/**
+ * 모서리마다 **다른 반지름**을 줄 수 있는 다각형 윤곽.
+ * `roundedRectShape`와 같은 방식(꼭짓점을 제어점으로 하는 2차 베지에)이되,
+ *   네 모서리가 아니라 **꼭짓점마다** 반지름을 따로 받는다.
+ *   U자 상판은 바깥 앞·바깥 뒤·안쪽 오목 모서리의 성격이 전부 달라서 하나의 값으로는 안 된다.
+ *
+ * 오목한(안으로 꺾인) 모서리도 같은 식이 그대로 통한다 — 곡선이 반대로 휘어
+ *   **모서리를 메우는 곡면**이 된다. U자가 '직사각형 세 장'이 아니라 한 덩어리로 읽히는 이유가 이것이다.
+ *
+ * @param pts [{x, y, r}] 꼭짓점 목록(닫힌 다각형). r은 그 꼭짓점의 둥글림.
+ */
+function filletedPolygonShape(pts) {
+  const n = pts.length;
+  const seg = i => Math.hypot(pts[(i + 1) % n].x - pts[i].x, pts[(i + 1) % n].y - pts[i].y);
+  const t = pts.map(p => Math.max(0, p.r || 0));
+  // 한 변에서 양 끝 모서리가 함께 물러난다 — 합이 변 길이를 넘으면 비율대로 줄인다.
+  //   (한 번 줄이면 이웃 변의 조건이 다시 깨질 수 있어 두 번 돈다.)
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n, L = seg(i), sum = t[i] + t[j];
+      if (sum > L && sum > 1e-9) { const k = L / sum; t[i] *= k; t[j] *= k; }
+    }
+  }
+  const at = (i, j, dist) => {
+    const a = pts[i], b = pts[j];
+    const L = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    return { x: a.x + ((b.x - a.x) * dist) / L, y: a.y + ((b.y - a.y) * dist) / L };
+  };
+  const s = new THREE.Shape();
+  for (let i = 0; i < n; i++) {
+    const inP = at(i, (i + n - 1) % n, t[i]);    // 들어오는 변에서 물러난 점
+    const outP = at(i, (i + 1) % n, t[i]);       // 나가는 변에서 물러난 점
+    if (i === 0) s.moveTo(inP.x, inP.y); else s.lineTo(inP.x, inP.y);
+    if (t[i] > 1e-9) s.quadraticCurveTo(pts[i].x, pts[i].y, outP.x, outP.y);
+    else s.lineTo(outP.x, outP.y);
+  }
+  s.closePath();
+  return s;
+}
+
+/**
+ * U자(ㄷ자) 상판 윤곽 — **한 덩어리**다. 직사각형 세 장을 이어 붙인 것이 아니다.
+ *
+ * 좌표 약속: 이 윤곽의 **+Y가 화면의 앞쪽(-Z, LED 쪽)** 이 된다.
+ *   윤곽을 만든 뒤 `rotateX(-90°)`로 눕히면 윤곽의 +Y가 월드 -Z로 가기 때문이다.
+ *   그래서 U자가 열린 쪽(터진 쪽)을 +Y에 둔다.
+ *
+ * @param outerW 바깥 가로(양 날개 바깥 끝 사이)
+ * @param outerD 바깥 세로(앞 날개 끝 ~ 뒤 상판 뒷면)
+ * @param segW   상판 폭(띠의 너비). 뒤 상판의 세로이자 날개의 가로다.
+ */
+function uOutlinePoints(outerW, outerD, segW, { frontR, rearR, innerR }) {
+  const A = outerW / 2, B = outerD / 2, s = segW;
+  return [
+    { x: -A, y: -B, r: rearR },              // 뒤 바깥 왼쪽 — 사람이 없는 쪽이라 약하게만
+    { x: A, y: -B, r: rearR },               // 뒤 바깥 오른쪽
+    { x: A, y: B, r: frontR },               // 오른 날개 앞 끝(바깥)
+    { x: A - s, y: B, r: frontR },           // 오른 날개 앞 끝(안쪽) — 둘이 만나 반원 끝이 된다
+    { x: A - s, y: -B + s, r: innerR },      // 안쪽 오목 모서리(오른쪽)
+    { x: -A + s, y: -B + s, r: innerR },     // 안쪽 오목 모서리(왼쪽)
+    { x: -A + s, y: B, r: frontR },          // 왼 날개 앞 끝(안쪽)
+    { x: -A, y: B, r: frontR },              // 왼 날개 앞 끝(바깥)
+  ];
+}
+
 // 윤곽 → 두께가 있는 입체. 가장자리에 작은 경사를 줘 빛을 받게 한다.
 function extrude(shape, depth, bevel, d) {
   const b = Math.max(1e-5, Math.min(bevel, depth / 2 - 1e-5));
@@ -102,6 +167,31 @@ function extrude(shape, depth, bevel, d) {
     bevelSegments: d.bevel, curveSegments: d.curve,
   });
   geo.translate(0, 0, -(depth - b * 2) / 2);   // 두께 가운데를 원점으로
+  return geo;
+}
+
+/**
+ * U자 상판 입체. **치수는 완성된 실제 치수로 받는다.**
+ *
+ * 왜 보정이 필요한가 — ExtrudeGeometry의 경사(bevel)는 윤곽을 **사방으로 bevel만큼 넓힌다.**
+ *   (2×2 윤곽에 경사 0.1을 주면 결과는 2.2×2.2다. 실제로 재서 확인했다.)
+ *   그대로 두면 상판이 배치보다 커지고, U자 안쪽 구멍은 그만큼 작아진다.
+ *   그래서 윤곽을 **미리 bevel만큼 줄여서** 만든다 — 볼록 모서리는 반지름을 빼고,
+ *   오목 모서리는 반대로 더한다(바깥으로 부풀 때 오목은 작아지므로).
+ * 그 결과 완성된 상판의 바깥 크기·띠 폭·모서리 반지름이 **넘겨받은 값과 정확히 같다.**
+ */
+function uTopGeometry(outerW, outerD, segW, thk, radii, bevel, d) {
+  const b = Math.max(1e-5, Math.min(bevel, thk / 2 - 1e-5, segW / 4));
+  const shape = filletedPolygonShape(uOutlinePoints(
+    outerW - b * 2, outerD - b * 2, segW - b * 2,
+    {
+      frontR: Math.max(0, radii.frontR - b),
+      rearR: Math.max(0, radii.rearR - b),
+      innerR: Math.max(0, radii.innerR + b),
+    },
+  ));
+  const geo = extrude(shape, thk, b, d);
+  geo.rotateX(-Math.PI / 2);   // 윤곽의 +Y가 월드 -Z(앞쪽)로, 밀어낸 방향이 위아래로
   return geo;
 }
 
@@ -311,6 +401,23 @@ export function createGeometryCache() {
         geo.rotateX(-Math.PI / 2);   // 밀어낸 방향(두께)을 위아래로 눕힌다
         return geo;
       });
+    },
+
+    /**
+     * U자 상판 — **이음매가 없는 한 덩어리.**
+     * 캐시 열쇠 머리글자가 다른 도형과 겹치지 않는다(`u|`) — 겹치면 사각 상판이 U자를 덮어쓴다.
+     *   열쇠에는 U자를 결정하는 값이 **전부** 들어간다: 바깥 가로·세로, 띠 폭, 두께,
+     *   모서리 반지름 3종. 하나라도 빠지면 크기가 다른 두 테이블이 같은 도형을 물려받는다.
+     */
+    uTop(outerW, outerD, segW, thk, { frontR = 0, rearR = 0, innerR = 0, bevel = 0, detail = 'high' } = {}) {
+      const dd = q(detail);
+      const key = `u|${outerW}|${outerD}|${segW}|${thk}|${frontR}|${rearR}|${innerR}|${bevel}|${detail}`;
+      // 곡선 분할을 **따로 올린다.** 다른 부품의 둥글림은 반지름이 10~90mm라 4분할이면 충분하지만,
+      //   여기 앞 끝은 반지름이 450mm다 — 같은 4분할로는 눈에 띄게 각져 보인다(실제로 그렇게 나왔다).
+      //   상판은 이 자산에 **딱 한 장**뿐이라 분할을 올려도 삼각형 수가 크게 늘지 않는다.
+      const fine = { ...dd, curve: Math.max(dd.curve, 14) };
+      return take(key, () => uTopGeometry(outerW, outerD, segW, thk,
+        { frontR, rearR, innerR }, bevel || thk * 0.2, fine));
     },
 
     /**

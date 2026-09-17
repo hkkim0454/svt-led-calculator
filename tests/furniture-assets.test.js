@@ -485,7 +485,7 @@ test('대기업 테이블 — 작은 조각은 키우지 않고 맡지 않는다
 test('렌더러 — 조각이 여럿인 배치에서는 대기업 테이블을 쓰지 않는다', () => {
   // 화면 조립(furniture-gl.js)은 Three.js가 있어야 돌아가므로 소스에서 조건을 확인한다.
   const src = readFileSync(new URL('../src/furniture-gl.js', import.meta.url), 'utf8');
-  assert.match(src, /const oneTable = items\.filter\(x => x\.type === 'table'\)\.length === 1;/,
+  assert.match(src, /const oneTable = tableItems\.length === 1;/,
     '테이블 조각 수를 세는 곳이 없다');
   assert.match(src, /useCorporate = assetFor\(it\) === 'corporateTable'\s*&& oneTable && fitsCorporateTable\(it\)/,
     '대기업 테이블 선택 조건에 조각 수·계약 범위 확인이 빠졌다');

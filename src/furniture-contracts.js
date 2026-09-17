@@ -223,7 +223,8 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '임원 회의실 대형 테이블',
     category: 'table',
     family: 'boardroomTable',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    // PHASE 3-b — 실제 도형이 생겼다.
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 3,
     rooms: Object.freeze(['executiveBoardroom']),
     instancing: 'custom',
@@ -237,8 +238,13 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     }),
     footprint: null,
     shapes: Object.freeze(['u']),
-    parts: Object.freeze(['boardroomTop', 'tableBase']),
-    finishParts: Object.freeze({ boardroomTop: SELF('boardroomTop'), tableBase: null }),
+    // PHASE 3-b — 하부 구조 부품 이름을 `tableBase`에서 `boardroomBase`로 바꿨다.
+    //   `tableBase`는 **기존 가구가 쓰는 부품 이름**이라 새 마감을 붙일 수 없다
+    //   (붙이면 회의 테이블·강의용 책상의 재질까지 같이 바뀐다 — 그래서 테스트가 막고 있다).
+    //   계약이 요구하는 '짙은 그라파이트 판형 하부 구조'를 표현하려면 제 이름이 필요하다.
+    //   치수(dimensions)는 하나도 바꾸지 않았다.
+    parts: Object.freeze(['boardroomTop', 'boardroomBase']),
+    finishParts: Object.freeze({ boardroomTop: SELF('boardroomTop'), boardroomBase: SELF('boardroomBase') }),
     note: '라이트 오크. 앞 모서리 둥근 일체형 U. layoutVariant executive-u 와 짝을 이룬다.',
   }),
 

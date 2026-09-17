@@ -335,7 +335,14 @@ export const PART_FINISH = Object.freeze({
   // 건축 마감
   glassWall: Object.freeze({ material: 'glassPartition' }),
   acousticWall: Object.freeze({ material: 'acousticPanel' }),
-  boardroomTop: Object.freeze({ material: 'lightOak' }),        // 별칭으로도 적을 수 있다
+  // 임원 회의실 대형 U 테이블 — **밝은 오크**다. 어둡고 번들거리는 월넛 임원 책상이 아니다.
+  //   `lightOak`는 기존 `woodTable`의 별칭이다(정식 재질을 새로 만들지 않는다).
+  //   색은 상판이 날아가지 않게 중간 톤으로 잡는다 — 순백에 가까우면 나뭇결이 사라지고
+  //   너무 진하면 '옛날식 임원실'이 된다(계약이 금지한 인상).
+  boardroomTop: Object.freeze({ material: 'lightOak', color: '#d5c0a1' }),
+  // 그 아래 판형 하부 구조 — 짙은 그라파이트. 상판과 확실히 갈려야 상판이 얇아 보인다.
+  //   의자 프레임(#3a3e44)보다 한 단 어둡게 둔다 — 같은 색이면 의자와 한 덩어리로 뭉친다.
+  boardroomBase: Object.freeze({ material: 'darkGraphite', color: '#34383e', roughness: 0.72 }),
   // 대기업 회의 테이블 상판 — 따뜻한 밝은 중성색. **순백은 쓰지 않는다**:
   //   새하얀 상판은 3D에서 플라스틱 판처럼 보이고, 어두운 의자와 대비가 과해진다.
   corporateTop: Object.freeze({ material: 'neutralLaminate', color: '#e9e4da' }),
