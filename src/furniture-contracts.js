@@ -254,7 +254,8 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '대회의실 대형 U 테이블',
     category: 'table',
     family: 'conferenceTable',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    // PHASE 4-b — 실제 도형이 생겼다.
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 4,
     rooms: Object.freeze(['largeConference']),
     instancing: 'custom',

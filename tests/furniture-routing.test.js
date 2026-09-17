@@ -119,12 +119,14 @@ test('대기업 회의 테이블 — PHASE 2-b 에서 실제로 만들어져 대
   assert.equal(r.contractStatus, CONTRACT_STATUS.IMPLEMENTED);
 });
 
-test('나머지 테이블·콘솔 — 갈래에 맞는 기존 자산으로만 대신한다', () => {
-  for (const want of ['largeUTable']) {
-    const r = resolveFurnitureForDesign({ type: 'table', asset: want }, 'executiveBoardroom');
-    assert.equal(r.category, 'table', want);
+test('나머지 의자·콘솔 — 갈래에 맞는 기존 자산으로만 대신한다', () => {
+  // PHASE 4-b 에서 largeUTable 이 실제로 생겨, 아직 도형이 없는 테이블 계약은 하나도 남지 않았다.
+  //   그래서 여기서는 **아직 없는 것**(운용자 의자)으로 같은 규칙을 확인한다.
+  for (const want of ['taskChair']) {
+    const r = resolveFurnitureForDesign({ type: 'chair', asset: want }, 'controlRoom');
+    assert.equal(r.category, 'chair', want);
     assert.equal(r.implemented, false, want);
-    assert.equal(r.runtimeAsset, 'conferenceTable', `${want}: 테이블이 아닌 것으로 대체됐다`);
+    assert.equal(r.runtimeAsset, 'conferenceChair', `${want}: 의자가 아닌 것으로 대체됐다`);
     assert.equal(r.fallbackUsed, true, want);
   }
   const c = resolveFurnitureForDesign({ type: 'console', asset: 'curvedConsole' }, 'controlRoom');
@@ -234,12 +236,12 @@ test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한�
       assert.equal(s.runtimeAsset, s.implemented ? s.requested : null, d);
     }
   }
-  // 지금 구현된 것 — PHASE 3-b 에서 임원 U 테이블이 하나 더 늘었다.
+  // 지금 구현된 것 — PHASE 4-b 에서 대회의실 U 테이블이 하나 더 늘었다.
   const done = DESIGN_IDS.flatMap(d => furnitureStatusForDesign(d))
     .filter(s => s.implemented).map(s => s.requested);
   assert.deepEqual([...new Set(done)].sort(),
     ['avCredenza', 'boardroomTable', 'conferenceErgoChair', 'corporateChair', 'corporateTable',
-      'executiveChair']);
+      'executiveChair', 'largeUTable']);
 });
 
 test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수납장·러그·화분은 그대로)', () => {
@@ -254,8 +256,8 @@ test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수�
   for (const it of res.items.filter(i => i.type !== 'chair' && i.type !== 'table')) {
     assert.equal(resolveFurnitureForDesign(it, 'corporateMeeting').runtimeAsset, assetFor(it), it.type);
   }
-  // 대회의실 테이블·곡선 콘솔은 아직 계약만 있다.
-  for (const id of ['largeUTable', 'curvedConsole']) {
+  // 곡선 콘솔·운용자 의자는 아직 계약만 있다(대회의실 테이블은 PHASE 4-b 에서 생겼다).
+  for (const id of ['curvedConsole', 'taskChair']) {
     assert.equal(hasRuntimeFurnitureAsset(id), false, id);
   }
 });

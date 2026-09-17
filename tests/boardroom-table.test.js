@@ -319,14 +319,21 @@ test('좌석 간격 상수 — 배치가 쓰는 chairPitch 와 같은 값이다'
 // ── I. 어댑터(화면 조립) ────────────────────────────────────────────────────
 
 test('어댑터 — U자를 조각마다가 아니라 **한 번만** 세운다', () => {
-  assert.match(glSrc, /const boardroomU = \(tableItems\.length > 0/, 'U자 판별이 없다');
-  assert.match(glSrc, /tableItems\.every\(x => assetFor\(x\) === 'boardroomTable'\)/,
-    '테이블 조각 전체가 임원 U 테이블인지 확인하지 않는다');
-  assert.match(glSrc, /&& fitsBoardroomTable\(tableItems\)/, '맡을 수 있는 모양인지 확인하지 않는다');
-  assert.match(glSrc, /if \(boardroomMesh\) continue;/, '조각마다 그리는 길을 막지 않았다');
-  // 세우는 곳은 딱 한 군데여야 한다.
-  assert.equal((glSrc.match(/boardroomTableMesh\(/g) || []).length, 2,
-    'U자를 세우는 자리가 정의 1 + 호출 1 이 아니다');
+  // PHASE 4-b 에서 U자 자산이 둘(임원·대회의실)이 되어 **이름표(U_TABLE_MESH)**로 고른다.
+  //   임원 U 테이블이 그 목록에 그대로 있고, 조각 전체가 같은 자산일 때만 한 덩어리로 선다.
+  assert.match(glSrc, /boardroomTable: boardroomTableMesh/, '임원 U 테이블이 U자 조립 목록에서 빠졌다');
+  assert.match(glSrc, /const uTableId = \(tableItems\.length > 0 && U_TABLE_MESH\[assetFor\(tableItems\[0\]\)\]/,
+    'U자 판별이 없다');
+  assert.match(glSrc, /tableItems\.every\(x => assetFor\(x\) === assetFor\(tableItems\[0\]\)\)/,
+    '테이블 조각 전체가 같은 U자 자산인지 확인하지 않는다');
+  // 맡을 수 있는 모양인지는 세우는 함수 안에서 순수 명세가 판단한다(null 이면 기존 테이블로 되돌아간다).
+  const body = glSrc.match(/function boardroomTableMesh[\s\S]*?\n}\n/)[0];
+  assert.match(body, /const S = createBoardroomTable\(items\);\n  if \(!S\) return null;/,
+    '맡을 수 있는 모양인지 확인하지 않는다');
+  assert.match(glSrc, /if \(uTableMesh\) continue;/, '조각마다 그리는 길을 막지 않았다');
+  // 세우는 함수는 딱 한 번만 정의된다(호출은 이름표를 거친다).
+  assert.equal((glSrc.match(/function boardroomTableMesh\(/g) || []).length, 1,
+    'U자를 세우는 함수가 하나가 아니다');
 });
 
 test('어댑터 — 쓰는 부품 이름이 전부 마감 표에 있다(하얗게 뜨지 않게)', () => {

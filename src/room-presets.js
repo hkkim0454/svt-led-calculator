@@ -54,7 +54,7 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=419';
+import { isOccupied } from './viewangle.js?v=421';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -67,6 +67,27 @@ export const FURNITURE = Object.freeze({
   wallClear: 800,         // 벽에서 띄우는 최소 거리
   frontClear: 1800,       // LED 벽 앞 여유(첫 줄까지)
 });
+
+// ── U자 테이블의 크기 상한 ───────────────────────────────────────────────────
+// U자 배치는 **방이 아무리 커도** 테이블을 무한정 키우지 않는다. 상한이 곧 좌석 정원이다.
+//   기본값(9,000 × 4,500)에서는 뒤 12석 + 날개 4석씩 = **정확히 20석**이 한계다 —
+//   대회의실에서 "방을 키워도 20석에서 막힌다"는 현상의 원인이 바로 이 두 숫자다.
+//
+// 상한을 **전역으로** 올리면 임원 회의실(같은 U자 배치)의 테이블 크기까지 같이 변한다.
+//   그래서 올리지 않고, **공간 디자인별 상한표**를 둔다. 여기에 이름이 없는 디자인은
+//   `default`를 그대로 쓰므로 기존 화면(임원 회의실 포함)은 숫자 하나도 달라지지 않는다.
+export const U_TABLE_LIMITS = Object.freeze({
+  // 기존 값. **바꾸지 않는다** — 임원 회의실(executive-u)이 이 값 위에 서 있다.
+  default: Object.freeze({ maxTableW: 9000, maxTableD: 4500 }),
+  // 대회의실 전용. 24~30석급 장면을 만들 수 있는 최소한으로만 올린다(PHASE 4-b).
+  //   12,000 × 6,500 → 뒤 16석 + 날개 7석씩 = 최대 30석.
+  largeConference: Object.freeze({ maxTableW: 12000, maxTableD: 6500 }),
+});
+
+/** 그 공간 디자인의 U자 테이블 상한. 적어 두지 않은 디자인은 기본값 그대로다. */
+export function uTableLimits(designId) {
+  return U_TABLE_LIMITS[designId] || U_TABLE_LIMITS.default;
+}
 
 // ── 공간 타입 ───────────────────────────────────────────────────────────────
 // depthFactor : '공간 깊이 D'를 비워뒀을 때 가로(W)에 곱해 쓰는 기본 비율.
@@ -221,7 +242,10 @@ export function autoDepthForType(typeId, spaceWmm) {
 export function layoutRoom(typeId, opts, room) {
   // LED 하단 높이는 옵션이 아니라 계산값이다 — 화면이 넘겨주면 배치가 참고한다
   //   (지금은 AV 수납장이 LED와 부딪히는지 판단하는 데만 쓴다).
-  const o = { ...normalizeOptions(typeId, opts), ledBottom: Number(room.ledBottom) };
+  // 공간 디자인 id — **배치를 바꾸라는 뜻이 아니다.** U자 테이블의 크기 상한처럼
+  //   디자인마다 다를 수밖에 없는 값 하나를 고르는 데만 쓴다. 없으면 전부 기본값이다.
+  const o = { ...normalizeOptions(typeId, opts), ledBottom: Number(room.ledBottom),
+    design: (typeof room.design === 'string' && room.design) ? room.design : null };
   const W = Math.max(1000, room.W), D = Math.max(1000, room.D);
   switch (roomType(typeId).id) {
     case 'classroom': return layoutClassroom(o, W, D);
@@ -318,8 +342,11 @@ function layoutMeeting(o, W, D) {
 function layoutUTable(o, W, D, cz, seed = []) {
   const F = FURNITURE;
   const items = [...seed], notes = [];   // seed = 이미 놓인 것(AV 수납장 등)
-  const tW = clamp(W - F.wallClear * 2 - F.chairClear * 2, 2000, 9000);
-  const tD = clamp(Math.min(D - F.frontClear - F.wallClear - F.chairClear * 2, 4500), 1600, 5000);
+  // 상한은 공간 디자인이 정한다(§U_TABLE_LIMITS). 기본값이면 기존과 **완전히 같은 수**다 —
+  //   예전 코드의 `clamp(min(x, 4500), 1600, 5000)`은 4500 < 5000 이라 `clamp(x, 1600, 4500)`과 같다.
+  const L = uTableLimits(o.design);
+  const tW = clamp(W - F.wallClear * 2 - F.chairClear * 2, 2000, L.maxTableW);
+  const tD = clamp(D - F.frontClear - F.wallClear - F.chairClear * 2, 1600, L.maxTableD);
   const seg = 900;                                    // 상판 폭
   const zBack = cz + tD / 2 - seg / 2;                // 뒤쪽 가로 상판
   items.push({ type: 'table', shape: 'rect', x: W / 2, z: zBack, rotY: 0, w: tW, d: seg });

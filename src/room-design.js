@@ -180,7 +180,8 @@ export const ROOM_DESIGNS = Object.freeze({
     furniture: Object.freeze({
       // PHASE 4-a — 의자만 실제로 만들었다. 맨 문자열 = 실제로 있다는 뜻이다.
       chair: 'conferenceErgoChair',
-      table: planned('largeUTable'),
+      // PHASE 4-b — 대형 U 테이블. 맨 문자열 = 실제로 만들었다는 뜻이다.
+      table: 'largeUTable',
       av: Object.freeze([planned('personalMonitor'), planned('prompter'), planned('avCredenza')]),
     }),
     palette: planned('largeConferencePalette'),

@@ -189,19 +189,19 @@ test('⑪ 라우터가 **고치지 않아도** 대회의실 의자를 고른다'
   assert.equal(resolveFurnitureForDesign({ type: 'chair' }, 'executiveBoardroom').runtimeAsset, 'executiveChair');
 });
 
-test('⑫ 이번 단계는 **의자만**이다 — 테이블·AV 는 그대로 미구현이다', () => {
-  for (const id of ['largeUTable', 'personalMonitor', 'prompter', 'taskChair']) {
+test('⑫ AV 장비는 그대로 미구현이다 (테이블은 PHASE 4-b 에서 생겼다)', () => {
+  for (const id of ['personalMonitor', 'prompter', 'taskChair']) {
     assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, `${id}: 상태가 바뀌었다`);
     assert.equal(hasRuntimeFurnitureAsset(id), false, `${id}: 도형이 생겼다`);
   }
+  // PHASE 4-b — 테이블은 실제로 생겼다. 대체 없이 제 자산으로 선다.
   const t = resolveFurnitureForDesign({ type: 'table' }, 'largeConference');
   assert.equal(t.requestedAsset, 'largeUTable');
-  assert.equal(t.implemented, false);
-  assert.equal(t.fallbackUsed, true);
-  assert.equal(t.runtimeAsset, 'conferenceTable', '테이블은 기존 것으로 대신 그린다');
+  assert.equal(t.implemented, true);
+  assert.equal(t.fallbackUsed, false);
+  assert.equal(t.runtimeAsset, 'largeUTable');
   // 대회의실 디자인에서 아직 정하지 않은 것들은 여전히 planned 다.
   const d = ROOM_DESIGNS.largeConference;
-  assert.ok(isPlanned(d.furniture.table));
   for (const av of d.furniture.av) assert.ok(isPlanned(av) || av === 'avCredenza');
   for (const f of ['palette', 'wallTreatment', 'lighting', 'camera', 'accessories']) {
     assert.ok(isPlanned(d[f]), `largeConference.${f} 가 벌써 정해졌다`);
