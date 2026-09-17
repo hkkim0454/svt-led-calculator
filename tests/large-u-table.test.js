@@ -364,15 +364,15 @@ test('㉖ 라우터가 대회의실 테이블을 **대체 없이** 제 자산으
   assert.equal(assetKey({ type: 'table', asset: 'largeUTable' }), null, 'U 테이블은 묶음 대상이 아니다');
 });
 
-test('㉗ AV 장비는 그대로 미구현이다(PHASE 4-c 는 시작하지 않았다)', () => {
-  for (const id of ['personalMonitor', 'prompter', 'consoleMonitor', 'keyboard']) {
+test('㉗ 상황실 AV 는 그대로 미구현이다(대회의실 AV 는 PHASE 4-c 에서 생겼다)', () => {
+  for (const id of ['consoleMonitor', 'keyboard']) {
     assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, `${id}: 상태가 바뀌었다`);
     assert.equal(hasRuntimeFurnitureAsset(id), false, `${id}: 도형이 생겼다`);
   }
   const d = ROOM_DESIGNS.largeConference;
   assert.equal(d.furniture.table, 'largeUTable');
   assert.equal(d.furniture.chair, 'conferenceErgoChair');
-  assert.ok(isPlanned(d.furniture.av[0]) && isPlanned(d.furniture.av[1]));
+  assert.deepEqual(d.furniture.av.slice(0, 2), ['personalMonitor', 'prompter']);
   // 마감·조명·화각은 아직 대회의실 전용이 없다(PHASE 4-d).
   for (const k of ['palette', 'wallTreatment', 'lighting', 'camera', 'accessories']) {
     assert.ok(isPlanned(d[k]), `${k}: 이번 단계에서 건드렸다`);
@@ -428,8 +428,10 @@ test('㉚ 순수 유지 — 명세는 Three.js·DOM 없이 돈다', () => {
 test('㉛ 배치가 디자인을 **크기 상한 고르는 데만** 쓴다', () => {
   // room-presets 가 디자인으로 하는 일은 상한표 한 번 읽는 것뿐이다.
   const body = presetsSrc.match(/function layoutUTable[\s\S]*?\n}\n/)[0];
-  assert.equal((body.match(/o\.design/g) || []).length, 1, '배치가 디자인을 여러 곳에서 본다');
+  // 상한 고르기 + AV 를 놓을 공간인지 묻기, 딱 두 곳뿐이다(PHASE 4-c).
+  assert.equal((body.match(/o\.design/g) || []).length, 2, '배치가 디자인을 여러 곳에서 본다');
   assert.match(body, /const L = uTableLimits\(o\.design\);/);
+  assert.match(body, /wantsConferenceAV\(o\.design\)/);
   // 상한 말고 좌석 간격·통로 같은 전역값은 그대로다.
   assert.equal(FURNITURE.chairPitch, 700);
   assert.equal(FURNITURE.chairClear, 650);

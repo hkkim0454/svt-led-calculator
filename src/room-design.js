@@ -182,7 +182,8 @@ export const ROOM_DESIGNS = Object.freeze({
       chair: 'conferenceErgoChair',
       // PHASE 4-b — 대형 U 테이블. 맨 문자열 = 실제로 만들었다는 뜻이다.
       table: 'largeUTable',
-      av: Object.freeze([planned('personalMonitor'), planned('prompter'), planned('avCredenza')]),
+      // PHASE 4-c — 개인 모니터·중앙 프롬프터. 맨 문자열 = 실제로 만들었다는 뜻이다.
+      av: Object.freeze(['personalMonitor', 'prompter', planned('avCredenza')]),
     }),
     palette: planned('largeConferencePalette'),
     materials: Object.freeze({

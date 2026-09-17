@@ -139,8 +139,9 @@ test('나머지 의자·콘솔 — 갈래에 맞는 기존 자산으로만 대�
 // ── I·J. 갈래가 다른 것으로 바꿔치기 금지 ───────────────────────────────────
 
 test('바꿔치기 금지 — 대신할 것이 없는 AV 장비는 미구현으로 남는다', () => {
-  // 모니터·프롬프터·키보드는 대신할 기존 자산이 없다. **엉뚱한 가구를 그리느니 안 그린다.**
-  for (const want of ['personalMonitor', 'prompter', 'consoleMonitor', 'keyboard']) {
+  // 상황실 모니터·키보드는 대신할 기존 자산이 없다. **엉뚱한 가구를 그리느니 안 그린다.**
+  //   (개인 모니터·프롬프터는 PHASE 4-c 에서 실제로 만들어져 더 이상 이 경우가 아니다.)
+  for (const want of ['consoleMonitor', 'keyboard']) {
     for (const type of ['monitor', 'chair', 'table', 'console']) {
       const r = resolveFurnitureForDesign({ type, asset: want }, 'largeConference');
       assert.equal(r.requestedAsset, want);
@@ -236,12 +237,12 @@ test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한�
       assert.equal(s.runtimeAsset, s.implemented ? s.requested : null, d);
     }
   }
-  // 지금 구현된 것 — PHASE 4-b 에서 대회의실 U 테이블이 하나 더 늘었다.
+  // 지금 구현된 것 — PHASE 4-c 에서 개인 모니터·프롬프터가 늘었다.
   const done = DESIGN_IDS.flatMap(d => furnitureStatusForDesign(d))
     .filter(s => s.implemented).map(s => s.requested);
   assert.deepEqual([...new Set(done)].sort(),
     ['avCredenza', 'boardroomTable', 'conferenceErgoChair', 'corporateChair', 'corporateTable',
-      'executiveChair', 'largeUTable']);
+      'executiveChair', 'largeUTable', 'personalMonitor', 'prompter']);
 });
 
 test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수납장·러그·화분은 그대로)', () => {

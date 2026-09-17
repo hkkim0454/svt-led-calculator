@@ -54,7 +54,8 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=421';
+import { isOccupied } from './viewangle.js?v=422';
+import { conferenceAVItems } from './conference-av.js?v=422';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -87,6 +88,13 @@ export const U_TABLE_LIMITS = Object.freeze({
 /** 그 공간 디자인의 U자 테이블 상한. 적어 두지 않은 디자인은 기본값 그대로다. */
 export function uTableLimits(designId) {
   return U_TABLE_LIMITS[designId] || U_TABLE_LIMITS.default;
+}
+
+// 좌석마다 개인 모니터를, 가운데에 프롬프터를 놓는 공간(PHASE 4-c).
+//   **여기 없는 디자인에는 AV 항목이 하나도 생기지 않는다** — 다른 공간은 그대로다.
+export const U_TABLE_AV_DESIGNS = Object.freeze(['largeConference']);
+export function wantsConferenceAV(designId) {
+  return U_TABLE_AV_DESIGNS.includes(designId);
 }
 
 // ── 공간 타입 ───────────────────────────────────────────────────────────────
@@ -377,9 +385,23 @@ function layoutUTable(o, W, D, cz, seed = []) {
     }
   }
   if (n < o.seats) notes.push(`U자 배치에서는 ${capacity}석까지 들어갑니다.`);
+  // AV 장비(개인 모니터·중앙 프롬프터) — **의자·테이블을 한 자리도 바꾸지 않고 덧붙이기만 한다.**
+  //   자리 계산은 전부 conference-av.js(순수)가 하고, 여기서는 넘겨주고 받아 담기만 한다.
+  let avCount = 0;
+  if (wantsConferenceAV(o.design)) {
+    const av = conferenceAVItems({
+      chairs: items.filter(i => i.type === 'chair'),
+      table: { cx: W / 2, cz, outerW: tW, outerD: tD, segW: seg },
+      chairClear: F.chairClear,
+    });
+    items.push(...av.items);
+    avCount = av.monitors.length;
+  }
   if (o.rug) items.push({ type: 'rug', x: W / 2, z: cz, rotY: 0, w: tW + 2600, d: tD + 2600 });
   if (o.plant) addPlant(items, W, D);
-  return { items, placed: { chairs: n }, capacity, notes };
+  const placed = { chairs: n };
+  if (avCount) { placed.monitors = avCount; placed.prompters = 1; }
+  return { items, placed, capacity, notes };
 }
 
 // 테이블 없이 의자만(간이 배치) — 줄 맞춰 놓는다.

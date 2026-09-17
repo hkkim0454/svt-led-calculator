@@ -328,9 +328,11 @@ export const PART_FINISH = Object.freeze({
   chairMesh: Object.freeze({ material: 'fabricChair', color: '#454a51' }),
   chairCushion: Object.freeze({ material: 'fabricChair', color: '#3d4147' }),
   // AV 장비 — 전부 near-black. 스탠드만 살짝 금속성을 준다.
-  monitorBody: Object.freeze({ material: 'blackEquipment' }),
-  monitorStand: Object.freeze({ material: 'blackEquipment', metalness: 0.24 }),
-  prompterBody: Object.freeze({ material: 'blackEquipment' }),
+  //   PHASE 4-c — 색을 채운다. 색이 없으면 마감이 붙지 않아 **화면에서 하얗게** 뜬다.
+  //   새 정식 재질을 만들지 않았다 — 전부 기존 `blackEquipment` 다(13종 유지).
+  monitorBody: Object.freeze({ material: 'blackEquipment', color: '#23282f' }),
+  monitorStand: Object.freeze({ material: 'blackEquipment', color: '#2b3038', metalness: 0.24 }),
+  prompterBody: Object.freeze({ material: 'blackEquipment', color: '#23282f' }),
   keyboardBody: Object.freeze({ material: 'blackEquipment', roughness: 0.60 }),
   // 건축 마감
   glassWall: Object.freeze({ material: 'glassPartition' }),

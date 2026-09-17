@@ -19,7 +19,8 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=421';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=422';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=422';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -29,6 +30,8 @@ export const FURNITURE_COLORS = Object.freeze({
   seatFabric: '#cbdad7', seatFrame: '#aeb8c4', seatArm: '#a3aebb',
   deskTop: '#efeae1', deskLeg: '#b3bcc8', deskPanel: '#e4e9ef', deskRail: '#a9b3c0',
   consoleTop: '#f3f6f9', consoleBase: '#9ba6b4', monitor: '#1b2532', monitorBase: '#8f99a7',
+  // PHASE 4-c — 개인 모니터·프롬프터의 **꺼진 화면**. 밝게 빛나면 LED가 주인공 자리를 잃는다.
+  screen: '#151d28',
   podium: '#eef2f7', podiumTop: '#efeae1',
   credenzaBody: '#e7ecf2', credenzaDoor: '#dfe5ed', credenzaTop: '#ece6db', credenzaToe: '#b9c1cd',
   // 아이디에이션 공간 — 회의실보다 밝고 가볍게. 채도는 여전히 낮다.
@@ -890,6 +893,75 @@ export function createLargeUTable(items = []) {
 }
 
 /**
+ * 참석자 개인 모니터 (PHASE 4-c).
+ * ─────────────────────────────────────────────────────────────────────────
+ * **크기를 지어내지 않는다.** 24인치라는 계약값만 받아 `panelSize()`(monitors.js)가
+ *   16:9 순수 기하로 가로·세로를 낸다 — LED 옆 보조 모니터와 **같은 함수**다.
+ *   베젤 두께·본체 깊이·받침 높이도 전부 계약이 정한 값이다.
+ *
+ * 놓이는 자리는 **상판 위**다. 그래서 y는 바닥이 아니라 **상판 윗면 기준**이고,
+ *   배치가 만든 항목의 `y`(= 740)가 렌더러에서 더해진다.
+ * rotY = 0 일 때 화면은 -Z 를 본다(다른 가구와 같은 규칙).
+ */
+// 받침 판·목. 계약에 없는 **보이기 위한 최소값**이다(특정 제품 스펙이 아니다).
+const MONITOR_BASE = Object.freeze({ w: 240, d: 200, h: 16, neckW: 64, neckD: 24 });
+const SCREEN_THK = 4;          // 화면 판 두께 — 본체 앞면에서 살짝 나온다
+const SCREEN_GAP = 2;          // 본체 앞면 ~ 화면 판 사이
+
+// 기울어진 본체 앞에 화면을 붙일 때, **기운 뒤의** 자리를 미리 계산한다.
+//   부품마다 제 중심에서 돌기 때문에, 안 돌린 좌표로 붙이면 화면이 본체에서 떠 버린다.
+function tiltedFront(centerY, offset, tiltDeg) {
+  const t = tiltDeg * Math.PI / 180;
+  return { y: centerY + offset * Math.sin(t), dz: -offset * Math.cos(t) };
+}
+
+export function createPersonalMonitor() {
+  const S = personalMonitorSize();
+  const B = MONITOR_BASE;
+  const bodyY = S.standH + S.panelH / 2;
+  const scr = tiltedFront(bodyY, S.depth / 2 + SCREEN_GAP + SCREEN_THK / 2, S.tiltDeg);
+  return [
+    // ① 받침 판 — 상판 위에 놓인다(y = 0 이 상판 윗면이다).
+    box('monitorStand', 0, B.h / 2, 0, B.w, B.h, B.d, 0, { r: 8, mode: 'plan' }),
+    // ② 받침 목 — 가늘게. 두꺼우면 게이밍 스탠드처럼 보인다(계약이 금지한 인상).
+    box('monitorStand', 0, B.h + (S.standH - B.h) / 2, 0, B.neckW, S.standH - B.h, B.neckD),
+    // ③ 본체 — 계약이 정한 기울기만큼 뒤로 눕는다.
+    box('monitorBody', 0, bodyY, 0, S.panelW, S.panelH, S.depth, S.tiltDeg, { r: 10, mode: 'face' }),
+    // ④ 화면 — 꺼진 화면이다. 밝게 빛나면 LED가 주인공 자리를 잃는다(오너 지침 §11).
+    box('screen', 0, scr.y, scr.dz, S.screenW, S.screenH, SCREEN_THK, S.tiltDeg),
+  ];
+}
+
+/**
+ * 중앙 프롬프터 / 컨피던스 모니터 (PHASE 4-c).
+ * ─────────────────────────────────────────────────────────────────────────
+ * U자 **가운데 빈 공간**에 선다 — 그 자리에는 상판이 없으므로 **바닥에 서는 기둥형**이다.
+ *   계약이 정한 것: 22인치 · 기울기 22° · 본체 깊이 60 · 받침 높이 90.
+ *   계약이 정하지 않은 것: 바닥에서 들어 올리는 높이 → `PROMPTER_FLOOR_RISE`(자산 전용, 보고서에 명시).
+ *   화면 윗변이 약 950mm에 머물러 **앉은 사람의 LED 시선을 가로막지 않는다.**
+ */
+const PROMPTER_BASE = Object.freeze({ w: 420, d: 300, h: 26, colW: 100, colD: 80 });
+
+export function createPrompter() {
+  const S = prompterSize();
+  const B = PROMPTER_BASE;
+  const bodyBottom = PROMPTER_FLOOR_RISE + S.standH;
+  const bodyY = bodyBottom + S.panelH / 2;
+  const colH = bodyBottom - B.h;
+  const scr = tiltedFront(bodyY, S.depth / 2 + SCREEN_GAP + SCREEN_THK / 2, S.tiltDeg);
+  return [
+    // ① 바닥 판 — 넓고 낮게. 기둥형이 넘어져 보이지 않게 하는 최소 크기다.
+    box('prompterBody', 0, B.h / 2, 0, B.w, B.h, B.d, 0, { r: 12, mode: 'plan' }),
+    // ② 기둥 — 가늘게. 가운데 빈 공간을 시각적으로 막지 않아야 한다.
+    box('prompterBody', 0, B.h + colH / 2, 0, B.colW, colH, B.colD),
+    // ③ 본체 — 계약이 정한 22° 만큼 뒤로 눕는다.
+    box('prompterBody', 0, bodyY, 0, S.panelW, S.panelH, S.depth, S.tiltDeg, { r: 10, mode: 'face' }),
+    // ④ 화면 — 개인 모니터와 같은 꺼진 화면이다.
+    box('screen', 0, scr.y, scr.dz, S.screenW, S.screenH, SCREEN_THK, S.tiltDeg),
+  ];
+}
+
+/**
  * AV 수납장 — 굽(토킥) + 몸통 + 상판 + 여닫이문 2짝. 아주 단순한 형태로 만든다.
  * 장식용 가구가 아니라 공간 현실감을 위한 보조 요소라 여기서 더 꾸미지 않는다.
  */
@@ -1060,6 +1132,9 @@ export const FURNITURE_ASSETS = Object.freeze({
   // PHASE 4-b — 대회의실 대형 U 테이블. 임원 것과 같은 배치(조각 3장)를 받지만 **다른 자산**이다.
   //   이 한 줄이 등록되는 순간 라우터는 고치지 않아도 이것을 고른다.
   largeUTable: { id: 'largeUTable', label: '대회의실 대형 U 테이블', instanced: false, sized: true, spec: items => createLargeUTable(items) },
+  // PHASE 4-c — 좌석마다 한 대씩 깔리므로 **반드시 InstancedMesh**로 묶는다(계약의 요구).
+  personalMonitor: { id: 'personalMonitor', label: '참석자 개인 모니터', instanced: true, sized: false, build: () => createPersonalMonitor() },
+  prompter: { id: 'prompter', label: '중앙 프롬프터', instanced: true, sized: false, build: () => createPrompter() },
 });
 
 /** V1에서 준비한 가구 자산 4종 — 보고·테스트용 목록. */
