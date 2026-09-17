@@ -170,10 +170,12 @@ test('⑦⑧⑨ 전역 렌더러(톤 매핑·노출·색공간)를 건드리지 
   assert.ok(!/EffectComposer|UnrealBloom|SSAO|postprocessing/.test(glSrc), '후처리가 들어왔다');
 });
 
-test('⑱ 화각을 건드리지 않았다', () => {
-  assert.ok(isPlanned(ROOM_DESIGNS[LC].camera), '대회의실 화각이 켜졌다');
-  assert.ok(!/conference/i.test(camSrc), '화각 모듈에 대회의실이 들어왔다');
+test('⑱ 조명 층이 화각을 건드리지 않았다', () => {
+  // 대회의실 화각은 **이 단계 뒤(PHASE 4-d.3)** 에 켜졌다. 조명 층은 그것을 읽지 않는다.
+  assert.equal(ROOM_DESIGNS[LC].camera, 'conferenceProposal');
   assert.ok(!/design-camera/.test(litSrc), '조명 층이 화각 모듈을 읽는다');
+  // 화각 모듈은 거꾸로 조명을 읽지 않는다 — 두 층이 서로 물리면 한쪽을 고칠 때 다른 쪽이 흔들린다.
+  assert.ok(!/design-lighting|design-finish/.test(camSrc), '화각 모듈이 조명·마감을 읽는다');
 });
 
 // ── D. 재질 · 형상 · 배치 동결 ─────────────────────────────────────────────

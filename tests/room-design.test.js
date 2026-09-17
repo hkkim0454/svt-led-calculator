@@ -21,7 +21,7 @@ import { MATERIAL_PRESETS, MATERIAL_IDS, resolveMaterialId, floorFinishFor, mood
 import { designPalette } from '../src/design-finish.js';
 import { lightingPreset } from '../src/design-lighting.js';
 // 화각 계획 이름 — 실재하는 계획인지 확인하기 위한 목록(가짜 스펙 금지).
-const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal']);
+const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal']);
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
 const ROOM_TYPE_IDS = ROOM_TYPES.map(t => t.id);
@@ -179,7 +179,8 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   assert.equal(lc.furniture.table, 'largeUTable');
   assert.equal(lc.palette, 'conferenceBright');
   assert.equal(lc.lighting, 'conferenceSoft');
-  for (const f of ['wallTreatment', 'camera', 'accessories']) {
+  assert.equal(lc.camera, 'conferenceProposal', 'PHASE 4-d.3 에서 대회의실 전용 화각이 켜졌다');
+  for (const f of ['wallTreatment', 'accessories']) {
     assert.equal(lc[f], INHERIT, `largeConference.${f} 가 아직 INHERIT가 아니다`);
   }
 });
@@ -225,12 +226,12 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     for (const x of ids) assert.ok(exists(x), `${id}: 없는 자산·재질 ${x}`);
   }
   // 지금 실제로 적용되는 값 — 세 회의실의 가구·AV·마감 한 벌씩.
-  //   대회의실의 조명·화각·벽 구성은 아직 planned 다(다음 단계).
+  //   대회의실의 벽 구성·소품은 아직 planned 다(다음 단계). 조명·화각은 켜졌다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
     'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileLight',
     'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
-    'conferenceSoft', 'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft',
+    'conferenceProposal', 'conferenceSoft', 'corporateChair', 'corporateNeutral', 'corporateProposal', 'corporateSoft',
     'corporateTable', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright', 'executiveChair',
     'executiveProposal', 'executiveSoft', 'largeUTable', 'lightAsh', 'lightOak', 'neutralLaminate',
@@ -310,8 +311,9 @@ test('기존 계산 무변경 ② LED — 삼성 검증 기준값(MP012F 6×3.4m
   assert.equal(r.maxW, 6132);
   assert.ok(Math.abs(r.heatMaxBTU - 20916) < 20, `btu=${r.heatMaxBTU}`);
   // 디자인 모듈은 이 값에 닿을 수 없다 — 계산에 넘기는 인자가 하나도 없다.
-  //   디자인이 정하는 것은 **가구의 생김새와 마감**뿐이고, 조명·화각은 아직 전부 INHERIT 다.
-  const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal' };
+  //   디자인이 정하는 것은 **가구의 생김새와 마감·조명·화각**뿐이다 — 계산에는 닿지 않는다.
+  const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
+    largeConference: 'conferenceProposal' };
   for (const id of [...DESIGN_IDS, undefined]) {
     if (CAM[id]) { assert.equal(resolveDesign(id).camera, CAM[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각은 아직 디자인이 정하지 않는다`);

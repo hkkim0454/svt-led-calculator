@@ -21,7 +21,7 @@
 // 디자인이 화각을 정하지 않았으면 **null**을 돌려준다. 그러면 기존 계산이 그대로 쓰인다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=425';
+import { roomDesign, isPlanned } from './room-design.js?v=426';
 
 /** 이 파일이 다루는 시점. 아이소·평면도는 **손대지 않는다**(오너 지침 §12). */
 export const CORPORATE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
@@ -281,6 +281,12 @@ function tableFit(table, x, z, eye, pitchDown, halfVRad) {
  */
 export function cameraPlanForDesign(designId, presetId, model, aspect = 16 / 9) {
   if (!model) return null;
+  // 대회의실 — 배치 범위(테이블·좌석·모니터·프롬프터)까지 보고 구도를 잡는다.
+  const cf = conferenceCameraPlanId(designId, presetId);
+  if (cf) {
+    return conferenceCameraPlan(model.room, model.led, cf, aspect,
+      { table: model.table || null, ...(model.fields || {}) });
+  }
   const ex = executiveCameraPlanId(designId, presetId);
   if (ex) return executiveCameraPlan(model.room, model.led, ex, aspect, model.table || null);
   const id = corporateCameraPlanId(designId, presetId);
@@ -295,4 +301,341 @@ export function corporateCameraPresets(designId) {
 /** 이 디자인이 쓰는 임원 시점 이름들(검증·디버깅용). */
 export function executiveCameraPresets(designId) {
   return Object.freeze(EXECUTIVE_CAMERA_PRESETS.filter(p => executiveCameraPlanId(designId, p)));
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 대회의실 카메라 (PHASE 4-d.3)
+// ─────────────────────────────────────────────────────────────────────────────
+// 앞의 두 계열과 **무엇이 다른가.**
+//   대기업·임원 방은 깊이가 7~12m다. 그래서 '뒷벽 바로 앞에 선다'는 한 줄로 충분했다.
+//   대회의실은 12~16m 폭에 깊이가 18m까지 간다. 같은 규칙을 그대로 쓰면
+//     ① 카메라가 내용물에서 4~5m 뒤에 서서 **빈 바닥만 긴 활주로**처럼 깔리고(§16),
+//     ② LED 벽까지 17m라 화면 세로에 방 높이(3.8m)가 30%밖에 안 차서
+//        **천장과 바닥이 화면을 먹는다**(§15).
+//   그래서 이 계열은 기준을 **벽이 아니라 '놓인 것'으로** 옮긴다.
+//
+// 세 가지를 새로 한다.
+//   ① **서는 자리를 내용물이 정한다.** 맨 뒤 테이블·의자 뒤로 얼마만큼 물러설지를
+//      '바닥이 화면에 보이기 시작하는 거리 + 여유'에서 **계산**한다(고정 상수가 아니다).
+//      그 값이 화각과 시선에 다시 의존하므로 **몇 번 되풀이해 수렴시킨다**(solve).
+//   ② **천장 띠를 직접 정한다.** 화면 위쪽에 천장이 몇 % 남을지를 먼저 정하고(band),
+//      거기서 내려다보는 각을 역산한다. 임원의 'frameTop'은 이 식에서 band = 0 인 경우다.
+//   ③ **시선을 LED 면이 아니라 시선 위 가까운 점에 찍는다.** 방향(각도)은 그대로 두고
+//      점만 앞으로 당긴다 — 깊은 방에서 LED 면 위의 시선점이 바닥 아래로 내려가는 것을 막는다.
+//      결과적으로 시선은 '테이블 가운데와 LED 아래쪽 사이'에 놓인다(§26).
+//
+// 가로·세로(across/along)는 **따로 좌표를 쓰지 않는다**(§8). 테이블·좌석 범위에서
+//   중심과 맨 뒤를 읽어 계산하므로, 테이블이 돌아가면 그 값이 바뀌어 구도가 따라간다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 이 계열이 다루는 시점. 아이소·평면도·정면은 **언제나 제외**다(§19~§21 동결). */
+export const CONFERENCE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
+
+/** 대회의실 화각 허용 범위(°). 상한 46 — 오너 지침 §6의 hard cap이다. */
+export const CONFERENCE_FOV_RANGE = Object.freeze({ min: 36, max: 46 });
+
+/** 화면 위쪽에 남기는 천장 띠의 상한(§15 — 18%를 넘으면 재검토, 25%면 실패). */
+export const CONFERENCE_BAND_MAX = 0.18;
+
+/** 내용물 앞쪽으로 **바닥이 이만큼(m) 더 보이도록** 물러선다(§16 '바닥이 조금은 보일 것'). */
+export const FLOOR_STRIP = 0.55;
+
+/** 맨 뒤 내용물에서 물러서는 거리의 허용 범위(m). 너무 붙으면 코앞, 너무 멀면 빈 활주로. */
+export const STANDOFF_RANGE = Object.freeze({ min: 1.10, max: 4.20 });
+
+/** LED가 화면에 다 안 들어올 때, 코너 카메라를 가운데로 되돌려 보는 횟수(§11 우선순위 ②). */
+export const LATERAL_RELAX_STEPS = 6;
+
+/**
+ * 코너 컷이 되돌릴 때도 **코너는 코너로 남는다.** 방 가운데에서 최소한 이만큼(방 너비 × 이 값)은
+ * 옆에 선다. 끝까지 가운데로 옮기면 좌·우 코너가 실내 컷과 같은 그림이 되어 버린다(§17 — 코너는
+ * 테이블 깊이·의자 밀도·모니터 줄을 비스듬히 보여 주는 역할이다).
+ * **실내·후방 컷에는 이 하한이 없다**(`minOffset: 0`) — 그 둘은 가운데로 돌아가도 제 역할을 한다.
+ */
+export const MIN_CORNER_OFFSET = 0.18;
+
+/** LED 가장자리와 화면 가장자리 사이에 남기는 각도 여유(°). 0이면 딱 붙는다. */
+export const LED_EDGE_MARGIN_DEG = 1.2;
+
+/**
+ * 대회의실 시점 기준값. **전부 비율이거나 사람 치수**다.
+ *   eye     눈높이(m) — §6 실내 1.58~1.72 / 코너 1.68~1.82
+ *   fov     기준 화각(°) — 여기서 시작해 LED가 들어갈 만큼만 넓힌다(상한 46)
+ *   band    화면 위쪽 천장 띠 목표 비율 — §15의 6~14% 안
+ *   xRatio  카메라 좌우 자리 = 방 너비 × 이 값
+ *   aimMix  시선을 LED 면(0)에서 **내용물 가운데**(1) 쪽으로 얼마나 당기는가
+ *   followX 카메라 좌우를 내용물 중심 쪽으로 얼마나 따라가는가(세로 배치 대응)
+ */
+export const CONFERENCE_CAMERA_PLANS = Object.freeze({
+  // 실내 — 뒤쪽 눈높이의 **3/4 구도**(§7이 허용한 '뒤 가운데 + 약간의 좌우 오프셋').
+  //   왜 정중앙이 아닌가 — 실측에서 나온 결론이다. 대회의실 U 테이블은 방을 거의 가득 채워
+  //   (14m 방에서 상판 11.1m, 팔이 축에서 5.1m 밖) **뒤 정중앙에서는 46° 상한으로 담기지 않는다.**
+  //   실제로 정중앙(xRatio 0.50)에서는 중형 방의 상판이 화면에 **0.7%**만 남았고, 화면 절반이
+  //   U자 안쪽 빈 바닥이었다(캡처로 확인). 옆으로 비켜서 대각으로 보면 가까운 쪽 팔과
+  //   그 위의 모니터 줄이 화면에 들어온다 — 상판 실측 점유가 0.7% → 21%로 올라간다.
+  interior: Object.freeze({ eye: 1.66, fov: 44, band: 0.09, xRatio: 0.26, aimMix: 0.62, followX: 0.45, minOffset: 0 }),
+  // 좌·우 코너 — 조금 높고 조금 넓다. 테이블 깊이·의자 밀도·모니터 줄이 비스듬히 읽혀야 한다(§17).
+  //   아이소처럼 올라가면 실패이므로 눈높이는 1.74m에서 멈춘다.
+  'corner-l': Object.freeze({ eye: 1.74, fov: 44, band: 0.11, xRatio: 0.14, aimMix: 0.52, followX: 0.35, minOffset: MIN_CORNER_OFFSET }),
+  'corner-r': Object.freeze({ eye: 1.74, fov: 44, band: 0.11, xRatio: 0.86, aimMix: 0.52, followX: 0.35, minOffset: MIN_CORNER_OFFSET }),
+  // 후방 — 실내와 같은 자리에서 조금 더 낮고 좁게. **아직 화면 버튼이 없다**(§18).
+  rear: Object.freeze({ eye: 1.62, fov: 41, band: 0.09, xRatio: 0.50, aimMix: 0.28, followX: 0.45, minOffset: 0 }),
+});
+
+/** 이 디자인이 **대회의실 계열** 카메라를 쓰는가. 아니면 null. */
+export function conferenceCameraPlanId(designId, presetId) {
+  const v = roomDesign(designId).camera;
+  if (isPlanned(v) || typeof v !== 'string' || v !== 'conferenceProposal') return null;
+  return CONFERENCE_CAMERA_PRESETS.includes(presetId) ? presetId : null;
+}
+
+/** 이 디자인이 쓰는 대회의실 시점 이름들(검증·디버깅용). */
+export function conferenceCameraPresets(designId) {
+  return Object.freeze(CONFERENCE_CAMERA_PRESETS.filter(p => conferenceCameraPlanId(designId, p)));
+}
+
+/** 여러 범위를 하나로 합친다. 전부 없으면 null(모르면 모른다고 한다). */
+function mergeBounds(list) {
+  const b = (list || []).filter(v => v && Number.isFinite(v.x0) && Number.isFinite(v.z0));
+  if (!b.length) return null;
+  return {
+    x0: Math.min(...b.map(v => v.x0)), x1: Math.max(...b.map(v => v.x1)),
+    z0: Math.min(...b.map(v => v.z0)), z1: Math.max(...b.map(v => v.z1)),
+  };
+}
+
+/**
+ * 한 점을 **화면 좌표(tan 공간)** 로 옮긴다.
+ *   u = 좌우, v = 위아래. |u| ≤ tan(가로 반화각), |v| ≤ tan(세로 반화각)이면 화면 안이다.
+ *   카메라는 yaw(좌우)·pitch(내려봄)만 쓴다 — 기울이지(roll) 않는다.
+ */
+function toView(p, cam, yaw, pitch) {
+  const dx = p[0] - cam[0], dy = p[1] - cam[1], dz = p[2] - cam[2];
+  // 시선 방향 기준으로 회전 — 앞(f)·오른쪽(r)·위(up)
+  const sy = Math.sin(yaw), cy = Math.cos(yaw);
+  const fx = dx * sy + dz * cy;          // 시선축 방향 성분(수평면)
+  const rx = dx * cy - dz * sy;          // 오른쪽 성분
+  const sp = Math.sin(pitch), cp = Math.cos(pitch);
+  const fwd = fx * cp - dy * sp;         // 내려본 각을 반영한 전방 거리
+  const up = fx * sp + dy * cp;          // 화면 위 방향 성분
+  if (fwd <= 1e-6) return null;          // 카메라 뒤 — 화면에 없다
+  return { u: rx / fwd, v: up / fwd, fwd };
+}
+
+/**
+ * **얼마나 화면에 남는가를 '재서' 말한다.**
+ *   감싸는 상자 하나를 화면에 던져 넓이를 재던 방식은 틀렸다 — U자 테이블은 상자 안쪽이
+ *   전부 빈 곳이라, 상판이 한 조각도 안 보이는데도 '43% 보인다'고 답했다(실측에서 발각).
+ *   그래서 **실제 조각 위에 점을 뿌려 그 점들이 화면 안에 들어오는 비율**을 센다.
+ * @returns 0~1. 잴 것이 없으면 null(모르면 모른다고 한다).
+ */
+function sampleShare(points, cam, yaw, pitch, tanH, tanV) {
+  if (!points || !points.length) return null;
+  let inside = 0;
+  for (const p of points) {
+    const q = toView(p, cam, yaw, pitch);
+    if (q && Math.abs(q.u) <= tanH && Math.abs(q.v) <= tanV) inside++;
+  }
+  return +(inside / points.length).toFixed(4);
+}
+
+/** 사각 조각들의 상판 위에 격자로 점을 뿌린다(조각 하나당 최대 n×n). */
+function topSamples(parts, y, n = 7) {
+  if (!parts || !parts.length) return null;
+  const out = [];
+  for (const b of parts) {
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      out.push([b.x0 + (b.x1 - b.x0) * (i + 0.5) / n, y, b.z0 + (b.z1 - b.z0) * (j + 0.5) / n]);
+    }
+  }
+  return out;
+}
+
+/** {x,z} 목록을 특정 높이의 점 목록으로. */
+const atHeight = (list, y) => (list && list.length ? list.map(p => [p.x, y, p.z]) : null);
+
+/**
+ * 대회의실 카메라 한 벌. **순수 계산** — 방·LED·배치 범위만 보고 답한다.
+ *
+ * @param room   { W, H, D }  방 안쪽 치수(m)
+ * @param led    { x, y, w, h, depth }  LED 위치·크기(m)
+ * @param preset 'interior' | 'corner-l' | 'corner-r' | 'rear'
+ * @param aspect 화면 가로/세로비
+ * @param fields { table, seats, monitors, prompter } 배치 범위(m). 없으면 null로 두면 된다.
+ */
+export function conferenceCameraPlan(room, led, preset, aspect = 16 / 9, fields = null) {
+  const s = CONFERENCE_CAMERA_PLANS[preset];
+  if (!s || !room || !led) return null;
+  const a = Math.max(0.3, aspect);
+  const f = fields || {};
+  const table = f.table || null;
+
+  // ── 내용물 범위 ──  테이블·의자·모니터를 전부 감싼 것이 '보여 줘야 할 것'이다.
+  const content = mergeBounds([table, f.seats, f.monitors]) || {
+    x0: room.W * 0.25, x1: room.W * 0.75, z0: room.D * 0.2, z1: room.D * 0.7,
+  };
+  const contentCx = (content.x0 + content.x1) / 2;
+  const contentCz = (content.z0 + content.z1) / 2;
+  // **테이블이 어느 축으로 긴가.** 좌표를 따로 쓰지 않고 이 한 값으로 구도가 따라간다(§8).
+  const orient = table && (table.z1 - table.z0) > (table.x1 - table.x0) ? 'along' : 'across';
+
+  // ── 눈높이 ──  낮은 천장에서도 천장을 뚫지 않게 자른다.
+  const eye = clamp(s.eye, EYE_RANGE.min, Math.min(EYE_RANGE.max, room.H - WALL_MARGIN - 0.2));
+
+  // ── 서는 깊이 ──  '맨 뒤 내용물 + 물러설 거리'. 물러설 거리는 아래에서 **계산해 수렴시킨다.**
+  const rearMost = clamp(room.D - clamp(room.D * 0.05, 0.35, 0.70), WALL_MARGIN, room.D - WALL_MARGIN);
+  const backZ = Math.max(content.z1, table ? table.z1 : 0);
+
+  const ledPts = [[led.x, led.y, led.depth], [led.x + led.w, led.y, led.depth],
+    [led.x, led.y + led.h, led.depth], [led.x + led.w, led.y + led.h, led.depth]];
+
+  // 한 자리에 섰을 때의 화각·내려본 각·서는 깊이를 푼다.
+  //   셋이 서로를 물고 있어서 **네 번 되풀이하면 충분히 수렴한다**(값이 밀리미터 아래로 떨어진다).
+  function solveAt(x) {
+  let fov = clamp(s.fov, CONFERENCE_FOV_RANGE.min, CONFERENCE_FOV_RANGE.max);
+  let standOff = STANDOFF_RANGE.min;
+  let z = rearMost, pitch = 0, yaw = 0, halfV = fov * DEG / 2, dzWall = Math.max(0.5, z - led.depth);
+
+  for (let it = 0; it < 4; it++) {
+    z = clamp(Math.min(rearMost, backZ + standOff), WALL_MARGIN, rearMost);
+    dzWall = Math.max(0.5, z - led.depth);
+    halfV = fov * DEG / 2;
+
+    // 시선이 향할 지점 — LED 가로 중심에서 내용물 가운데 쪽으로 aimMix 만큼 당긴다.
+    const aimX = (led.x + led.w / 2) + (contentCx - (led.x + led.w / 2)) * s.aimMix;
+    const aimZ = led.depth + (contentCz - led.depth) * s.aimMix;
+    yaw = Math.atan2(aimX - x, aimZ - z);        // -Z(LED 쪽)을 0으로 재는 각
+
+    // **천장 띠에서 내려본 각을 역산한다.** band = 0 이면 임원의 'frameTop'과 같은 식이다.
+    const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);      // 천장선을 보는 각
+    const band = clamp(s.band, 0, CONFERENCE_BAND_MAX);
+    pitch = Math.atan((1 - 2 * band) * Math.tan(halfV)) - eCeil;
+    // 시선은 **언제나 눈높이보다 낮다** — 조작기(OrbitControls)가 카메라를 끌어올리지 못하게(§5).
+    pitch = Math.max(pitch, Math.atan(POLAR_GAP_PER_DIST));
+
+    // LED 네 모서리가 화면에 들어갈 만큼만 화각을 넓힌다(상한 46°에서 멈춘다, §11).
+    let needV = 0, needH = 0;
+    for (const p of ledPts) {
+      const q = toView(p, [x, eye, z], yaw, pitch);
+      if (!q) continue;
+      needV = Math.max(needV, Math.abs(q.v)); needH = Math.max(needH, Math.abs(q.u));
+    }
+    const m = Math.tan(LED_EDGE_MARGIN_DEG * DEG);
+    const wantV = 2 * Math.atan(Math.max(needV + m, (needH + m) / a)) / DEG;
+    fov = clamp(Math.max(s.fov, wantV), CONFERENCE_FOV_RANGE.min, CONFERENCE_FOV_RANGE.max);
+
+    // 물러설 거리 — 바닥이 보이기 시작하는 거리보다 FLOOR_STRIP 만큼 더 뒤에 선다(§16).
+    const down = pitch + fov * DEG / 2;
+    const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down));
+    standOff = clamp(floorNear + FLOOR_STRIP, STANDOFF_RANGE.min, STANDOFF_RANGE.max);
+  }
+
+  // 이 자리에서 LED 네 모서리가 화면 안에 들어오는가.
+  const tanV = Math.tan(fov * DEG / 2);
+  const tanH = Math.tan(hFovDeg(fov, a) * DEG / 2);
+  const v = ledPts.map(q => toView(q, [x, eye, z], yaw, pitch)).filter(Boolean);
+  const ledFullyVisible = v.length === 4
+    && v.every(q => Math.abs(q.u) <= tanH + 1e-9 && Math.abs(q.v) <= tanV + 1e-9);
+  return { x, z, fov, pitch, yaw, dzWall, tanV, tanH, ledFullyVisible };
+  }
+
+  // ── 카메라 좌우 ──  기본 자리에서 내용물 중심 쪽으로 조금 따라간다(세로 배치면 테이블이 한쪽에 몰린다).
+  const x0 = clamp(room.W * s.xRatio + (contentCx - room.W / 2) * s.followX,
+    WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN));
+
+  // **LED가 다 안 들어오면 화각부터 넓히지 않는다**(§11의 우선순위 ②가 ④보다 먼저다).
+  //   좁은 화면 + 아주 넓은 LED에서 코너 컷이 먼저 걸린다. 그때는 옆으로 나간 만큼을
+  //   가운데로 **조금씩 되돌려** 본다 — 코너의 성격은 최대한 남기고 LED를 담는 쪽이다.
+  //   끝까지 안 들어오면 늘리지 않고 `ledFullyVisible: false`로 **정직하게 말한다**(§11).
+  const mid = room.W / 2;
+  let sol = solveAt(x0);
+  const side = Math.sign(x0 - mid);
+  // 되돌릴 수 있는 **한계 자리** — 가운데가 아니라 '최소한의 코너'까지다.
+  const limit = mid + side * room.W * (s.minOffset ?? MIN_CORNER_OFFSET);
+  if (!sol.ledFullyVisible && side !== 0 && Math.abs(limit - x0) > 1e-6
+      && Math.abs(limit - mid) < Math.abs(x0 - mid)) {
+    for (let k = 1; k <= LATERAL_RELAX_STEPS; k++) {
+      const cand = solveAt(x0 + (limit - x0) * (k / LATERAL_RELAX_STEPS));
+      sol = cand;
+      if (cand.ledFullyVisible) break;              // 들어온 순간 멈춘다(더 옮기지 않는다)
+    }
+  }
+  const { x, z, fov, pitch, yaw, dzWall } = sol;
+  const lateralRelax = +Math.abs(x - x0).toFixed(4);
+
+  // ── 시선점 ──  **방향은 그대로 두고 점만 앞으로 당긴다.**
+  //   LED 면에 찍으면 깊은 방에서 바닥 아래로 내려간다 — 방향이 같으면 그림은 똑같으므로
+  //   '테이블 가운데쯤'에 찍어 값이 방 안에 남게 한다(§26).
+  const aimDist = Math.hypot(contentCx - x, contentCz - z);
+  let tDist = clamp(aimDist, 1.2, Math.max(1.2, dzWall));
+  // 시선이 바닥 아래로 내려가지 않는 선까지만 당긴다.
+  const maxDist = Math.tan(pitch) > 1e-6 ? (eye - WALL_MARGIN) / Math.tan(pitch) : tDist;
+  tDist = Math.max(1.2, Math.min(tDist, maxDist));
+  const targetY = Math.min(eye - eyeAboveTargetFor(tDist), eye - tDist * Math.tan(pitch));
+  const target = [
+    clamp(x + Math.sin(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN)),
+    clamp(targetY, 0.05, room.H - WALL_MARGIN),
+    clamp(z + Math.cos(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.D - WALL_MARGIN)),
+  ];
+
+  // ── 지표 ──  '보인다'고 말하려면 재고 말해야 한다(§10·§38).
+  const cam = [x, eye, z];
+  const { tanV, tanH, ledFullyVisible } = sol;
+
+  // 천장선이 화면 위 가장자리에서 얼마나 내려와 있는가 = 천장 띠 비율.
+  const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+  const ceilingBand = +clamp((1 - Math.tan(eCeil + pitch) / tanV) / 2, 0, 1).toFixed(4);
+  const down = pitch + fov * DEG / 2;
+  const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down));
+  const fit = tableFit(table, x, z, eye, pitch, fov * DEG / 2);
+  // 상판(0.74m) · 의자 등받이 윗부분(1.00m) · 개인 모니터 화면(1.00m)에 점을 뿌려 센다.
+  const tableShare = sampleShare(topSamples(f.tableParts, 0.74), cam, yaw, pitch, tanH, tanV);
+  const seatsShare = sampleShare(atHeight(f.seatPoints, 1.00), cam, yaw, pitch, tanH, tanV);
+  const monShare = sampleShare(atHeight(f.monitorPoints, 1.00), cam, yaw, pitch, tanH, tanV);
+  // LED 자체가 **몇 %나 화면에 남는가.** '못 담았다'고 말할 때 얼마나 못 담았는지까지 말한다 —
+  //   1%가 스친 것과 절반이 잘린 것은 제안서에서 전혀 다른 이야기다(§11).
+  const ledShare = (() => {
+    const q = ledPts.map(t => toView(t, cam, yaw, pitch)).filter(Boolean);
+    if (q.length < 4) return 0;
+    const u0 = Math.min(...q.map(t => t.u)), u1 = Math.max(...q.map(t => t.u));
+    const v0 = Math.min(...q.map(t => t.v)), v1 = Math.max(...q.map(t => t.v));
+    const full = Math.max(1e-9, (u1 - u0) * (v1 - v0));
+    const iw = Math.max(0, Math.min(u1, tanH) - Math.max(u0, -tanH));
+    const ih = Math.max(0, Math.min(v1, tanV) - Math.max(v0, -tanV));
+    return +(iw * ih / full).toFixed(4);
+  })();
+  let prompter = null;
+  if (f.prompter) {
+    const q = [toView([f.prompter.x, 0.56, f.prompter.z], cam, yaw, pitch),
+      toView([f.prompter.x, 1.05, f.prompter.z], cam, yaw, pitch)].filter(Boolean);
+    prompter = q.length > 0 && q.some(p => Math.abs(p.u) <= tanH && Math.abs(p.v) <= tanV);
+  }
+  // 가장 가까운 내용물이 화면 아래로 잘리기까지 남은 여유(m). 음수면 코앞이 잘린 것이다.
+  const nearest = Math.max(0, Math.min(z - content.z1, z - (table ? table.z1 : z)));
+  const nearestMargin = +(nearest - floorNear).toFixed(4);
+
+  return Object.freeze({
+    position: [+x.toFixed(4), +eye.toFixed(4), +z.toFixed(4)],
+    target: target.map(v => +v.toFixed(4)),
+    fov: +fov.toFixed(3),
+    eye,
+    orient,
+    standOff: +(z - backZ).toFixed(4),
+    lateralRelax,
+    pitchDeg: +(pitch / DEG).toFixed(3),
+    yawDeg: +(yaw / DEG).toFixed(3),
+    ceilingBand,
+    floorNear: +floorNear.toFixed(4),
+    nearestMargin,
+    ledFullyVisible,
+    ledVisibleShare: ledShare,
+    tableVisible: fit ? fit.visible : null,
+    tableDepthVisible: fit ? fit.depthShare : null,
+    // **실측** — 상판·좌석·모니터가 화면에 남는 비율(점을 뿌려 센 값).
+    tableVisibleShare: tableShare,
+    seatsVisibleShare: seatsShare,
+    monitorsVisibleShare: monShare,
+    prompterVisible: prompter,
+    fovCapped: fov >= CONFERENCE_FOV_RANGE.max - 1e-9,
+  });
 }

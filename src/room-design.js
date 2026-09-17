@@ -202,7 +202,10 @@ export const ROOM_DESIGNS = Object.freeze({
     // PHASE 4-d.2 — 조명. 천장등을 크게 줄여 상판·바닥을 내리고, 보조광·환경광을 올려
     //   옆벽을 끌어올린다. 어느 조명이 어느 면에 닿는지 실측해서 고른 배수다(design-lighting.js).
     lighting: 'conferenceSoft',
-    camera: planned('largeConferenceCamera'),
+    // PHASE 4-d.3 — 화각. 뒷쪽 눈높이에서 LED·대형 테이블·의자/모니터 밀도·프롬프터를
+    //   한 화면에 담는 제안서 구도. 서는 자리를 **놓인 것에서 계산**한다(design-camera.js).
+    //   아이소·평면도·정면은 건드리지 않는다(기존 역할 유지).
+    camera: 'conferenceProposal',
     accessories: planned('largeConferenceAccessories'),
   }),
 
