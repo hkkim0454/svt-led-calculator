@@ -15,21 +15,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=422';
-import { createMaterialLibrary } from './materials-gl.js?v=422';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=422';
-import { GRADE_COLORS } from './viewangle.js?v=422';
-import { createGeometryCache } from './geometry-gl.js?v=422';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=422';
+import { u } from './gl-model.js?v=423';
+import { createMaterialLibrary } from './materials-gl.js?v=423';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=423';
+import { GRADE_COLORS } from './viewangle.js?v=423';
+import { createGeometryCache } from './geometry-gl.js?v=423';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=423';
 import {
-  credenzaFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
-} from './design-finish.js?v=422';
+  credenzaFinishForDesign, avFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
+} from './design-finish.js?v=423';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=422';
+} from './furniture-assets.js?v=423';
 
 const DEG = Math.PI / 180;
 
@@ -280,9 +280,9 @@ function largeUTableMesh(items, mat, geoCache) {
   const top = new THREE.Mesh(
     geoCache.uTop(u(S.outerW), u(S.outerD), u(S.segW), u(S.topThk), {
       frontR: u(S.frontR), rearR: u(S.rearR), innerR: u(S.innerR), bevel: u(S.topBevel),
-    }), mat.corporateTop);
+    }), mat.conferenceTop);
   top.position.y = u(S.topBottom + S.topThk / 2);
-  top.name = 'corporateTop';
+  top.name = 'conferenceTop';
   g.add(top);
 
   // 긴 보 — 상판 바로 아래에서 기둥을 잇는다. 길이가 다르므로 하나씩 세운다(3줄뿐이다).
@@ -290,9 +290,9 @@ function largeUTableMesh(items, mat, geoCache) {
     const along = b.along === 'x';
     const beam = new THREE.Mesh(
       geoCache.box(u(along ? b.len : S.beam.w), u(S.beam.h), u(along ? S.beam.w : b.len)),
-      mat.tableBase);
+      mat.conferenceBase);
     beam.position.set(u(b.dx), u(S.beam.y), u(b.dz));
-    beam.name = 'tableBase';
+    beam.name = 'conferenceBase';
     g.add(beam);
   }
 
@@ -305,8 +305,8 @@ function largeUTableMesh(items, mat, geoCache) {
   ]) {
     const im = new THREE.InstancedMesh(
       geoCache.slab(u(box.w), u(box.h), u(box.d), { mode: 'plan', r: u(12), bevel: u(4) }),
-      mat.tableBase, S.supports.length);
-    im.name = `tableBase:${name}`;
+      mat.conferenceBase, S.supports.length);
+    im.name = `conferenceBase:${name}`;
     for (let i = 0; i < S.supports.length; i++) {
       const sp = S.supports[i];
       qt.setFromAxisAngle(yAxis, sp.along === 'z' ? Math.PI / 2 : 0);
@@ -409,7 +409,7 @@ export function buildFurnitureGroup(items, opts = {}) {
   //   자산 자체의 색을 바꾸면 그 공간들이 전부 같이 바뀐다. 디자인이 정한 공간에서만 갈아 끼운다.
   //   디자인이 마감을 정하지 않았으면 null이므로 아무 일도 일어나지 않는다.
   for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId),
-    tablePartFinishForDesign(designId)]) {
+    tablePartFinishForDesign(designId), avFinishForDesign(designId)]) {
     if (!fin) continue;
     for (const [part, f] of Object.entries(fin)) {
       // 거칠기·금속성은 **부품 마감표가 정한 값을 그대로 나른다**(design-finish가 실어 보낸다).

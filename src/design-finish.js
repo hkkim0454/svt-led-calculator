@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=422';
-import { resolveMaterialId, finishForPart } from './materials.js?v=422';
+import { roomDesign, isPlanned } from './room-design.js?v=423';
+import { resolveMaterialId, finishForPart } from './materials.js?v=423';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -44,6 +44,22 @@ export const FLOOR_PARTS = Object.freeze(['rug']);
  *   겹치지 않으므로 여기에 색을 붙여도 회의 테이블·강의용 책상은 영향을 받지 않는다.
  */
 export const TABLE_PARTS = Object.freeze(['boardroomTop', 'boardroomBase']);
+
+/**
+ * 대회의실 U 테이블의 부품(PHASE 4-d.1). 임원과 **이름을 나눠 둔 이유**는 같다 —
+ *   이름이 겹치면 한 공간의 마감을 정하는 순간 다른 공간의 테이블까지 따라 바뀐다.
+ */
+export const CONFERENCE_TABLE_PARTS = Object.freeze(['conferenceTop', 'conferenceBase']);
+
+/** 마감이 붙는 테이블 부품 전부. **어느 공간에 붙는지는 팔레트가 정한다**(색이 없으면 안 붙는다). */
+export const ALL_TABLE_PARTS = Object.freeze([...TABLE_PARTS, ...CONFERENCE_TABLE_PARTS]);
+
+/**
+ * AV 장비에서 마감이 붙는 부품(PHASE 4-d.1).
+ *   전부 대회의실 전용 자산(개인 모니터·중앙 프롬프터)의 부품이라 다른 공간과 겹치지 않는다.
+ *   그래도 **디자인이 색을 정한 공간에서만** 갈아 끼운다 — 전역 재질을 바꾸지 않는 것이 규칙이다.
+ */
+export const AV_PARTS = Object.freeze(['monitorBody', 'monitorStand', 'prompterBody', 'screen']);
 
 /** AV 수납장에서 마감이 붙는 부품. 기존 부품 그대로다 — 새 부품을 만들지 않는다. */
 export const CREDENZA_PARTS = Object.freeze([
@@ -113,6 +129,47 @@ export const DESIGN_PALETTES = Object.freeze({
     //   배치가 주는 러그를 없애지는 않되(형상·크기·위치는 동결), 바닥과 거의 같은 톤으로
     //   낮춰 '파란 판때기'가 좌석 구역을 가르지 않게 한다(§9).
     rug: '#c7c5bf',
+  }),
+
+  /**
+   * **대회의실 — 밝고 넓은 운영형 AV 공간.** (PHASE 4-d.1)
+   *
+   * 임원 회의실과 무엇이 다른가 — **재료가 아니라 성격**이다.
+   *   임원은 페일 오크 상판 + 흡음 패널 포인트 벽으로 '정제된 프리미엄'을 만든다.
+   *   대회의실은 결이 거의 없는 **라이트 애시 작업면** + 평범한 도장 벽이다.
+   *   참석자가 30명이고 좌석마다 모니터가 놓이는 방에서는, 마감이 조용할수록 장비가 읽힌다.
+   *
+   * 대기업 회의실(corporateNeutral)과도 갈린다 — **같은 회사의 큰 방**이다.
+   *   벽·바닥을 한 단 밝혀 넓어 보이게 하고, 상판은 대기업 라미네이트보다 살짝 낮춰
+   *   **벽이 가장 밝고 상판이 그다음**이 되게 한다(넓은 상판이 벽보다 밝으면 LED가 묻힌다).
+   *
+   *   대기업 → 대회의실 (같은 자리끼리)
+   *     바닥   #b9bab8 → #c0c1c0   한 단 밝게, 중성으로(넓은 바닥에 색기가 돌면 얼룩처럼 보인다)
+   *     정면벽 #f1efea → #f3f1ed   더 밝은 중성 오프화이트(순백은 아니다)
+   *     상판   #e9e4da → #e2ddd1   **한 단 낮춘다** — 12m 상판은 면적이 커서 같은 값이면 더 밝게 보인다
+   */
+  conferenceBright: Object.freeze({
+    id: 'conferenceBright', label: '대회의실 밝은 운영 마감',
+    floor: '#c0c1c0',        // 밝은 중성 회색 카펫. 의자 30개를 받치되 튀지 않는다
+    wallFront: '#f3f1ed',    // LED가 붙는 정면 벽 — 화면에서 가장 밝은 면
+    wallSide: '#ece9e4',
+    wallAccent: '#e4e0d9',   // 포인트 벽도 **색 한 단**만. 질감으로 꾸미지 않는다(임원과 갈리는 지점)
+    baseboard: '#e0dcd5',
+    // 대형 U 테이블 — 이 두 자리가 '운영형 회의실'의 인상을 만든다.
+    conferenceTop: '#e2ddd1',   // 라이트 애시. 임원 오크(#dbcdb6)보다 밝고 노랑기가 없다
+    conferenceBase: '#3a3f46',  // 짙은 그라파이트. 순수 검정도, 금속 광택도 아니다
+    // AV 장비 — **검은 띠로 뭉치면 실패다.** 전역값보다 한 단 밝혀 모니터 하나하나가 읽히게 한다.
+    monitorBody: '#262b31',
+    monitorStand: '#2e343b',   // 본체보다 아주 살짝 밝게 — 받침이 본체에 먹히지 않게
+    prompterBody: '#262b31',   // 모니터와 같은 계열 = 같은 AV 장비로 읽힌다
+    screen: '#181f2a',         // 꺼진 화면. 푸른기가 아주 약간 도는 검정 — **LED보다 어둡게** 유지한다
+    // AV 수납장 — LED 아래 낮은 장비 가구. 흰 상자로 남으면 정면이 두 덩어리로 갈린다.
+    credenzaBody: '#2b3037',
+    credenzaDoor: '#252a30',
+    credenzaTop: '#353b43',
+    credenzaToe: '#1a1e23',
+    // 러그 — Reference는 전체 카펫이다. 바닥과 거의 같은 톤으로 두어 구역을 가르지 않게 한다.
+    rug: '#c4c5c3',
   }),
 });
 
@@ -207,10 +264,34 @@ export function floorPartFinishForDesign(designId) {
 export function tablePartFinishForDesign(designId) {
   const src = sourcesOf(designId);
   if (!src) return null;
-  const byPart = { boardroomTop: materialName(src.m.tableTop), boardroomBase: materialName(src.m.tableBase) };
+  const top = materialName(src.m.tableTop), base = materialName(src.m.tableBase);
+  const byPart = {
+    boardroomTop: top, boardroomBase: base,
+    conferenceTop: top, conferenceBase: base,
+  };
   const out = {};
-  for (const part of TABLE_PARTS) {
+  // **어느 공간에 어떤 부품이 붙는지는 팔레트가 정한다** — 그 공간 팔레트에 그 부품 색이
+  //   없으면 `finish()`가 null을 돌려주고 그 자리는 빠진다(대기업은 둘 다 없어서 아무것도 안 붙는다).
+  for (const part of ALL_TABLE_PARTS) {
     const f = finish(byPart[part], src.pal[part], part);
+    if (f) out[part] = f;
+  }
+  return Object.keys(out).length ? Object.freeze(out) : null;
+}
+
+/**
+ * AV 장비(개인 모니터·중앙 프롬퍼터)의 마감. **형상·자리는 그대로 두고 마감만 갈아 끼운다.**
+ *   디자인이 AV 재질(`materials.av`)과 색을 정한 공간에서만 붙는다 —
+ *   전역 부품 마감표를 고치면 그 부품을 쓰는 **다른 공간이 전부 같이 바뀐다**.
+ */
+export function avFinishForDesign(designId) {
+  const src = sourcesOf(designId);
+  if (!src) return null;
+  const mat = materialName(src.m.av);
+  if (!mat) return null;
+  const out = {};
+  for (const part of AV_PARTS) {
+    const f = finish(mat, src.pal[part], part);
     if (f) out[part] = f;
   }
   return Object.keys(out).length ? Object.freeze(out) : null;
@@ -237,11 +318,13 @@ export function finishStatusForDesign(designId) {
   const credenza = credenzaFinishForDesign(designId);
   const floorParts = floorPartFinishForDesign(designId);
   const tableParts = tablePartFinishForDesign(designId);
+  const av = avFinishForDesign(designId);
   return Object.freeze({
     palette: roomDesign(designId).palette || null,
     room: room ? Object.freeze(Object.keys(room)) : null,
     credenza: credenza ? Object.freeze(Object.keys(credenza)) : null,
     floorParts: floorParts ? Object.freeze(Object.keys(floorParts)) : null,
     tableParts: tableParts ? Object.freeze(Object.keys(tableParts)) : null,
+    av: av ? Object.freeze(Object.keys(av)) : null,
   });
 }

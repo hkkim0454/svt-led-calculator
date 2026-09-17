@@ -363,12 +363,11 @@ test('㉗㉘ 상황실 모니터·키보드는 그대로 미구현이다', () =>
   }
 });
 
-test('㉙㉚㉛ 대회의실 마감·조명·화각은 그대로 planned 다', () => {
+test('㉙㉚㉛ 대회의실 조명·화각은 그대로 planned 다 (마감은 PHASE 4-d.1)', () => {
   const d = ROOM_DESIGNS.largeConference;
-  for (const k of ['palette', 'wallTreatment', 'lighting', 'camera', 'accessories']) {
+  for (const k of ['wallTreatment', 'lighting', 'camera', 'accessories']) {
     assert.ok(isPlanned(d[k]), `${k}: 이번 단계에서 건드렸다`);
   }
-  for (const v of Object.values(d.materials)) assert.ok(isPlanned(v), '마감이 켜졌다');
   assert.deepEqual(d.furniture.av.slice(0, 2), ['personalMonitor', 'prompter']);
   assert.ok(isPlanned(d.furniture.av[2]), 'AV 수납장은 아직 planned 다');
 });
@@ -383,12 +382,15 @@ test('㉜ 정식 재질 13종이 그대로다(새로 만들지 않았다)', () =
     assert.equal(f.material, 'blackEquipment', `${k}: 기존 재질을 벗어났다`);
     assert.ok(PART_FINISH[k], `${k}: 마감 표에서 사라졌다`);
   }
-  // 화면은 실내 마감재가 아니다 — LED와 같은 이유로 재질 라이브러리 밖에서 다룬다.
-  assert.equal(finishForPart('screen'), null);
+  // 화면은 실내 마감재가 아니다 — **색을 재질이 들고 다니지 않는다.**
+  //   질감(거칠기·금속성)만 적혀 있고 색은 없다 → 기존 색 경로가 그대로 쓰인다.
+  const scr = finishForPart('screen');
+  assert.ok(scr && !scr.color, '꺼진 화면에 재질 색이 생겼다');
   assert.ok(FURNITURE_COLORS.screen, '꺼진 화면 색이 없다');
   // 쓰는 부품 이름이 전부 계약 안에 있다.
   for (const p of createPersonalMonitor()) assert.ok(MC.parts.includes(p.kind), p.kind);
   for (const p of createPrompter()) assert.ok(PC.parts.includes(p.kind), p.kind);
+  assert.equal(Object.keys(MATERIAL_PRESETS).length, 13, '정식 재질이 늘었다');
 });
 
 test('㉝ 순수 유지 — 자리 계산에 Three.js·DOM 이 없다', () => {

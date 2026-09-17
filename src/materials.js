@@ -182,6 +182,9 @@ export const MATERIAL_ALIASES = Object.freeze({
   //   흰색/오프화이트라는 것은 색이므로 앞으로 팔레트·디자인 층이 정한다.
   //   재질을 하나 더 만들면 같은 질감이 두 벌이 되어 재질 캐시가 갈라진다.
   paintedWallWhite: 'paintedWall',
+  // 라이트 애시 = 지금 쓰는 중성 라미네이트. **새 물성이 아니다** —
+  //   대회의실 상판은 임원의 오크(나뭇결)가 아니라 결이 거의 없는 작업면이다(PHASE 4-d.1).
+  lightAsh: 'neutralLaminate',
 });
 
 /**
@@ -348,6 +351,16 @@ export const PART_FINISH = Object.freeze({
   // 대기업 회의 테이블 상판 — 따뜻한 밝은 중성색. **순백은 쓰지 않는다**:
   //   새하얀 상판은 3D에서 플라스틱 판처럼 보이고, 어두운 의자와 대비가 과해진다.
   corporateTop: Object.freeze({ material: 'neutralLaminate', color: '#e9e4da' }),
+  // 대회의실 대형 U 테이블(PHASE 4-d.1) — **제 이름을 쓴다.**
+  //   `corporateTop`을 그대로 쓰면 대회의실 마감을 정하는 순간 대기업 회의 테이블까지 같이 바뀐다.
+  //   상판은 결이 거의 없는 라이트 애시 작업면. 벽(#f3f1ed)보다 한 단 낮아 벽이 더 밝다.
+  conferenceTop: Object.freeze({ material: 'neutralLaminate', color: '#e2ddd1' }),
+  //   하부는 짙은 그라파이트. 임원의 판형 몸통(#34383e)보다 아주 살짝 밝아 '기술적'으로 읽힌다.
+  conferenceBase: Object.freeze({ material: 'darkGraphite', color: '#3a3f46', roughness: 0.70 }),
+  // 꺼진 화면 — **색은 여기서 정하지 않는다.** 색이 없으면 기존 화면 경로(FURNITURE_COLORS)가
+  //   그대로 쓰이고, 공간 디자인이 색을 정하면 이 질감 위에 그 색이 얹힌다.
+  //   질감만 적어 두는 이유: 화면은 실내 마감재가 아니라서 색을 재질이 들고 다니면 안 된다.
+  screen: Object.freeze({ material: 'blackEquipment', roughness: 0.35, metalness: 0.10 }),
 });
 
 /**
