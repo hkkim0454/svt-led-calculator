@@ -213,13 +213,11 @@ test('⑭ 임원 테이블 형상 동결 — 치수가 한 값도 안 바뀌었�
   });
 });
 
-test('⑮ 화각 동결 — 임원 화각은 아직 없고, 대기업 화각 값도 그대로다', () => {
-  assert.equal(cameraPlanForDesign(EX, 'interior',
-    { room: { W: 11, H: 3.8, D: 9 }, led: { w: 5.76, h: 2.16, y: 2 } }, 1.6), null,
-  '임원 화각이 켜졌다 — PHASE 3-d.2 몫이다');
-  assert.equal(typeof ROOM_DESIGNS[EX].camera, 'object', 'camera 가 planned 가 아니다');
+test('⑮ 대기업 화각 값이 그대로다 — 임원 화각(3-d.2)이 대기업을 건드리지 않았다', () => {
   assert.deepEqual({ ...CAMERA_PLANS.interior },
     { eye: 1.65, fov: 41, rearRatio: 0.06, drop: 0.35, xRatio: 0.50 });
+  // 조명 프리셋은 화각을 하나도 정하지 않는다(두 관심사가 섞이면 한쪽을 고칠 때 다른 쪽이 흔들린다).
+  for (const k of ['eye', 'fov', 'position', 'target']) assert.equal(P[k], undefined, k);
 });
 
 test('⑯ LED 동결 — 조명 프리셋이 LED 를 건드리지 않는다', () => {

@@ -162,7 +162,9 @@ export const ROOM_DESIGNS = Object.freeze({
     // PHASE 3-d.1 — 조명. 천장등을 줄이고 보조광을 올려 **벽이 바닥보다 밝은** 자연스러운
     //   순서를 만든다. 화각은 여전히 planned 다(PHASE 3-d.2).
     lighting: 'executiveSoft',
-    camera: planned('executiveCamera'),     // 실내 34~40°, Rear View 기본
+    // PHASE 3-d.2 — 화각. 뒤 눈높이에서 LED와 U 테이블을 함께 담는 제안서 구도.
+    //   아이소·평면도·정면은 건드리지 않는다(기존 역할 유지).
+    camera: 'executiveProposal',
     accessories: planned('executiveAccessories'),
   }),
 

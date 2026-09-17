@@ -47,11 +47,12 @@ test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
   }
 });
 
-// ③ 카메라 무변경 — 이번 단계는 조명 단계다
+// ③ 화면 프리셋 목록·기본 화각 무변경 — 조명 단계가 화각 '구조'를 건드리지 않았다
+const CAMERA_DESIGNS = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal' };
 test('화각 — 프리셋 목록·기본 화각·범위가 그대로다(PHASE 2-d.2 에서도 늘리지 않았다)', () => {
-  // 아직 구현 전인 3종은 여전히 화각을 적용하지 않는다(planned = '아직 없음').
+  // 아직 구현 전인 공간은 여전히 화각을 적용하지 않는다(planned = '아직 없음').
   for (const id of DESIGN_IDS) {
-    if (id === 'corporateMeeting') continue;
+    if (CAMERA_DESIGNS[id]) { assert.equal(resolveDesign(id).camera, CAMERA_DESIGNS[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각을 적용하면 안 된다`);
   }
   assert.equal(ROOM_DESIGNS.corporateMeeting.camera, 'corporateProposal');

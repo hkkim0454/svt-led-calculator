@@ -9,10 +9,10 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=417';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=417';
+import { floorFinishFor, moodFor } from './materials.js?v=418';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=418';
 
-import { cameraPlanForDesign } from './design-camera.js?v=417';
+import { cameraPlanForDesign } from './design-camera.js?v=418';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -65,6 +65,20 @@ export function viewDistance(led, roomD, aspect = 16 / 9) {
  * @param items room-presets의 배치 결과(STEP 1에서는 무대만 읽는다)
  * @returns { room, led, stage }  전부 unit
  */
+/**
+ * 배치의 테이블 조각들을 합친 바닥 발자국(단위 m). 조각이 여럿이면 **전부 감싸는** 사각형이다.
+ * 테이블이 없으면 null — 그러면 카메라 계획도 '테이블 가시성'을 답하지 않는다(모르면 모른다고 한다).
+ */
+function tableFootprint(items) {
+  const t = (items || []).filter(i => i && i.type === 'table'
+    && i.w > 0 && i.d > 0 && Number.isFinite(i.x) && Number.isFinite(i.z));
+  if (!t.length) return null;
+  return Object.freeze({
+    x0: u(Math.min(...t.map(i => i.x - i.w / 2))), x1: u(Math.max(...t.map(i => i.x + i.w / 2))),
+    z0: u(Math.min(...t.map(i => i.z - i.d / 2))), z1: u(Math.max(...t.map(i => i.z + i.d / 2))),
+  });
+}
+
 export function buildGLModel({ space, led, items, show, person, roomType, design, sideMonitors, ledImage, renderMode }) {
   // 벽 두께는 '방 바깥쪽'으로 붙인다 — 안쪽 치수(W×H×D)는 계산값 그대로여야 한다.
   const room = {
@@ -108,6 +122,10 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
     // 배치 목록은 mm 그대로 들고 간다 — 가구를 세우는 쪽(furniture-gl.js)에서 환산한다.
     //   여기서 미리 바꾸면 room-presets 결과와 대조하기 어려워진다.
     items: items || [],
+    // 테이블 조각들을 합친 **바닥 발자국**(단위 m). 카메라 계획이 '테이블이 화면 아래로
+    //   잘리지 않고 남는가'를 판단하는 데만 쓴다(design-camera.js). 배치·형상은 건드리지 않는다.
+    //   테이블이 없는 공간(강당 등)이면 null.
+    table: tableFootprint(items),
     led: {
       x: u(led.marginW),          // 왼쪽 벽 ~ LED 왼쪽 끝
       y: u(led.mount),            // 바닥 ~ LED 아래(하단 높이)

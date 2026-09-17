@@ -21,7 +21,7 @@
 // 디자인이 화각을 정하지 않았으면 **null**을 돌려준다. 그러면 기존 계산이 그대로 쓰인다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=417';
+import { roomDesign, isPlanned } from './room-design.js?v=418';
 
 /** 이 파일이 다루는 시점. 아이소·평면도는 **손대지 않는다**(오너 지침 §12). */
 export const CORPORATE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
@@ -74,6 +74,52 @@ export const CAMERA_PLANS = Object.freeze({
   rear: Object.freeze({ eye: 1.58, fov: 39, rearRatio: 0.045, drop: 0.30, xRatio: 0.50 }),
 });
 
+/**
+ * 임원 회의실 시점. **대기업과 같은 구조를 쓰되 값이 다르다**(오너 지침 §4·§6).
+ *   Executive는 Corporate보다 **덜 광각이고 더 차분하다** — 화각 상한이 46°가 아니라 44°다.
+ */
+export const EXECUTIVE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
+
+/** 임원 화각 허용 범위(°). 상한 44 — 이 이상은 제안서에서 광각 왜곡으로 읽힌다(§13). */
+export const EXECUTIVE_FOV_RANGE = Object.freeze({ min: 36, max: 44 });
+
+/**
+ * 임원 시점 기준값.
+ *
+ * **왜 시선(target)을 대기업과 다른 방식으로 정하는가** — 실측에서 나온 결론이다.
+ *   대기업은 `LED 중심 − drop`으로 시선을 잡는다. 임원 방에 그대로 쓰면 화면 위쪽이
+ *   **방 바깥(빈 하늘)으로 40% 넘게 비었다** — 방보다 화면이 세로로 더 크기 때문이다.
+ *   뒷벽에서 8.5m 떨어진 정면 벽을 40° 화각으로 보면 세로로 6m가 담기는데 방 높이는 3.8m다.
+ *   남는 2m를 **위로 흘리면 빈 하늘**, **아래로 흘리면 바닥과 테이블**이 된다.
+ *   그래서 임원 시점은 **화면 위 가장자리가 천장선에 오도록** 시선을 계산한다(aim: 'frameTop').
+ *   그 한 줄로 테이블 화면 점유가 0% → 14%, 위쪽 빈 공간이 80% → 3%가 됐다(실측).
+ *
+ *   aim 'frameTop' : 화면 위 가장자리를 천장선에 맞춘다(실내·후방). 남는 세로를 전부 아래로 보낸다.
+ *   aim 'room'     : 방 좌표로 시선을 직접 찍는다(좌·우 코너). 비스듬히 보므로 벽까지 거리가 다르다.
+ */
+export const EXECUTIVE_CAMERA_PLANS = Object.freeze({
+  // 실내 — 뒤 가운데 눈높이. LED가 주제이되 아래로 테이블·바닥이 함께 담긴다.
+  interior: Object.freeze({
+    aim: 'frameTop', eye: 1.60, fov: 40, rearRatio: 0.04, xRatio: 0.50,
+  }),
+  // 좌·우 코너 — 제안서에서 가장 많이 쓰는 컷. U자 깊이와 의자 줄이 비스듬히 읽힌다.
+  //   시선은 방 반대편 안쪽(LED와 테이블 사이)을 찍는다. 아이소처럼 올라가면 실패다(§15).
+  //   시선을 방 정중앙이 아니라 **카메라 쪽으로 조금 당겨** 찍는다(targetXRatio 0.40/0.60) —
+  //   그래야 가까운 쪽 날개와 그 바깥 의자들이 화면에 남아 사람 크기가 전달된다(실측: 의자 0% → 3.7%).
+  'corner-l': Object.freeze({
+    aim: 'room', eye: 1.76, fov: 43, rearRatio: 0.07, xRatio: 0.10,
+    targetXRatio: 0.40, targetZRatio: 0.22, targetHRatio: 0.26,
+  }),
+  'corner-r': Object.freeze({
+    aim: 'room', eye: 1.76, fov: 43, rearRatio: 0.07, xRatio: 0.90,
+    targetXRatio: 0.60, targetZRatio: 0.22, targetHRatio: 0.26,
+  }),
+  // 후방 — 실내와 같은 자리에서 조금 더 낮고 좁게. **아직 화면 버튼이 없다**(오너 지침 §14).
+  rear: Object.freeze({
+    aim: 'frameTop', eye: 1.60, fov: 38, rearRatio: 0.045, xRatio: 0.50,
+  }),
+});
+
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const DEG = Math.PI / 180;
 
@@ -92,6 +138,13 @@ export function corporateCameraPlanId(designId, presetId) {
   return CORPORATE_CAMERA_PRESETS.includes(presetId) ? presetId : null;
 }
 
+/** 이 디자인이 **임원 계열** 카메라를 쓰는가. 아니면 null. */
+export function executiveCameraPlanId(designId, presetId) {
+  const v = roomDesign(designId).camera;
+  if (isPlanned(v) || typeof v !== 'string' || v !== 'executiveProposal') return null;
+  return EXECUTIVE_CAMERA_PRESETS.includes(presetId) ? presetId : null;
+}
+
 /**
  * 카메라 한 벌을 계산한다. **순수 계산** — 방·LED 치수만 보고 답한다.
  *
@@ -102,7 +155,19 @@ export function corporateCameraPlanId(designId, presetId) {
  * @returns {null|{position:[x,y,z], target:[x,y,z], fov:number, eye:number, ledTopMargin:number}}
  */
 export function corporateCameraPlan(room, led, preset, aspect = 16 / 9) {
-  const s = CAMERA_PLANS[preset];
+  return planCamera(room, led, CAMERA_PLANS[preset], CORPORATE_FOV_RANGE, aspect, null);
+}
+
+/**
+ * 임원 회의실 카메라. 대기업과 **같은 계산기**를 쓰고 기준값과 화각 상한만 다르다.
+ * @param table 테이블 바닥 발자국 {x0,x1,z0,z1}(m). 있으면 '테이블이 화면에 남는가'를 함께 답한다.
+ */
+export function executiveCameraPlan(room, led, preset, aspect = 16 / 9, table = null) {
+  return planCamera(room, led, EXECUTIVE_CAMERA_PLANS[preset], EXECUTIVE_FOV_RANGE, aspect, table);
+}
+
+/** 두 계열이 공유하는 계산기. **여기가 유일한 카메라 공식**이다(두 곳에 쓰지 않는다). */
+function planCamera(room, led, s, fovRange, aspect, table) {
   if (!s || !room || !led) return null;
   const a = Math.max(0.3, aspect);
 
@@ -126,24 +191,49 @@ export function corporateCameraPlan(room, led, preset, aspect = 16 / 9) {
   //   시선을 눈높이보다 높게 잡으면 **조작기가 카메라를 위로 끌어올려** 계획한 자리가 무너진다
   //   (실제로 큰 방에서 1.65m로 계획한 카메라가 2.23m로 올라갔다 — 이것이 '너무 높은 시점'의 원인이다).
   //   그래서 위를 보고 싶을 때는 **자리를 올리지 않고 화각을 넓혀** 해결한다.
-  const targetY0 = Math.min(ledCenterY - s.drop, eye - eyeAboveTargetFor(dz));
+  //
+  // aim 'frameTop' — **화면 위 가장자리가 천장선에 오도록** 시선을 내린다(임원 실내·후방).
+  //   위로 새던 세로 여유가 전부 아래(바닥·테이블)로 내려간다. 자세한 이유는 EXECUTIVE_CAMERA_PLANS 주석.
+  // aim 'room'     — 방 좌표로 시선을 직접 찍는다(임원 코너). 비스듬히 보므로 벽까지 거리가 다르다.
+  // 그 밖(대기업)  — 기존 그대로: LED 중심에서 drop 만큼 내린다.
+  const halfV0 = clamp(s.fov, fovRange.min, fovRange.max) * DEG / 2;
+  let targetY0;
+  if (s.aim === 'frameTop') {
+    const up = Math.atan(Math.max(0, room.H - eye) / dz);          // 천장선을 보는 각
+    targetY0 = eye - dz * Math.tan(Math.max(0, halfV0 - up));
+  } else if (s.aim === 'room') {
+    targetY0 = room.H * s.targetHRatio;
+  } else {
+    targetY0 = ledCenterY - s.drop;
+  }
+  // 시선은 **언제나 눈높이보다 낮다**(위 OrbitControls 설명 참고).
+  targetY0 = Math.min(targetY0, eye - eyeAboveTargetFor(dz));
   const targetY = clamp(targetY0, WALL_MARGIN, room.H - WALL_MARGIN);
+  // 시선의 가로·깊이 — 코너는 방 안쪽을 찍고, 나머지는 LED 면을 본다.
+  const tx = s.aim === 'room' ? room.W * s.targetXRatio : cx;
+  const tz = s.aim === 'room' ? room.D * s.targetZRatio : led.depth;
 
   // 화각 — 기준값에서 출발해 **두 가지 필요분**만큼만 넓힌다. 둘 다 상한(46°)에서 멈춘다(§15).
   //   ① LED 윗변이 화면 위로 잘리지 않을 만큼(시선을 내렸으므로 위쪽을 더 담아야 한다)
   //   ② 아주 넓은 LED의 좌우가 잘리지 않을 만큼 — 카메라는 이미 뒷벽이라 물러날 자리가 없다
-  let fov = clamp(s.fov, CORPORATE_FOV_RANGE.min, CORPORATE_FOV_RANGE.max);
+  let fov = clamp(s.fov, fovRange.min, fovRange.max);
   const margin = Math.min(0.35, led.h * LED_TOP_MARGIN_RATIO);   // LED 윗변과 화면 가장자리 사이 여유
   const needVTop = 2 * Math.atan(Math.max(0, ledTop + margin - targetY) / dz) / DEG;
   const needHalfW = led.w / 2 + Math.min(0.25, led.w * 0.04);
   const needHWide = 2 * Math.atan(needHalfW / dz) / DEG;
   const needVWide = 2 * Math.atan(Math.tan(needHWide * DEG / 2) / a) / DEG;
-  fov = clamp(Math.max(fov, needVTop, needVWide), CORPORATE_FOV_RANGE.min, CORPORATE_FOV_RANGE.max);
+  fov = clamp(Math.max(fov, needVTop, needVWide), fovRange.min, fovRange.max);
   const halfV = dz * Math.tan(fov * DEG / 2);
+
+  // ── 테이블이 화면 아래로 잘리지 않고 남는가(임원 단계의 핵심 지표, 오너 지침 §10) ──
+  //   화면 **아래 가장자리**는 카메라에서 수평으로 `눈높이 ÷ tan(내려본 각 + 반화각)` 떨어진
+  //   자리에서 바닥과 만난다. 그보다 가까운 것은 화면 밖(아래)이다.
+  //   테이블 발자국의 **먼 쪽**이 그 거리보다 멀면 테이블은 화면에 남는다.
+  const fit = tableFit(table, x, z, eye, Math.atan((eye - targetY) / dz), fov * DEG / 2);
 
   return Object.freeze({
     position: [x, eye, z],
-    target: [cx, targetY, led.depth],
+    target: [tx, targetY, tz],
     fov: +fov.toFixed(3),
     eye,
     // 검증용 — LED 윗변이 화면 위 가장자리에서 얼마나 떨어져 있는가(m). 음수면 잘린 것이다.
@@ -155,8 +245,34 @@ export function corporateCameraPlan(room, led, preset, aspect = 16 / 9) {
     //   그래서 조용히 늘리지 않고 **못 담았다고 말한다.** 화면 쪽이 알고 대응할 수 있게.
     ledFullyVisible: (dz * Math.tan(hFovDeg(fov, a) * DEG / 2) >= led.w / 2)
       && (targetY + dz * Math.tan(fov * DEG / 2) >= ledTop),
-    fovCapped: fov >= CORPORATE_FOV_RANGE.max - 1e-9,
+    fovCapped: fov >= fovRange.max - 1e-9,
+    // 테이블 발자국을 모르면 **null**이다 — 모르는 것을 안다고 답하지 않는다.
+    tableVisible: fit ? fit.visible : null,
+    tableDepthVisible: fit ? fit.depthShare : null,
+    floorNearDist: fit ? fit.floorNear : null,
   });
+}
+
+/**
+ * 화면 아래 가장자리가 바닥과 만나는 거리와, 테이블이 그보다 멀리 남는가.
+ * @returns {null|{visible:boolean, depthShare:number, floorNear:number}}
+ */
+function tableFit(table, x, z, eye, pitchDown, halfVRad) {
+  if (!table) return null;
+  const down = pitchDown + halfVRad;
+  // 아래로 90°를 넘으면 카메라 바로 아래를 본다 — 그 경우 '무한히 가깝다'로 둔다.
+  const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : Math.max(0, eye / Math.tan(Math.max(1e-6, down)));
+  // 카메라에서 테이블 발자국까지의 가까운 쪽·먼 쪽 수평 거리.
+  const dxTo = v => Math.max(0, Math.max(table.x0 - x, x - table.x1));
+  const near = Math.hypot(dxTo(), Math.max(0, Math.max(table.z0 - z, z - table.z1)));
+  const corners = [[table.x0, table.z0], [table.x1, table.z0], [table.x0, table.z1], [table.x1, table.z1]];
+  const far = Math.max(...corners.map(([cx2, cz2]) => Math.hypot(cx2 - x, cz2 - z)));
+  const span = Math.max(1e-6, far - near);
+  return {
+    visible: far > floorNear,
+    depthShare: +clamp((far - Math.max(near, floorNear)) / span, 0, 1).toFixed(4),
+    floorNear: +floorNear.toFixed(4),
+  };
 }
 
 /**
@@ -164,12 +280,19 @@ export function corporateCameraPlan(room, led, preset, aspect = 16 / 9) {
  * 렌더러는 null을 받으면 기존 계산(presetPose)을 그대로 쓴다.
  */
 export function cameraPlanForDesign(designId, presetId, model, aspect = 16 / 9) {
+  if (!model) return null;
+  const ex = executiveCameraPlanId(designId, presetId);
+  if (ex) return executiveCameraPlan(model.room, model.led, ex, aspect, model.table || null);
   const id = corporateCameraPlanId(designId, presetId);
-  if (!id || !model) return null;
-  return corporateCameraPlan(model.room, model.led, id, aspect);
+  return id ? corporateCameraPlan(model.room, model.led, id, aspect) : null;
 }
 
 /** 이 디자인이 쓰는 시점 이름들(검증·디버깅용). 정하지 않았으면 빈 목록. */
 export function corporateCameraPresets(designId) {
   return Object.freeze(CORPORATE_CAMERA_PRESETS.filter(p => corporateCameraPlanId(designId, p)));
+}
+
+/** 이 디자인이 쓰는 임원 시점 이름들(검증·디버깅용). */
+export function executiveCameraPresets(designId) {
+  return Object.freeze(EXECUTIVE_CAMERA_PRESETS.filter(p => executiveCameraPlanId(designId, p)));
 }
