@@ -18,15 +18,16 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=424';
-import { createMaterialLibrary } from './materials-gl.js?v=424';
-import { MOODS } from './materials.js?v=424';
-import { roomFinishForDesign } from './design-finish.js?v=424';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=425';
+import { createMaterialLibrary } from './materials-gl.js?v=425';
+import { MOODS } from './materials.js?v=425';
+import { roomFinishForDesign } from './design-finish.js?v=425';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
-} from './design-lighting.js?v=424';
-import { ledImageFit } from './led-image.js?v=424';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=424';
+  fillLightPlacementForDesign,
+} from './design-lighting.js?v=425';
+import { ledImageFit } from './led-image.js?v=425';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=425';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -34,7 +35,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=424';
+} from './gl-model.js?v=425';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -946,8 +947,15 @@ export function createViewerGL(canvas, { onError } = {}) {
     key.shadow.bias = sh.bias;
     key.shadow.normalBias = sh.normalBias;
     scene.add(key.target);
-    fill.position.set(room.W * 1.3, room.H * 1.2, room.D * 0.2);
-    fill.target.position.set(room.W / 2, room.H * 0.4, 0);
+    // 보조광 — 디자인이 자리를 정했으면 그 자리로, 아니면 기존 자리로(다른 공간은 그대로다).
+    const fp = fillLightPlacementForDesign(model?.design, room);
+    if (fp) {
+      fill.position.set(fp.position.x, fp.position.y, fp.position.z);
+      fill.target.position.set(fp.target.x, fp.target.y, fp.target.z);
+    } else {
+      fill.position.set(room.W * 1.3, room.H * 1.2, room.D * 0.2);
+      fill.target.position.set(room.W / 2, room.H * 0.4, 0);
+    }
     scene.add(fill.target);
     // 천장등 — 방 한가운데 천장에서 바로 아래를 비춘다.
     ceilLight.position.set(room.W / 2, room.H * 1.6, room.D / 2);

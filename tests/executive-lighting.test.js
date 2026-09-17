@@ -56,11 +56,14 @@ test('② 대기업 조명(corporateSoft)은 한 값도 바뀌지 않았다', ()
 
 test('③ 조명을 선언하지 않은 공간은 여전히 전부 null 이다', () => {
   for (const id of DESIGN_IDS) {
-    if (id === CO || id === EX) continue;
+    // 대회의실은 PHASE 4-d.2 에서 제 조명을 갖게 됐다(임원 것을 물려받은 것이 아니다).
+    if (id === CO || id === EX || id === 'largeConference') continue;
     assert.equal(lightingForDesign(id), null, `${id} 에 조명이 붙었다`);
     assert.equal(shadowSettingsForDesign(id), null, id);
     assert.equal(keyLightPlacementForDesign(id, { W: 10, H: 3.5, D: 8.5 }), null, id);
   }
+  // 대회의실도 **주광 자리는 정하지 않는다** — 임원과 같은 이유(실측에서 반대로 움직였다).
+  assert.equal(keyLightPlacementForDesign('largeConference', { W: 16, H: 3.9, D: 12 }), null);
   for (const id of [null, undefined, '', '없는디자인', 0, {}]) {
     assert.equal(lightingForDesign(id), null, String(id));
     assert.equal(shadowSettingsForDesign(id), null, String(id));

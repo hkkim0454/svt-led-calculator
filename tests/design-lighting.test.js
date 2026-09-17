@@ -27,7 +27,7 @@ test('조명 프리셋 — 대기업 회의실만 새 조명을 쓴다', () => {
 });
 
 // ② 조명을 선언하지 않은 공간은 기존 조명 그대로 — 이 단계에서 가장 중요한 테스트
-const LIT = new Set(['corporateMeeting', 'executiveBoardroom']);   // PHASE 2-d.1 · 3-d.1
+const LIT = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference']);   // PHASE 2-d.1 · 3-d.1
 test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
   for (const id of DESIGN_IDS) {
     if (LIT.has(id)) continue;
