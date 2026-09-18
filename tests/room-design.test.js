@@ -20,6 +20,7 @@ import { MODELS } from '../src/models.js';
 import { MATERIAL_PRESETS, MATERIAL_IDS, resolveMaterialId, floorFinishFor, moodFor } from '../src/materials.js';
 import { designPalette } from '../src/design-finish.js';
 import { lightingPreset } from '../src/design-lighting.js';
+import { WALL_PLAN_IDS } from '../src/control-walls.js';
 // 화각 계획 이름 — 실재하는 계획인지 확인하기 위한 목록(가짜 스펙 금지).
 const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal']);
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
@@ -171,13 +172,13 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
   const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom'];
   assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), []);
-  // 상황실이 정한 것은 **가구 2종 + AV 2종 + 마감**이다. 조명·화각·벽 구성은 planned 다.
+  // 상황실이 정한 것은 **가구 2종 + AV 2종 + 마감 + 벽 구성**이다. 조명·화각은 아직 planned 다.
   const ctrl = resolveDesign('controlRoom');
   assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(ctrl[f])),
     ['taskChair', 'curvedConsole', 'consoleMonitor', 'keyboard', 'controlPalette',
-      'carpetTileDark', 'paintedWallWhite', 'neutralLaminate', 'darkGraphite',
-      'neutralLaminate', 'darkGraphite', 'darkGraphite'],
-    '상황실이 가구·AV·마감 말고 다른 것까지 정했다 (조명·화각·벽 구성은 5-d.2~4 다)');
+      'carpetTileDark', 'paintedWallWhite', 'acousticPanel', 'neutralLaminate', 'darkGraphite',
+      'neutralLaminate', 'darkGraphite', 'darkGraphite', 'controlWalls'],
+    '상황실이 가구·AV·마감·벽 구성 말고 다른 것까지 정했다 (조명·화각은 5-d.3~4 다)');
   assert.equal(isNeutralDesign('controlRoom'), false, '상황실은 이제 의자를 정한다');
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
   // 대회의실은 가구·AV(4-a~4-c)와 마감(4-d.1)까지 정했다 — 조명·화각·벽 구성은 아직 planned 다.
@@ -226,7 +227,7 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   const known = new Set([...Object.keys(MATERIAL_PRESETS), ...Object.keys(FURNITURE_ASSETS)]);
   //   팔레트 이름도 '적용되는 값'이다 — 실재하는 팔레트로 풀려야 한다(가짜 스펙 금지).
   const exists = x => known.has(x) || !!resolveMaterialId(x) || !!designPalette(x)
-    || !!lightingPreset(x) || CAMERA_PLAN_IDS.has(x);
+    || !!lightingPreset(x) || CAMERA_PLAN_IDS.has(x) || WALL_PLAN_IDS.includes(x);
   for (const id of DESIGN_IDS) {
     const r = resolveDesign(id);
     const ids = VALUE_FIELDS.flatMap(f => appliedIds(r[f]));
@@ -237,9 +238,9 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   //   대회의실의 벽 구성·소품은 아직 planned 다. 상황실은 가구·AV 말고 전부 planned 다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
-    'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileDark',
+    'acousticPanel', 'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileDark',
     'carpetTileLight', 'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
-    'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'corporateChair',
+    'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'controlWalls', 'corporateChair',
     'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable', 'curvedConsole',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
@@ -250,8 +251,8 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
-      || lightingPreset(id) || CAMERA_PLAN_IDS.has(id),
-      `${id} 는 실재하는 가구·재질·팔레트·조명·화각이어야 한다`);
+      || lightingPreset(id) || CAMERA_PLAN_IDS.has(id) || WALL_PLAN_IDS.includes(id),
+      `${id} 는 실재하는 가구·재질·팔레트·조명·화각·벽 구성이어야 한다`);
   }
   // 아직 구현 전인 것만 planned 표시를 단다(빈 껍데기가 아니라 '계획'이라는 뜻).
   //   지금 그런 공간은 상황실 하나뿐이다.

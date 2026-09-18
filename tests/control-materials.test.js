@@ -58,7 +58,7 @@ test('① 상황실 마감 id 가 controlPalette 이고, 재질이 전부 실재
   }
   // **해석기가 읽는 열쇠 이름**을 쓴다. 읽히지 않는 이름을 적으면 값이 아무 데도 닿지 않는다.
   assert.deepEqual(Object.keys(D.materials).sort(),
-    ['chair', 'consoleBase', 'consoleTop', 'floor', 'tableBase', 'tableTop', 'wall']);
+    ['chair', 'consoleBase', 'consoleTop', 'floor', 'tableBase', 'tableTop', 'wall', 'wallAccent']);
 });
 
 test('② 정식 재질 13종 그대로 — 새 재질도, 새 질감도 만들지 않았다', () => {
@@ -128,10 +128,11 @@ test('⑤ 바닥이 짙은 카펫 타일이다 — 회의실 3종보다 확실�
     assert.ok(lum(P.floor) < lum(DESIGN_PALETTES[other].floor) - 20,
       `바닥이 ${other} 보다 충분히 어둡지 않다`);
   }
-  // 벽은 **도장 벽**이다 — 흡음/유리는 PHASE 5-d.2 의 몫이다.
-  for (const role of ['wallFront', 'wallSide', 'wallAccent', 'baseboard']) {
+  // 벽은 도장 벽이다. **딱 한 자리, 포인트 벽(=왼쪽 벽 안쪽 면)만** 흡음 패널이다(PHASE 5-d.2).
+  for (const role of ['wallFront', 'wallSide', 'baseboard']) {
     assert.equal(room[role].canonical, 'paintedWall', `${role}: 도장 벽이 아니다`);
   }
+  assert.equal(room.wallAccent.canonical, 'acousticPanel', '포인트 벽이 흡음 패널이 아니다');
 });
 
 test('⑥ 뒤 테이블이 **상황실 한정으로** 콘솔 마감을 빌려 쓴다', () => {
@@ -253,19 +254,20 @@ test('⑪ 배치가 한 값도 바뀌지 않았다', () => {
   }
 });
 
-test('⑫ 조명·화각·벽 구성은 그대로 planned 다 — 상태도 planned 다', () => {
+test('⑫ 조명·화각은 그대로 planned 다 — 벽 구성만 PHASE 5-d.2 에서 생겼다', () => {
   assert.ok(isPlanned(D.lighting), '조명을 건드렸다 (PHASE 5-d.3)');
   assert.ok(isPlanned(D.camera), '화각을 건드렸다 (PHASE 5-d.4)');
-  assert.ok(isPlanned(D.wallTreatment), '벽 구성을 건드렸다 (PHASE 5-d.2)');
+  assert.equal(isPlanned(D.wallTreatment), false, '벽 구성은 PHASE 5-d.2 에서 실재한다');
+  assert.equal(D.wallTreatment, 'controlWalls');
   assert.ok(isPlanned(D.accessories));
   assert.equal(D.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
-  // 유리 파티션·흡음 패널은 정식 재질로는 있지만 **아직 어디에도 붙지 않는다**.
   assert.ok(MATERIAL_IDS.includes('glassPartition'));
   assert.ok(MATERIAL_IDS.includes('acousticPanel'));
+  // **유리는 방 껍데기(벽·바닥·걸레받이)에 붙지 않는다.** 유리는 방 안에 따로 서는 물건이라
+  //   벽 마감 해석기가 아니라 `control-walls.js` 계획이 자리를 정한다.
   const room = roomFinishForDesign(CR);
   for (const role of Object.keys(room)) {
-    assert.notEqual(room[role].canonical, 'glassPartition', `${role}: 유리를 미리 붙였다`);
-    assert.notEqual(room[role].canonical, 'acousticPanel', `${role}: 흡음 패널을 미리 붙였다`);
+    assert.notEqual(room[role].canonical, 'glassPartition', `${role}: 유리를 벽 마감으로 붙였다`);
   }
 });
 
