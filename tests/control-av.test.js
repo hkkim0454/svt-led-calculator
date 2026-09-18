@@ -226,6 +226,26 @@ test('⑫ 모니터가 운용자를 바라본다 — 180° 뒤집히지 않았�
     for (const m of av.monitors) assert.equal(m.rotY, (rotY + 180) % 360, `콘솔 ${rotY}°`);
     assert.equal(av.keyboards[0].rotY, rotY, `키보드는 콘솔과 같은 방향이어야 한다 (${rotY}°)`);
   }
+  // **방향만이 아니라 자리도 돌아야 한다.** 지금 배치는 전부 rotY 0 이라
+  //   회전을 무시해도 화면이 똑같다 — 그래서 여기서 자리까지 직접 고정한다(사양서 §7).
+  //   로컬 (dx, dz) → 월드: rotY 90° 면 로컬 좌우가 **월드 앞뒤**로 간다.
+  {
+    const c = { x: 5000, z: 3000, y: 0, rotY: 90, w: 1800, d: 900 };
+    const av = controlAVItems({ consoles: [c] });
+    const [a, b] = av.monitors;
+    assert.equal(a.x, b.x, 'rotY 90° 인데 짝이 좌우로 벌어졌다 — 회전을 무시했다');
+    assert.equal(a.x, c.x + MONITOR_LOCAL_Z, '모니터가 콘솔 로컬 앞뒤 축을 따라가지 않았다');
+    assert.equal(Math.abs(a.z - b.z), MONITOR_PAIR_SPAN, '짝 간격이 월드 앞뒤로 나오지 않았다');
+    assert.equal(a.z + b.z, 2 * c.z, '짝이 콘솔 중심을 기준으로 대칭이 아니다');
+    const k = av.keyboards[0];
+    assert.equal(k.z, c.z, 'rotY 90° 에서 키보드가 좌우로 치우쳤다');
+    assert.ok(k.x > c.x, '키보드가 운용자 쪽(로컬 +Z = 월드 +X)으로 가지 않았다');
+  }
+  {
+    const c = { x: 0, z: 0, y: 0, rotY: 180, w: 1800, d: 900 };
+    const k = controlAVItems({ consoles: [c] }).keyboards[0];
+    assert.ok(k.z < 0, 'rotY 180° 에서 키보드가 반대쪽으로 갔다 — 회전을 무시했다');
+  }
   // 배치가 주는 실제 콘솔(rotY 0)에서 화면은 +Z(운용자) 쪽을 본다.
   const { monitors, consoles, chairs } = control(16000, 14000, 3900);
   for (const m of monitors) assert.equal(m.rotY, 180);
