@@ -167,9 +167,12 @@ test('마감이 **다른 테이블로 새지 않는다** — 이름을 나눠 �
   }
   // 대기업은 테이블 마감이 아예 안 붙는다(팔레트에 그 색이 없다).
   assert.equal(tablePartFinishForDesign('corporateMeeting'), null);
-  // 임원은 제 부품만, 대회의실은 제 부품만.
+  // 임원은 제 부품만 — 범용(폴백) 테이블 부품을 빌려 가지 않는다(PHASE 4-d.5에서도 그대로).
   assert.deepEqual(Object.keys(tablePartFinishForDesign('executiveBoardroom')), [...TABLE_PARTS]);
-  assert.deepEqual(Object.keys(tablePartFinishForDesign(LC)), [...CONFERENCE_TABLE_PARTS]);
+  // 대회의실은 제 부품 + **범용 테이블 부품**이다(PHASE 4-d.5).
+  //   전용 자산이 못 읽는 모양(보트·사각형)에서 폴백 테이블이 같은 마감을 받게 하기 위해서다.
+  assert.deepEqual(Object.keys(tablePartFinishForDesign(LC)),
+    [...CONFERENCE_TABLE_PARTS, 'tableTop', 'tableBase', 'tableBeam']);
   assert.equal(glSrc.includes('mat.corporateTop'), true, '대기업 테이블 경로가 사라졌다');
   const body = glSrc.match(/function largeUTableMesh[\s\S]*?\n}\n/)[0];
   assert.ok(!/mat\.corporateTop|mat\.tableBase/.test(body), '대회의실이 남의 부품을 쓴다');
