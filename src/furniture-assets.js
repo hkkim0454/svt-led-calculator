@@ -19,8 +19,8 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=429';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=429';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=430';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=430';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -67,6 +67,8 @@ export const DIMS = Object.freeze({
   executiveChair: FURNITURE_CONTRACTS.executiveChair.dimensions,
   // 대회의실용 인체공학 의자(PHASE 4-a) — 여기서도 **치수의 기준은 계약**이다.
   conferenceErgoChair: FURNITURE_CONTRACTS.conferenceErgoChair.dimensions,
+  // 상황실 운용자 의자(PHASE 5-a) — 여기서도 **치수의 기준은 계약**이다.
+  taskChair: FURNITURE_CONTRACTS.taskChair.dimensions,
   // 강당 고정 객석 — 좌석고 440 / 폭 500 (좌석 피치 550과 맞물린다)
   auditoriumChair: Object.freeze({
     seatTop: 440, seatThk: 75, seatW: 500, seatD: 460,
@@ -615,6 +617,91 @@ export function createConferenceErgoChair() {
 }
 
 /**
+ * 상황실 운용자 의자 (PHASE 5-a).
+ * ─────────────────────────────────────────────────────────────────────────
+ * 앞의 세 의자를 줄여 놓은 것이 아니다. **등받이를 세우는 방식이 다르다.**
+ *   대기업(2-a) 메시를 사방에서 감싸는 테두리 판 + 어깨 가로대.
+ *   임원(3-a)   위로 갈수록 좁아지는 한 덩어리 껍데기 + 헤드레스트.
+ *   대회의(4-a) 가는 세로 레일 **두 개**가 메시를 양쪽에서 잡는다.
+ *   상황실(여기) **가운데 척추 하나**가 좌판 뒤에서 곧게 올라가고, 그 앞에 작은 메시가 걸린다.
+ *               옆이 트여 있고 뒤에서 보면 기둥 한 줄만 보인다 — 넷 중 가장 단순한 실루엣.
+ *
+ * 왜 그렇게 만드는가 — 상황실은 **콘솔에 바짝 붙어 앉는 좁은 열**이 여러 줄 겹친다.
+ *   뒤 열에서 보면 앞 열 의자의 등받이만 계속 보이므로, 등받이가 넓으면 화면이 막힌다.
+ *   그래서 뒤판도, 어깨 가로대도, 옆 레일도 두지 않는다. 부품 10개로 넷 중 가장 적다.
+ *
+ * 팔걸이는 **낮게** 둔다 — 콘솔 상판(DIMS.controlConsole.surfaceY = 730mm) 밑으로
+ *   들어가야 의자가 콘솔에 붙는다. 대회의(패드 윗면 647)보다 더 낮춘다.
+ *
+ * 치수는 전부 계약(FURNITURE_CONTRACTS.taskChair)에서 온다.
+ */
+// 대회의실 의자와 같은 이유의 여유(mm) — 둥글림이 도형을 사방·위로 밀어내므로 미리 뺀다.
+//   값을 따로 두는 것은 이 의자의 계약 봉투(620×630×1000)가 더 좁기 때문이다.
+//   위쪽 여유는 **짐작이 아니라 실측으로 정했다** — 6으로 두었더니 화면에서 1,007.2mm 로
+//   계약(1,000)을 7.2mm 넘었다(휜 메시의 둥글림이 위로도 밀어낸다). 14로 올려 999.2mm.
+export const TASK_BEVEL_MARGIN = 14;
+export const TASK_TOP_MARGIN = 14;
+
+export function createTaskChair() {
+  const S = DIMS.taskChair;
+  const seatThk = 62;                                 // 대회의(68)보다 얇다 — 단단한 업무용 좌판
+  const seatBottom = S.seatTop - seatThk;             // 388
+  const halfW = S.overallW / 2;                       // 310 — 이 선을 넘는 부품이 없어야 한다
+  const baseR = halfW - TASK_BEVEL_MARGIN;            // 296
+
+  // 5발 받침 — 대회의(311)보다 한 단 더 작고 다리도 가늘다.
+  const base = { legs: 5, reach: baseR, hubR: 52, hubH: 84, legW: 60, legH: 38, casterR: 25, casterH: 48 };
+  const baseH = base.casterH + base.hubH;             // 132
+
+  // 등받이 축 — 대회의(12°)보다 더 세운다. 콘솔 화면을 가까이서 보는 자세라 곧추앉는다.
+  const tilt = 11, rad = tilt * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const pivotY = S.seatTop + 22, pivotZ = S.seatD / 2 - 52;
+  const onAxis = (L, push = 0) => ({
+    y: pivotY + L * cos - push * sin,
+    dz: pivotZ + L * sin - push * cos,
+  });
+  // 꼭대기는 계약이 정한다 — 좌판 위 550mm(backAboveSeat)에서 끝나도록 역산한다.
+  const topL = (S.seatTop + S.backAboveSeat - TASK_TOP_MARGIN - pivotY) / cos;
+
+  // **가운데 척추** — 좌판 속(축 위 -30)에서 시작해 등받이 꼭대기 조금 아래까지 곧게 올라간다.
+  //   좌판에 묻혀 시작하므로 등받이가 허공에 뜨지 않는다(별도 브래킷이 필요 없다).
+  const spineBottomL = -30, spineTopL = topL - 30;
+  const spineH = spineTopL - spineBottomL;
+  const spine = onAxis((spineBottomL + spineTopL) / 2);
+
+  const meshW = 380;                                  // 좌판(470)보다 좁다 — 작은 메시 등받이
+  const meshBottomL = 96;                             // 허리 아래는 비운다(옆이 트여 보이게)
+  const meshH = topL - meshBottomL;
+  const mesh = onAxis(meshBottomL + meshH / 2, 12);    // 척추보다 12mm 앞
+
+  const armDx = 248;
+
+  return [
+    // ① 5발 캐스터 받침 — 조각 11개를 한 덩어리로(그리기 호출 1개).
+    star('chairCaster', baseH / 2, base),
+    // ② 가스 실린더. 네 의자 중 가장 가늘다.
+    cyl('chairColumn', 0, (baseH + seatBottom) / 2, 0, 32, seatBottom - baseH),
+    // ③ 좌판 아래 기구부 — 좌판이 기둥에 바로 꽂힌 것처럼 보이지 않게.
+    box('chairFrame', 0, seatBottom - 26, 6, 168, 50, 206, 0, { r: 20, mode: 'plan' }),
+    // ④ 좌판 — 얇고 작다. 앞쪽 끝만 부드럽게 말린다.
+    box('chairCushion', 0, seatBottom + seatThk / 2, 0, S.seatW, seatThk, S.seatD, 0, { r: 80, mode: 'plan' }),
+    // ⑤ **가운데 척추** — 이 의자의 정체성. 휘지도 둥글리지도 않는 각재 한 줄이다.
+    //    옆 레일(대회의)도 테두리 판(대기업)도 없어서, 등받이 양옆이 그대로 뚫려 보인다.
+    box('chairFrame', 0, spine.y, spine.dz, 92, spineH, 30, tilt),
+    // ⑥ 메시 등받이 — 척추 앞에 걸린 얇고 휜 면. **위에 가로대를 얹지 않는다.**
+    //    윗변을 넉넉히 둥글려 잘린 판이 아니라 마감된 등받이로 보이게 한다.
+    box('chairMesh', 0, mesh.y, mesh.dz, meshW, meshH, 14, tilt, { sag: 52, r: 22 }),
+    // ⑦⑧ 팔걸이 기둥 — 가늘고 짧게. 좁은 열에 여러 줄이 겹치므로 두꺼우면 화면이 막힌다.
+    box('chairFrame', -armDx, S.seatTop + 88, 44, 22, 164, 50),
+    box('chairFrame', armDx, S.seatTop + 88, 44, 22, 164, 50),
+    // ⑨⑩ 팔걸이 패드 — **콘솔 상판(730) 밑으로 들어가도록 낮게 둔다.**
+    box('chairArmPad', -armDx, S.seatTop + 170, -10, 50, 20, 206, 0, { r: 10, mode: 'plan' }),
+    box('chairArmPad', armDx, S.seatTop + 170, -10, 50, 20, 206, 0, { r: 10, mode: 'plan' }),
+  ];
+}
+
+/**
  * 임원 회의실 대형 U 테이블 (PHASE 3-b).
  * ─────────────────────────────────────────────────────────────────────────
  * **배치를 다시 계산하지 않는다.** 배치(room-presets의 U자 분기)는 상판을
@@ -1132,6 +1219,9 @@ export const FURNITURE_ASSETS = Object.freeze({
   executiveChair: { id: 'executiveChair', label: '임원 회의용 하이백 의자', instanced: true, sized: false, build: () => createExecutiveChair() },
   // PHASE 4-a — 대회의실용 인체공학 의자. 등록 한 줄로 라우터가 저절로 이것을 고른다.
   conferenceErgoChair: { id: 'conferenceErgoChair', label: '대회의실용 인체공학 의자', instanced: true, sized: false, build: () => createConferenceErgoChair() },
+  // PHASE 5-a — 상황실 운용자 의자. 등록 한 줄로 라우터가 저절로 이것을 고른다
+  //   (지금까지는 계약만 있어 기존 회의용 의자로 대신 그려졌다).
+  taskChair: { id: 'taskChair', label: '상황실 운용자 의자', instanced: true, sized: false, build: () => createTaskChair() },
   auditoriumChair: { id: 'auditoriumChair', label: '강당 고정 객석', instanced: true, sized: false, build: () => createAuditoriumChair() },
   trainingChair: { id: 'trainingChair', label: '강의용 의자', instanced: true, sized: false, build: () => createTrainingChair() },
   trainingDesk: { id: 'trainingDesk', label: '강의용 책상', instanced: true, sized: true, build: it => createTrainingDesk(it.w, it.d) },

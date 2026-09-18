@@ -168,7 +168,7 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '상황실 운용자 의자',
     category: 'chair',
     family: 'operatorTask',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 5,
     rooms: Object.freeze(['controlRoom']),
     instancing: 'instanced',
