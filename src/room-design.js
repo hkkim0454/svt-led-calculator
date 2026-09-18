@@ -228,12 +228,21 @@ export const ROOM_DESIGNS = Object.freeze({
       console: 'curvedConsole',                 // PHASE 5-b — 실제 도형이 생겼다
       av: Object.freeze(['consoleMonitor', 'keyboard']),   // PHASE 5-c — 실제 도형이 생겼다
     }),
-    palette: planned('controlPalette'),
+    palette: 'controlPalette',                 // PHASE 5-d.1 — 실제 팔레트가 생겼다
+    // **열쇠 이름은 마감 해석기가 읽는 것으로 맞춘다.** PHASE 5 이전 초안은 `console`·`equipment`
+    //   라고 적어 두었는데, 그 이름을 읽는 해석기가 하나도 없어서 값이 아무 데도 닿지 않는다.
+    //   `wall` 은 **도장 벽**이다 — 다크/흡음 구역은 벽 전체가 아니라 한쪽 구역이고,
+    //   그 형상은 PHASE 5-d.2(controlWalls)의 몫이다(계약 초안의 acousticPanel 은 거기서 쓴다).
     materials: Object.freeze({
-      floor: planned('carpetTileDark'),
-      wall: planned('acousticPanel'),
-      console: planned('neutralLaminate'),
-      equipment: planned('blackEquipment'),
+      floor: 'carpetTileDark',
+      wall: 'paintedWallWhite',
+      consoleTop: 'neutralLaminate',
+      consoleBase: 'darkGraphite',
+      // 뒤쪽 회의 테이블은 전용 자산이 아니라 기존 회의 테이블이 선다 —
+      //   콘솔 마감을 빌려 쓰게 해 같은 방의 가구로 읽히게 한다(GENERIC_TABLE_FINISH).
+      tableTop: 'neutralLaminate',
+      tableBase: 'darkGraphite',
+      chair: 'darkGraphite',
     }),
     wallTreatment: planned('controlWalls'),   // 한쪽 유리 파티션 + 한쪽 다크 패널
     lighting: planned('controlTechnical'),

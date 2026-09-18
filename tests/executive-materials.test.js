@@ -306,8 +306,9 @@ test('⑳ 어댑터 — 테이블 부품 마감을 실제로 갈아 끼우고, �
 
 test('㉑ 마감을 선언하지 않은 공간은 여전히 전부 null 이다', () => {
   for (const id of DESIGN_IDS) {
-    // 대회의실은 PHASE 4-d.1 에서 제 마감을 갖게 됐다(임원 것을 물려받은 것이 아니다).
-    if (id === 'corporateMeeting' || id === EX || id === 'largeConference') continue;
+    // 대회의실은 PHASE 4-d.1, 상황실은 PHASE 5-d.1 에서 **제** 마감을 갖게 됐다.
+    if (id === 'corporateMeeting' || id === EX || id === 'largeConference'
+      || id === 'controlRoom') continue;
     for (const fn of [roomFinishForDesign, credenzaFinishForDesign,
       floorPartFinishForDesign, tablePartFinishForDesign]) {
       assert.equal(fn(id), null, `${id}: ${fn.name} 가 null 이 아니다`);

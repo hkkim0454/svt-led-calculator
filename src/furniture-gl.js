@@ -15,21 +15,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=432';
-import { createMaterialLibrary } from './materials-gl.js?v=432';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=432';
-import { GRADE_COLORS } from './viewangle.js?v=432';
-import { createGeometryCache } from './geometry-gl.js?v=432';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=432';
+import { u } from './gl-model.js?v=433';
+import { createMaterialLibrary } from './materials-gl.js?v=433';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=433';
+import { GRADE_COLORS } from './viewangle.js?v=433';
+import { createGeometryCache } from './geometry-gl.js?v=433';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=433';
 import {
   credenzaFinishForDesign, avFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
-} from './design-finish.js?v=432';
+  consoleFinishForDesign,
+} from './design-finish.js?v=433';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=432';
+} from './furniture-assets.js?v=433';
 
 const DEG = Math.PI / 180;
 
@@ -421,7 +422,8 @@ export function buildFurnitureGroup(items, opts = {}) {
   //   자산 자체의 색을 바꾸면 그 공간들이 전부 같이 바뀐다. 디자인이 정한 공간에서만 갈아 끼운다.
   //   디자인이 마감을 정하지 않았으면 null이므로 아무 일도 일어나지 않는다.
   for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId),
-    tablePartFinishForDesign(designId), avFinishForDesign(designId)]) {
+    tablePartFinishForDesign(designId), avFinishForDesign(designId),
+    consoleFinishForDesign(designId)]) {
     if (!fin) continue;
     for (const [part, f] of Object.entries(fin)) {
       // 거칠기·금속성은 **부품 마감표가 정한 값을 그대로 나른다**(design-finish가 실어 보낸다).
