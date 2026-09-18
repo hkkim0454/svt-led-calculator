@@ -285,7 +285,7 @@ export const FURNITURE_CONTRACTS = Object.freeze({
     label: '상황실 곡선 콘솔 데스크',
     category: 'console',
     family: 'consoleDesk',
-    status: CONTRACT_STATUS.CONTRACT_READY,
+    status: CONTRACT_STATUS.IMPLEMENTED,
     phase: 5,
     rooms: Object.freeze(['controlRoom']),
     instancing: 'sized',

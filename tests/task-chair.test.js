@@ -323,10 +323,9 @@ test('⑳ 정식 재질 13종 그대로 — 새 부품 이름도, 새 재질도 
 
 // ── E. 범위 ─────────────────────────────────────────────────────────────────
 
-test('㉑ 상황실은 **의자만** 정했다 — 콘솔·AV·마감·조명·화각은 그대로 planned 다', () => {
+test('㉑ 상황실 AV·마감·조명·화각은 그대로 planned 다 (콘솔은 PHASE 5-b 에서 생겼다)', () => {
   const d = ROOM_DESIGNS.controlRoom;
   assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
-  assert.ok(isPlanned(d.furniture.console), '곡선 콘솔을 건드렸다 (PHASE 5-b)');
   for (const a of d.furniture.av) assert.ok(isPlanned(a), '콘솔 AV 를 건드렸다 (PHASE 5-c)');
   assert.ok(isPlanned(d.palette), '마감을 건드렸다 (PHASE 5-d.1)');
   for (const m of Object.values(d.materials)) assert.ok(isPlanned(m));
@@ -334,7 +333,7 @@ test('㉑ 상황실은 **의자만** 정했다 — 콘솔·AV·마감·조명·�
   assert.ok(isPlanned(d.lighting), '조명을 건드렸다 (PHASE 5-d.3)');
   assert.ok(isPlanned(d.camera), '화각을 건드렸다 (PHASE 5-d.4)');
   assert.ok(isPlanned(d.accessories));
-  for (const id of ['curvedConsole', 'consoleMonitor', 'keyboard']) {
+  for (const id of ['consoleMonitor', 'keyboard']) {
     assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, id);
     assert.equal(hasRuntimeFurnitureAsset(id), false, `${id}: 이번 단계에서 만들었다`);
   }
