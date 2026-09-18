@@ -15,21 +15,21 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=430';
-import { createMaterialLibrary } from './materials-gl.js?v=430';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=430';
-import { GRADE_COLORS } from './viewangle.js?v=430';
-import { createGeometryCache } from './geometry-gl.js?v=430';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=430';
+import { u } from './gl-model.js?v=431';
+import { createMaterialLibrary } from './materials-gl.js?v=431';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=431';
+import { GRADE_COLORS } from './viewangle.js?v=431';
+import { createGeometryCache } from './geometry-gl.js?v=431';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=431';
 import {
   credenzaFinishForDesign, avFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
-} from './design-finish.js?v=430';
+} from './design-finish.js?v=431';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=430';
+} from './furniture-assets.js?v=431';
 
 const DEG = Math.PI / 180;
 
@@ -71,6 +71,10 @@ function partGeometry(geoCache, part, detail) {
   const w = u(part.w), h = u(part.h), d = u(part.d);
   // 살짝 휜 판(등받이) → 모서리가 둥근 판 → 각진 상자 순으로 고른다.
   // 위로 갈수록 좁아지는 휜 판(하이백 등받이) — 폭이 높이에 따라 변하므로 전용 도형을 쓴다.
+  // 곡선 콘솔 상판(PHASE 5-b) — 평면 윤곽이 휘므로 전용 도형을 쓴다.
+  if (part.shape === 'curvedTop') {
+    return geoCache.curvedTop(w, d, h, { sag: u(part.sag || 0), detail });
+  }
   if (part.shape === 'taper') {
     return geoCache.taperedBack(u(part.wBottom), u(part.wTop), u(part.h), u(part.thk),
       { sag: u(part.sag || 0), detail });

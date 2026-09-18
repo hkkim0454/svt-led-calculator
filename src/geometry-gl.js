@@ -70,6 +70,41 @@ function arcBandShape(w, thk, sag, seg) {
 }
 
 /**
+ * 곡선 콘솔 상판의 윤곽(위에서 본 모양) — 상황실 운용자 데스크.
+ * ─────────────────────────────────────────────────────────────────────────
+ * `arcBandShape`(등받이)와 **같은 포물선 언어**를 쓴다. 다른 점은 두 가지다.
+ *   ① 띠의 폭이 '두께'가 아니라 **책상 깊이**다(사람이 앉아 쓰는 면).
+ *   ② 휘는 양(sag)을 **주어진 span 안에서** 쓴다 — 밖으로 더 부풀지 않는다.
+ *      배치가 정한 발자국(1800×900)을 180mm 넘겨 버리면 의자와의 여유가 조용히 줄어든다.
+ *      그래서 띠 폭 = span − sag 로 잡아, 휜 뒤의 전체 깊이가 정확히 span 이 되게 한다.
+ *
+ * 방향 — **운용자를 감싸듯** 휜다. 양 끝(날개)이 운용자 쪽으로 나오고 가운데가 물러난다.
+ *   `extrude` 뒤 `rotateX(-90°)`를 거치면 윤곽의 +y 가 월드 −z 가 되므로, 여기서는
+ *   운용자 모서리를 **−y 쪽**에 둔다(그래야 월드에서 +z = 운용자 쪽이 된다).
+ *
+ * @param w    가로(폭)
+ * @param span 앞뒤 전체 깊이(휜 것까지 포함한 값)
+ * @param sag  가운데가 물러나는 깊이
+ */
+function curvedDeskShape(w, span, sag, seg) {
+  const n = Math.max(8, seg * 4);
+  const band = span - sag;                                  // 띠 자체의 폭(책상 깊이)
+  const curve = t => sag * (1 - (2 * t - 1) ** 2);          // 가운데가 가장 깊은 포물선
+  const front = t => -span / 2 + curve(t);                  // 운용자 쪽 모서리
+  const s = new THREE.Shape();
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, x = -w / 2 + w * t, y = front(t);
+    if (i === 0) s.moveTo(x, y); else s.lineTo(x, y);
+  }
+  for (let i = n; i >= 0; i--) {
+    const t = i / n;
+    s.lineTo(-w / 2 + w * t, front(t) + band);              // 뒤(LED) 쪽 모서리 — 나란히 휜다
+  }
+  s.closePath();
+  return s;
+}
+
+/**
  * 보트형(배 모양) 상판 윤곽 — 가운데가 살짝 불룩한 회의 테이블.
  * 양 끝 폭은 그대로 두고 **가운데만** 부풀린다(사인 곡선). 부푸는 양은 명세가 정한다.
  *   과장하면 타원 식탁이 되고, 0이면 사각과 같다 — 실제 기업 회의 테이블은 4~8% 정도다.
@@ -398,6 +433,26 @@ export function createGeometryCache() {
       const key = `w|${w}|${d}|${thk}|${bulge}|${seg}|${detail}`;
       return take(key, () => {
         const geo = extrude(boatShape(w, d, bulge, seg), thk, thk * 0.3, dd);
+        geo.rotateX(-Math.PI / 2);   // 밀어낸 방향(두께)을 위아래로 눕힌다
+        return geo;
+      });
+    },
+
+    /**
+     * 곡선 콘솔 상판 — 상황실 운용자 데스크(PHASE 5-b).
+     * 캐시 열쇠 머리글자가 다른 도형과 겹치지 않는다(`v|`) — 특히 등받이 `arc`(a|)와
+     *   섞이면 의자 등받이가 콘솔 상판을 덮어쓴다.
+     * **완성 치수로 받는다** — 돌려주는 도형의 실제 크기가 정확히 w × thk × d 다.
+     *   경사(bevel)가 윤곽을 사방으로 밀어내므로 윤곽 자체는 미리 그만큼 줄여 만든다.
+     */
+    curvedTop(w, d, thk, { sag = 0, detail = 'high' } = {}) {
+      const dd = q(detail);
+      const key = `v|${w}|${d}|${thk}|${sag}|${detail}`;
+      return take(key, () => {
+        const b = Math.max(1e-5, Math.min(thk * 0.3, thk / 2 - 1e-5));
+        // 곡선 분할을 따로 올린다 — 1.8m 폭에 180mm 휨이라 기본 4분할이면 각져 보인다.
+        const fine = { ...dd, curve: Math.max(dd.curve, 12) };
+        const geo = extrude(curvedDeskShape(w - b * 2, d - b * 2, sag, fine.curve), thk, b, fine);
         geo.rotateX(-Math.PI / 2);   // 밀어낸 방향(두께)을 위아래로 눕힌다
         return geo;
       });

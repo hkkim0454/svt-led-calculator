@@ -19,8 +19,8 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=430';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=430';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=431';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=431';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -94,6 +94,8 @@ export const DIMS = Object.freeze({
   }),
   // 상황실 콘솔 / 교탁 — 이번 단계에서 형상을 바꾸지 않는다(기존 값 유지).
   controlConsole: Object.freeze({ surfaceY: 730, topThk: 50, monW: 760, monH: 440 }),
+  // 상황실 곡선 콘솔(PHASE 5-b) — **치수의 기준은 계약**이다. 여기서 다시 적지 않는다.
+  curvedConsole: FURNITURE_CONTRACTS.curvedConsole.dimensions,
   podium: Object.freeze({ w: 700, d: 500, h: 1080 }),
   // AV 수납장 — LED 벽 아래 낮은 수납장. 700 × 450mm(실제 AV 랙 수납장 치수).
   avCredenza: Object.freeze({ h: 700, d: 450, toeH: 80, topThk: 30, doorGap: 20 }),
@@ -146,6 +148,9 @@ const taper = (kind, dx, y, dz, wBottom, wTop, h, thk, tiltX, sag) => {
   if (tiltX) p.tiltX = tiltX;
   return p;
 };
+// 휜 평면의 판 — 곡선 콘솔 상판(PHASE 5-b). `sag`는 **평면에서** 가운데가 물러나는 깊이다
+//   (등받이의 `sag`는 세운 판이 휘는 양이라 방향이 다르다 — 그래서 shape 이름을 따로 둔다).
+const curvedTop = (kind, y, w, h, d, sag) => ({ kind, shape: 'curvedTop', dx: 0, y, dz: 0, w, h, d, sag });
 // 구 — 머리처럼 둥근 것에만 쓴다(저폴리 12×8 분할 하나를 공유한다).
 const sph = (kind, dx, y, dz, r) => ({ kind, shape: 'sph', dx, y, dz, r });
 
@@ -1197,6 +1202,53 @@ export function createControlConsole(w = 1800, d = 900) {
   return parts;
 }
 
+/**
+ * 상황실 곡선 콘솔 데스크 (PHASE 5-b).
+ * ─────────────────────────────────────────────────────────────────────────
+ * 기존 `createControlConsole`(직선 상자 + 모니터 2대)은 **그대로 둔다.** 이것은 별도 자산이다.
+ *
+ * 무엇이 다른가 — 세 가지다.
+ *   ① **상판이 휜다.** 평면에서 운용자를 감싸듯 휘어, 여러 대를 줄로 놓으면 호가 읽힌다.
+ *   ② **무릎 자리가 열린다.** 기존 콘솔은 1600×700 짜리 큰 통이 아래를 다 막고 있었다.
+ *      여기서는 얇은 옆 판 두 장 + 낮은 뒤 보뿐이라, 앉는 쪽이 그대로 뚫려 있다.
+ *   ③ **모니터가 들어 있지 않다.** 기존 콘솔은 모니터 2대가 형상에 박혀 있었다 —
+ *      콘솔은 가구이고 모니터는 AV 장비다. 콘솔 모니터·키보드는 PHASE 5-c 가 따로 놓는다.
+ *      그래서 이 단계 직후 상황실 모니터 수가 잠시 0이 되는 것은 **의도된 상태**다.
+ *
+ * 휘는 방향 — **양 끝(날개)이 운용자 쪽으로 나오고 가운데가 물러난다.**
+ *   계약의 정체성 문장("운용자를 감싸듯 휘어 있어")을 따른 것이다. 감싼다는 것은
+ *   날개가 사람 쪽으로 돌아온다는 뜻이고, 그래야 의자와의 여유도 줄지 않는다
+ *   (의자는 콘솔 **가운데** 뒤에 앉으므로, 가운데가 물러나면 여유가 늘어난다).
+ *
+ * 발자국 — 휜 뒤의 전체 깊이가 **정확히 배치가 준 깊이**다(1800 × 900).
+ *   상판을 900 깊이로 만든 뒤 180 더 부풀리면 발자국이 조용히 1,080이 된다.
+ *   배치(layoutControl)는 이 단계에서 동결이므로, 휨은 **발자국 안에서** 쓴다.
+ *
+ * 치수는 전부 계약(FURNITURE_CONTRACTS.curvedConsole)에서 온다.
+ */
+// 띠(책상면) 자체가 이보다 얇아지면 앉아서 쓸 수 없는 선반이 된다 — 휨을 그만큼만 준다.
+//   배치가 주는 900mm 에서는 걸리지 않는다(900 − 180 = 720). 더 얕은 콘솔을 위한 안전장치다.
+export const CONSOLE_MIN_BAND_DEPTH = 520;
+
+export function createCurvedConsole(w = 1800, d = 900) {
+  const S = DIMS.curvedConsole;
+  const under = S.surfaceY - S.topThk;                 // 상판 아랫면 = 690
+  const sag = Math.min(S.curveSagitta, Math.max(0, d - CONSOLE_MIN_BAND_DEPTH));
+  // 옆 판 — 상판 밑에 완전히 가려지는 자리에 세운다. 날개 쪽은 상판이 얕아지므로
+  //   판을 너무 바깥에 두면 상판 밖으로 발이 삐져나온다.
+  const panelDx = w / 2 - 140, panelD = d - 340, panelThk = 60;
+  return [
+    // ① 휜 상판 — 이음매 없는 한 덩어리. 윗면이 계약의 730mm 에 정확히 온다.
+    curvedTop('consoleTop', S.surfaceY - S.topThk / 2, w, S.topThk, d, sag),
+    // ②③ 옆 판 두 장 — 얇은 기술 패널. 서랍장이 아니라 판이라 아래가 비어 보인다.
+    box('consoleBase', -panelDx, under / 2, 20, panelThk, under, panelD),
+    box('consoleBase', panelDx, under / 2, 20, panelThk, under, panelD),
+    // ④ 뒤 배선 보 — 낮게. LED 쪽(−Z)에 붙여 두어 운용자 발 자리를 비운다.
+    //    상판의 뒤 모서리는 날개에서 가장 앞(−d/2+sag)이므로 그 안쪽에 둔다.
+    box('consoleBase', 0, 150, -(d / 2 - sag) - 55, w - 340, 90, 110),
+  ];
+}
+
 /** 교탁 — 이번 단계에서는 형상 변경 없음(기존 값 그대로). */
 export function createPodium() {
   const S = DIMS.podium;
@@ -1226,6 +1278,9 @@ export const FURNITURE_ASSETS = Object.freeze({
   trainingChair: { id: 'trainingChair', label: '강의용 의자', instanced: true, sized: false, build: () => createTrainingChair() },
   trainingDesk: { id: 'trainingDesk', label: '강의용 책상', instanced: true, sized: true, build: it => createTrainingDesk(it.w, it.d) },
   controlConsole: { id: 'controlConsole', label: '상황실 콘솔', instanced: true, sized: true, build: it => createControlConsole(it.w, it.d) },
+  // PHASE 5-b — 상황실 곡선 콘솔. 기존 직선 콘솔은 그대로 남는다(디자인이 없는 경로가 쓴다).
+  //   이 한 줄이 등록되는 순간 라우터는 고치지 않아도 상황실에서 이것을 고른다.
+  curvedConsole: { id: 'curvedConsole', label: '상황실 곡선 콘솔 데스크', instanced: true, sized: true, build: it => createCurvedConsole(it.w, it.d) },
   podium: { id: 'podium', label: '교탁', instanced: true, sized: false, build: () => createPodium() },
   avCredenza: { id: 'avCredenza', label: 'AV 수납장', instanced: true, sized: true, build: it => createAvCredenza(it.w, it.d) },
   highTable: { id: 'highTable', label: '하이 테이블', instanced: true, sized: true, build: it => createHighTable(it.w, it.d) },

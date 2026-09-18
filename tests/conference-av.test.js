@@ -356,8 +356,8 @@ test('㉖ 다른 용도의 방에는 AV 항목이 하나도 생기지 않는다'
 
 // ── E. 범위 ────────────────────────────────────────────────────────────────
 
-test('㉗㉘ 상황실 모니터·키보드·콘솔은 그대로 미구현이다 (의자는 PHASE 5-a 에서 생겼다)', () => {
-  for (const id of ['consoleMonitor', 'keyboard', 'curvedConsole']) {
+test('㉗㉘ 상황실 모니터·키보드는 그대로 미구현이다 (의자 5-a · 콘솔 5-b 에서 생겼다)', () => {
+  for (const id of ['consoleMonitor', 'keyboard']) {
     assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, id);
     assert.equal(hasRuntimeFurnitureAsset(id), false, id);
   }
