@@ -452,7 +452,12 @@ export function createGeometryCache() {
         const b = Math.max(1e-5, Math.min(thk * 0.3, thk / 2 - 1e-5));
         // 곡선 분할을 따로 올린다 — 1.8m 폭에 180mm 휨이라 기본 4분할이면 각져 보인다.
         const fine = { ...dd, curve: Math.max(dd.curve, 12) };
-        const geo = extrude(curvedDeskShape(w - b * 2, d - b * 2, sag, fine.curve), thk, b, fine);
+        // 경사(bevel)는 윤곽의 **법선 방향**으로 밀어낸다. 휜 모서리는 법선이 비스듬해서
+        //   앞뒤로 b 보다 조금 더 나간다(실측 +2mm). 끝점 기울기(4·sag/w)로 그만큼 더 줄인다 —
+        //   빼지 않으면 배치가 정한 발자국을 소리 없이 넘는다.
+        const slope = w > 0 ? (4 * sag) / w : 0;
+        const bz = b * Math.hypot(1, slope);
+        const geo = extrude(curvedDeskShape(w - b * 2, d - bz * 2, sag, fine.curve), thk, b, fine);
         geo.rotateX(-Math.PI / 2);   // 밀어낸 방향(두께)을 위아래로 눕힌다
         return geo;
       });
