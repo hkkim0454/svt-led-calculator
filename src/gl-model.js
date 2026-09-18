@@ -9,10 +9,10 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=428';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=428';
+import { floorFinishFor, moodFor } from './materials.js?v=429';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=429';
 
-import { cameraPlanForDesign } from './design-camera.js?v=428';
+import { cameraPlanForDesign } from './design-camera.js?v=429';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit

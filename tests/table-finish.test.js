@@ -219,8 +219,8 @@ test('㉘ 승급은 릴리스 게이트에서만 일어난다', () => {
   // PHASE 4-d.5 에서는 올리지 않았고, PHASE 4-e 릴리스 게이트를 통과한 뒤에 올렸다.
   assert.equal(ROOM_DESIGNS[LC].status, DESIGN_STATUS.READY, '대회의실은 4-e 통과로 ready');
   assert.equal(ROOM_DESIGNS[CO].status, DESIGN_STATUS.READY);
-  // 임원은 이번에 건드리지 않았다(4-e 사양서 §14 — 오너가 따로 정한다).
-  assert.equal(ROOM_DESIGNS[EX].status, DESIGN_STATUS.PLANNED);
+  // 임원은 PHASE 3-e 판정에 맞춰 별도 메타데이터 PR에서 동기화됐다.
+  assert.equal(ROOM_DESIGNS[EX].status, DESIGN_STATUS.READY);
 });
 
 test('㉙㉚ 계산기와 가격표 동작이 그대로다', () => {
