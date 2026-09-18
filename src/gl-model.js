@@ -152,7 +152,7 @@ function pointBounds(items, type) {
 function partitionsOf(space, design, items) {
   const plan = controlWallPlan({ W: space.W, D: space.D, H: space.H, design, items });
   return Object.freeze((plan.partitions || []).map(p => Object.freeze({
-    id: p.id, role: p.role, material: p.material, axis: p.axis,
+    id: p.id, role: p.role, material: p.material, finishRole: p.finishRole || null, axis: p.axis,
     x: u(p.x), y: u(p.y), z: u(p.z), w: u(p.w), d: u(p.d), h: u(p.h),
   })));
 }

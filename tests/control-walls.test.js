@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 
 import {
   controlWallPlan, wantsControlWalls, operatorZoneRight, halfWidthOf, partitionClearance,
-  GLASS_THK, GLASS_Z_FROM, GLASS_MIN_LENGTH, BRIEF_ZONE_MIN, BRIEF_ZONE_MAX,
+  GLASS_THK, GLASS_Z_FROM, GLASS_MIN_LENGTH, BRIEF_ZONE_MIN, BRIEF_ZONE_MAX, FRAME,
   OPERATOR_CLEAR, ACOUSTIC_WALL_SIDE, WALL_PLAN_IDS, CONTROL_WALL_PLAN, NON_OPERATION_TYPES,
 } from '../src/control-walls.js';
 import { FURNITURE, layoutRoom } from '../src/room-presets.js';
@@ -339,7 +339,9 @@ test('㉓ 3D 모델이 파티션을 m 단위로 싣는다 — 여기서 자리�
   const lay = layoutRoom('control', BASE, { W: 16000, D: 14000, design: CR });
   const led = { marginW: 1000, mount: 1000, w: 6000, h: 2000, depth: 60, cols: 4, rows: 4 };
   const m = buildGLModel({ space: { W: 16000, H: 3400, D: 14000 }, led, items: lay.items, design: CR, roomType: 'control' });
-  assert.equal(m.partitions.length, 1);
+  // 유리 1장 + 프레임 3개(바닥 트랙 · 상부 헤드레일 · 끝 포스트).
+  assert.deepEqual(m.partitions.map(p => p.id),
+    ['controlGlassPartition', 'controlGlassTrack', 'controlGlassHead', 'controlGlassPost']);
   const g = m.partitions[0];
   const mm = controlWallPlan({ W: 16000, D: 14000, H: 3400, design: CR, items: lay.items }).glass;
   for (const k of ['x', 'y', 'z', 'w', 'd', 'h']) {
@@ -369,17 +371,18 @@ test('㉕ 파티션은 벽 토글과 무관하다 — 오른쪽 벽을 몰래 �
   // 오른쪽 벽을 꺼도 파티션은 그대로 선다(벽을 대신하는 물건이 아니라는 뜻).
   const off = buildGLModel({ space: { W: 16000, H: 3400, D: 14000 }, led, items: lay.items, design: CR,
     roomType: 'control', show: { walls: { right: false, left: false } } });
-  assert.equal(off.partitions.length, 1);
+  assert.equal(off.partitions.length, 4);
 });
 
 test('㉖ 렌더러가 파티션을 벽이 아니라 별도 물건으로 세운다', () => {
   const s = src('render3d-gl.js');
   assert.ok(/for \(const part of model\.partitions/.test(s), '렌더러가 파티션을 읽지 않는다');
   // 벽 이름(wallRight)을 파티션 코드에서 건드리지 않는다.
-  const block = s.slice(s.indexOf('model.partitions'), s.indexOf('model.partitions') + 900);
+  const at = s.indexOf('for (const part of model.partitions');
+  const block = s.slice(at, at + 900);
   assert.equal(/wallRight|wallOn\.right/.test(block), false, '파티션이 오른쪽 벽을 대신하려 한다');
   // 그림자·그리기 순서는 재질이 정한 의미를 그대로 쓴다(숫자를 손으로 적지 않는다).
-  assert.ok(/mats\.semantics\(part\.material\)/.test(s), '재질 의미를 쓰지 않는다');
+  assert.ok(/mats\.semantics\(matName\)/.test(s), '재질 의미를 쓰지 않는다');
   assert.ok(/renderOrder = sem\.renderOrderHint/.test(s));
 });
 
@@ -418,4 +421,58 @@ test('㉚ 브리핑 구역 서술이 유리 오른쪽을 정확히 가리킨다'
   assert.equal(z.zTo, D);
   assert.equal(z.w, z.xTo - z.xFrom, '구역 폭이 실제 범위와 맞지 않는다');
   assert.ok(z.w >= BRIEF_ZONE_MIN - GLASS_THK);
+});
+
+
+// ── ⑧ 유리를 잡아 주는 프레임 ───────────────────────────────────────────────
+
+test('㉛ 프레임이 유리와 같은 자리에 선다 — 자리를 따로 정하지 않는다', () => {
+  const { plan } = scene(16000, 14000);
+  const g = plan.glass;
+  assert.equal(plan.frames.length, 3, '바닥 트랙 · 상부 헤드레일 · 끝 포스트 셋이어야 한다');
+  for (const f of plan.frames) {
+    assert.equal(f.x, g.x, `${f.id}: 유리와 다른 x 에 섰다`);
+    assert.equal(f.role, 'partitionFrame');
+    assert.equal(f.material, 'darkGraphite', '기존 재질이 아닌 것을 썼다');
+  }
+  const [track, head, post] = plan.frames;
+  assert.equal(track.y, 0, '바닥 트랙이 바닥에 있지 않다');
+  assert.equal(head.y + head.h, g.h, '헤드레일이 천장에 닿지 않는다');
+  assert.equal(track.d, g.d, '트랙 길이가 유리와 다르다');
+  assert.equal(post.h, g.h, '포스트가 바닥에서 천장까지 서지 않는다');
+  // 포스트는 **열린 쪽(LED 쪽) 끝**을 마감한다 — 거기가 브리핑 구역 출입구다.
+  assert.equal(post.z - post.d / 2, g.z - g.d / 2, '포스트가 유리 끝에 있지 않다');
+});
+
+test('㉜ 프레임 마감은 콘솔 하부에서 빌려 온다 — 새 색을 고르지 않는다', () => {
+  assert.equal(FRAME.finishRole, 'consoleBase');
+  const { plan } = scene(16000, 14000);
+  for (const f of plan.frames) assert.equal(f.finishRole, 'consoleBase');
+  // 렌더러도 그렇게 읽는다.
+  const s2 = src('render3d-gl.js');
+  assert.ok(/consoleFinishForDesign\(model\.design\)/.test(s2), '렌더러가 콘솔 마감을 빌려 오지 않는다');
+  assert.ok(/part\.finishRole \? conFin\?\.\[part\.finishRole\]/.test(s2));
+});
+
+test('㉝ 프레임도 가구와 겹치지 않는다', () => {
+  for (const [name, W, D] of ROOMS) {
+    const { lay, plan } = scene(W, D);
+    if (!plan.glass) continue;
+    for (const f of plan.frames) {
+      for (const it of lay.items) {
+        if (NON_OPERATION_TYPES.includes(it.type)) continue;
+        const half = halfWidthOf(it);
+        if (half === null) continue;
+        assert.ok(Math.abs(it.x - f.x) - half - f.w / 2 > 0,
+          `${name}: ${f.id} 가 ${it.type} 와 겹친다`);
+      }
+    }
+  }
+});
+
+test('㉞ 파티션이 없으면 프레임도 없다', () => {
+  const { plan } = scene(8000, 7000);
+  assert.equal(plan.glass, null);
+  assert.deepEqual([...plan.frames], []);
+  assert.deepEqual([...plan.partitions], []);
 });

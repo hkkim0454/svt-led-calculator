@@ -49,6 +49,27 @@ export function wantsControlWalls(designId) {
 export const GLASS_THK = 12;
 
 /**
+ * 유리를 잡아 주는 **프레임**(mm). 실제 사무용 시스템 파티션의 구성 그대로다.
+ *   바닥 트랙 · 상부 헤드레일 · 열린 쪽 끝을 마감하는 수직 포스트 세 가지다.
+ *
+ * 왜 필요한가 — 프레임 없이 유리만 세우면 **화면에서 읽히지 않는다.** 실측하면
+ *   아이소메트릭 시점에서 유리가 바꾸는 픽셀이 전체의 4%인데, 투명도 0.16에
+ *   밝은 벽을 배경으로 두어 눈으로는 구분되지 않았다. 유리를 진하게 만들거나
+ *   자리를 안쪽으로 당기면 읽히기야 하겠지만, 그것은 오너가 금지한 '과장'이다
+ *   (오너 지침 §5·§6). 실제 파티션에 있는 프레임을 세우는 쪽이 정직하다.
+ *
+ * 마감은 콘솔 하부와 같은 계열(짙은 그라파이트)이다. 실제 제품도 애노다이즈드
+ *   블랙 알루미늄이 표준이고, 방 안에서 콘솔과 한 덩어리로 읽혀야 튀지 않는다.
+ */
+export const FRAME = Object.freeze({
+  material: 'darkGraphite',
+  finishRole: 'consoleBase',   // 색은 그 공간 팔레트의 콘솔 하부 색을 따라간다
+  railH: 60,                   // 바닥 트랙 · 상부 헤드레일의 높이
+  railW: 40,                   // 그 폭(유리 두께보다 조금 넓다)
+  postW: 50,                   // 열린 쪽 끝 수직 포스트의 한 변
+});
+
+/**
  * 파티션 오른쪽에 남는 '브리핑 구역'의 폭 한계(mm).
  *   최소 = 통로 폭(`FURNITURE.aisleW`, 1,200mm). 사람이 지나갈 수 있는 최소 폭이다.
  *          이보다 좁으면 구역이 아니라 벽과 유리 사이의 틈일 뿐이라 파티션을 세우지 않는다.
@@ -129,7 +150,7 @@ export function operatorZoneRight(items = []) {
  */
 export function controlWallPlan({ W, D, H, design, items = [] } = {}) {
   const none = (notes = []) => Object.freeze({
-    designId: design || null, glass: null, partitions: Object.freeze([]),
+    designId: design || null, glass: null, frames: Object.freeze([]), partitions: Object.freeze([]),
     acousticSide: wantsControlWalls(design) ? ACOUSTIC_WALL_SIDE : null,
     zone: null, operatorRight: null, notes: Object.freeze(notes),
   });
@@ -165,10 +186,22 @@ export function controlWallPlan({ W, D, H, design, items = [] } = {}) {
     x, z: GLASS_Z_FROM + length / 2, y: 0,   // y = 0 = 바닥에서 시작한다
     w: GLASS_THK, d: length, h: H,           // 두께(X) · 길이(Z) · 높이(Y)
   });
+  // 프레임 — 유리와 **같은 자리**에 선다. 자리를 따로 정하지 않으므로 유리를 옮겨도 따라온다.
+  const frame = (id, y, w, d, h, dz = 0) => Object.freeze({
+    id, role: 'partitionFrame', material: FRAME.material, finishRole: FRAME.finishRole,
+    axis: 'z', x, z: glass.z + dz, y, w, d, h,
+  });
+  const frames = [
+    frame('controlGlassTrack', 0, FRAME.railW, length, FRAME.railH),                  // 바닥 트랙
+    frame('controlGlassHead', H - FRAME.railH, FRAME.railW, length, FRAME.railH),     // 상부 헤드레일
+    // 열린 쪽(LED 쪽) 끝을 마감하는 수직 포스트. 여기가 브리핑 구역의 출입구가 된다.
+    frame('controlGlassPost', 0, FRAME.postW, FRAME.postW, H, -(length - FRAME.postW) / 2),
+  ];
   return Object.freeze({
     designId: design,
     glass,
-    partitions: Object.freeze([glass]),
+    frames: Object.freeze(frames),
+    partitions: Object.freeze([glass, ...frames]),
     acousticSide: ACOUSTIC_WALL_SIDE,
     zone: Object.freeze({ xFrom: xFace + GLASS_THK, xTo: W, zFrom: GLASS_Z_FROM, zTo: D, w: strip - GLASS_THK }),
     operatorRight: right,

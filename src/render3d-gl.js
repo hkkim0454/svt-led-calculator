@@ -21,7 +21,7 @@ import { OrbitControls } from './vendor/three/OrbitControls.js';
 import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=434';
 import { createMaterialLibrary } from './materials-gl.js?v=434';
 import { MOODS } from './materials.js?v=434';
-import { roomFinishForDesign } from './design-finish.js?v=434';
+import { roomFinishForDesign, consoleFinishForDesign } from './design-finish.js?v=434';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
@@ -365,15 +365,20 @@ function buildRoomGroup(model, shared) {
   //    기본으로 꺼져 있는 오른쪽 벽을 억지로 켜서 대신 쓰지도 않는다(오너 지침 §1).
   //    자리·치수는 순수 계획 모듈이 이미 정해 두었다 — 여기서는 받아서 세우기만 한다.
   //    그림자·그리기 순서는 **재질이 정한 의미(semantics)**를 그대로 따른다.
+  //    프레임은 **콘솔 하부와 같은 마감**을 쓴다 — 여기서 색을 새로 고르지 않고
+  //    그 공간 팔레트가 이미 정한 색을 빌려 온다(정하지 않았으면 재질 기본색).
+  const conFin = consoleFinishForDesign(model.design);
   for (const part of model.partitions || []) {
-    const preset = mats.preset(part.material);
+    const borrowed = part.finishRole ? conFin?.[part.finishRole] : null;
+    const matName = borrowed?.material || part.material;
+    const color = borrowed?.color || mats.preset(part.material)?.color || '#cfd8e0';
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(part.w, part.h, part.d),
-      mats.get(part.material, preset?.color || '#cfd8e0'),
+      mats.get(matName, color),
     );
     mesh.position.set(part.x, part.y + part.h / 2, part.z);
     mesh.name = part.id;
-    const sem = mats.semantics(part.material);
+    const sem = mats.semantics(matName);
     // 불투명한 것들을 다 그린 뒤에 그린다 — 반투명은 그리기 순서가 곧 결과다.
     if (sem.renderClass === 'transparent') mesh.renderOrder = sem.renderOrderHint;
     // 아래에서 그림자 역할을 한 번에 지정할 때 이 값이 우선한다(유리는 그늘을 드리우지 않는다).
