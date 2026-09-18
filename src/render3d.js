@@ -18,8 +18,8 @@ import {
   buildScene, roomShellQuads, visibleWallSides, cabinetQuads, floorGridLines,
   viewCamera, projectPoint, cullAndSort, fitTransform, focusGain, toScreen, fitAnchors,
   cubeView, rotateCubeView, DEFAULT_CUBE_VIEW, clampView, VIEW_LIMITS, CUBE_VIEWS,
-} from './scene3d.js?v=434';
-import { furnitureGroups, footprint } from './furniture3d.js?v=434';
+} from './scene3d.js?v=435';
+import { furnitureGroups, footprint } from './furniture3d.js?v=435';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 공간은 '물리 다이어그램'이라 다크모드에서도 항상 밝은 톤으로 그린다(정면 뷰와 같은 원칙).

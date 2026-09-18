@@ -172,13 +172,13 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
   const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom'];
   assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), []);
-  // 상황실이 정한 것은 **가구 2종 + AV 2종 + 마감 + 벽 구성**이다. 조명·화각은 아직 planned 다.
+  // 상황실이 정한 것은 **가구 2종 + AV 2종 + 마감 + 벽 구성 + 조명**이다. 화각은 아직 planned 다.
   const ctrl = resolveDesign('controlRoom');
   assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(ctrl[f])),
     ['taskChair', 'curvedConsole', 'consoleMonitor', 'keyboard', 'controlPalette',
       'carpetTileDark', 'paintedWallWhite', 'acousticPanel', 'neutralLaminate', 'darkGraphite',
-      'neutralLaminate', 'darkGraphite', 'darkGraphite', 'controlWalls'],
-    '상황실이 가구·AV·마감·벽 구성 말고 다른 것까지 정했다 (조명·화각은 5-d.3~4 다)');
+      'neutralLaminate', 'darkGraphite', 'darkGraphite', 'controlWalls', 'controlTechnical'],
+    '상황실이 가구·AV·마감·벽 구성·조명 말고 다른 것까지 정했다 (화각은 5-d.4 다)');
   assert.equal(isNeutralDesign('controlRoom'), false, '상황실은 이제 의자를 정한다');
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
   // 대회의실은 가구·AV(4-a~4-c)와 마감(4-d.1)까지 정했다 — 조명·화각·벽 구성은 아직 planned 다.
@@ -240,7 +240,7 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   assert.deepEqual(applied.slice().sort(), [
     'acousticPanel', 'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileDark',
     'carpetTileLight', 'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
-    'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'controlWalls', 'corporateChair',
+    'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'controlTechnical', 'controlWalls', 'corporateChair',
     'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable', 'curvedConsole',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',

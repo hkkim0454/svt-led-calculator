@@ -374,13 +374,13 @@ test('⑱ 콘솔·의자·배치가 그대로다 — 이번 단계는 AV 단계�
   assert.equal(tables[0].z, 11600);
 });
 
-test('⑲ 상황실 조명·화각은 그대로 planned 다(벽 구성은 5-d.2 에서 생겼다)', () => {
+test('⑲ 상황실 화각은 그대로 planned 다(벽 구성은 5-d.2 에서 생겼다)', () => {
   const d = ROOM_DESIGNS.controlRoom;
   assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
   assert.equal(d.palette, 'controlPalette', '마감은 PHASE 5-d.1 에서 생겼다');
   for (const m of Object.values(d.materials)) assert.equal(isPlanned(m), false, '재질이 아직 planned 다');
   assert.equal(d.wallTreatment, 'controlWalls', '벽 구성은 PHASE 5-d.2 에서 생겼다');
-  assert.ok(isPlanned(d.lighting), '조명을 건드렸다 (PHASE 5-d.3)');
+  assert.equal(d.lighting, 'controlTechnical', '조명은 PHASE 5-d.3 에서 생겼다');
   assert.ok(isPlanned(d.camera), '화각을 건드렸다 (PHASE 5-d.4)');
   assert.ok(isPlanned(d.accessories));
   // 상황실 전용 마감표가 생기지 않았다(콘솔·AV 부품은 전역 마감을 그대로 쓴다).
