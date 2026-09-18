@@ -175,7 +175,9 @@ export const ROOM_DESIGNS = Object.freeze({
     label: '대회의실',
     roomType: 'meeting',
     layoutVariant: 'large-conference',
-    status: DESIGN_STATUS.PLANNED,
+    // PHASE 4-e 릴리스 게이트 통과(2026-09-18) — P0·P1 0건. 제품 UI에서 실제로 고를 수 있고
+    //   가구·AV·마감·조명·화각이 전부 붙었다. 남은 것은 P2 하나(가로 U자 상판 화면 점유)뿐이다.
+    status: DESIGN_STATUS.READY,
     phase: 4,
     furniture: Object.freeze({
       // PHASE 4-a — 의자만 실제로 만들었다. 맨 문자열 = 실제로 있다는 뜻이다.

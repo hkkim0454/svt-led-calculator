@@ -242,11 +242,16 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
       || lightingPreset(id) || CAMERA_PLAN_IDS.has(id),
       `${id} 는 실재하는 가구·재질·팔레트·조명·화각이어야 한다`);
   }
-  // 아직 구현 전인 3종은 planned 표시를 달고 있어야 한다(빈 껍데기가 아니라 '계획'이라는 뜻).
-  for (const id of ['executiveBoardroom', 'largeConference', 'controlRoom']) {
+  // 아직 구현 전인 것은 planned 표시를 달고 있어야 한다(빈 껍데기가 아니라 '계획'이라는 뜻).
+  //   대회의실은 PHASE 4-e 릴리스 게이트를 통과해 ready 가 됐다(2026-09-18).
+  //   **임원 회의실은 아직 planned 다** — 문서상으로는 PHASE 3-e에서 RELEASE READY 였지만
+  //   데이터가 따라가지 않았다. 고칠지는 오너가 따로 정한다(PHASE 4-e 사양서 §14).
+  for (const id of ['executiveBoardroom', 'controlRoom']) {
     assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.PLANNED, id);
     assert.ok(ROOM_DESIGNS[id].phase >= 3, `${id}: PHASE 3 이후 구현`);
   }
+  assert.equal(ROOM_DESIGNS.largeConference.status, DESIGN_STATUS.READY,
+    '대회의실은 PHASE 4-e 통과로 ready 다');
 });
 
 test('배치 — 디자인은 배치를 가로채지 않는다(주인은 언제나 용도)', () => {
