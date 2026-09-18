@@ -20,10 +20,10 @@
 //   V1을 위한 오너 승인 설계 결정이지 이미지에서 읽어낸 사실이 아니다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=435';
-import { FURNITURE } from './room-presets.js?v=435';
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=435';
-import { consoleMonitorSize, keyboardSize } from './control-av.js?v=435';
+import { roomDesign, isPlanned } from './room-design.js?v=436';
+import { FURNITURE } from './room-presets.js?v=436';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=436';
+import { consoleMonitorSize, keyboardSize } from './control-av.js?v=436';
 
 /**
  * 이 파일이 만드는 벽 구성 계획의 이름.

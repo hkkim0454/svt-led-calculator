@@ -231,9 +231,9 @@ test('⑰ 단 높이(tier Y)가 그대로다', () => {
   }
 });
 
-test('⑱ 화각은 아직 구현하지 않았다 — 상태도 승급하지 않았다', () => {
+test('⑱ 소품만 남았다 — 상태는 승급하지 않았다', () => {
   const d = ROOM_DESIGNS[CR];
-  assert.ok(isPlanned(d.camera), '화각을 건드렸다 (PHASE 5-d.4)');
+  assert.equal(d.camera, 'controlProposal', '화각은 PHASE 5-d.4 에서 생겼다');
   assert.ok(isPlanned(d.accessories));
   assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
 });
