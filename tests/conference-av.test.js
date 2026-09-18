@@ -356,10 +356,17 @@ test('㉖ 다른 용도의 방에는 AV 항목이 하나도 생기지 않는다'
 
 // ── E. 범위 ────────────────────────────────────────────────────────────────
 
-test('㉗㉘ 상황실 모니터·키보드는 그대로 미구현이다 (의자 5-a · 콘솔 5-b 에서 생겼다)', () => {
+test('㉗㉘ 상황실 AV 는 PHASE 5-c 에서 생겼다 — 대회의실 AV 와 섞이지 않는다', () => {
+  // 상황실 장비가 대회의실 배치에 새어 들어오지 않아야 한다(반대 방향도 마찬가지).
   for (const id of ['consoleMonitor', 'keyboard']) {
-    assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, id);
-    assert.equal(hasRuntimeFurnitureAsset(id), false, id);
+    assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.IMPLEMENTED, id);
+    assert.equal(hasRuntimeFurnitureAsset(id), true, id);
+  }
+  const res = layoutRoom('meeting', { ...defaultOptions('meeting'), seats: 24, tableShape: 'u' },
+    { W: 14000, D: 10000, design: 'largeConference' });
+  for (const it of res.items) {
+    assert.notEqual(it.asset, 'consoleMonitor', '대회의실에 상황실 모니터가 새어 들어갔다');
+    assert.notEqual(it.asset, 'keyboard', '대회의실에 키보드가 새어 들어갔다');
   }
 });
 

@@ -189,10 +189,10 @@ test('⑪ 라우터가 **고치지 않아도** 대회의실 의자를 고른다'
   assert.equal(resolveFurnitureForDesign({ type: 'chair' }, 'executiveBoardroom').runtimeAsset, 'executiveChair');
 });
 
-test('⑫ 상황실 모니터·키보드는 그대로 미구현이다 (운용자 의자는 PHASE 5-a 에서 생겼다)', () => {
-  for (const id of ['consoleMonitor', 'keyboard']) {
-    assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, `${id}: 상태가 바뀌었다`);
-    assert.equal(hasRuntimeFurnitureAsset(id), false, `${id}: 도형이 생겼다`);
+test('⑫ 상황실 자산은 PHASE 5-a~5-c 에서 전부 생겼다 (대회의실 자산과 섞이지 않는다)', () => {
+  for (const id of ['taskChair', 'curvedConsole', 'consoleMonitor', 'keyboard']) {
+    assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.IMPLEMENTED, `${id}: 상태가 되돌아갔다`);
+    assert.equal(hasRuntimeFurnitureAsset(id), true, `${id}: 도형이 사라졌다`);
   }
   // PHASE 4-b — 테이블은 실제로 생겼다. 대체 없이 제 자산으로 선다.
   const t = resolveFurnitureForDesign({ type: 'table' }, 'largeConference');

@@ -365,10 +365,10 @@ test('㉖ 라우터가 대회의실 테이블을 **대체 없이** 제 자산으
   assert.equal(assetKey({ type: 'table', asset: 'largeUTable' }), null, 'U 테이블은 묶음 대상이 아니다');
 });
 
-test('㉗ 상황실 AV 는 그대로 미구현이다(대회의실 AV 는 PHASE 4-c 에서 생겼다)', () => {
+test('㉗ 상황실 AV 는 PHASE 5-c 에서 생겼다 — 대회의실 AV 와 섞이지 않는다', () => {
   for (const id of ['consoleMonitor', 'keyboard']) {
-    assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, `${id}: 상태가 바뀌었다`);
-    assert.equal(hasRuntimeFurnitureAsset(id), false, `${id}: 도형이 생겼다`);
+    assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.IMPLEMENTED, `${id}: 상태가 되돌아갔다`);
+    assert.equal(hasRuntimeFurnitureAsset(id), true, `${id}: 도형이 사라졌다`);
   }
   const d = ROOM_DESIGNS.largeConference;
   assert.equal(d.furniture.table, 'largeUTable');
