@@ -102,6 +102,11 @@ export const MATERIAL_PRESETS = Object.freeze({
     roughness: 0.08, metalness: 0, normalScale: 0, tileMm: 0, texture: null,
     transparent: true,        // 어댑터가 transparent:true 로 만든다
     opacity: 0.16,            // 거의 비치는 유리. 파티션 너머가 보여야 한다
+    // 깊이 버퍼에 자기 깊이를 적지 않는다(depthTest 는 기본값 그대로 켜 둔다).
+    //   적으면 유리보다 **뒤에 있는 물건이 통째로 지워진다** — 반투명인데 뒤가 안 보이는
+    //   현상의 표준 원인이다. 이 표시를 단 재질은 지금 유리뿐이라 다른 반투명 재질
+    //   (바닥 격자·LED 번짐)은 한 값도 달라지지 않는다.
+    depthWrite: false,
     castsShadow: false,       // 유리가 바닥에 시커먼 그늘을 드리우면 안 된다
     receivesShadow: false,
     doubleSided: true,        // 양쪽에서 다 보인다
@@ -236,7 +241,7 @@ export function realWorldTileMm(name) {
 
 /** Three.js 재질 객체에 그대로 넘겨도 되는 값. */
 export const MATERIAL_PARAM_KEYS = Object.freeze([
-  'roughness', 'metalness', 'transparent', 'opacity', 'doubleSided',
+  'roughness', 'metalness', 'transparent', 'opacity', 'doubleSided', 'depthWrite',
 ]);
 
 /** 재질이 아니라 **물체**의 성질. 절대 Material 객체에 넣지 않는다. */
@@ -264,6 +269,8 @@ export function materialParams(name) {
     out.opacity = (typeof p.opacity === 'number') ? p.opacity : 1;
   }
   if (p.doubleSided === true) out.doubleSided = true;
+  // **표시한 재질에만** 실린다. 표시가 없으면 넣지 않아 Three.js 기본값(true)이 그대로 쓰인다.
+  if (p.depthWrite === false) out.depthWrite = false;
   return Object.freeze(out);
 }
 

@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=433';
-import { resolveMaterialId, finishForPart } from './materials.js?v=433';
+import { roomDesign, isPlanned } from './room-design.js?v=434';
+import { resolveMaterialId, finishForPart } from './materials.js?v=434';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -208,7 +208,11 @@ export const DESIGN_PALETTES = Object.freeze({
     floor: '#8d9095',        // 짙은 테크니컬 카펫 타일. 검정이 아니다 — 의자 실루엣이 살아야 한다
     wallFront: '#ebedef',    // LED가 붙는 정면 벽. 중성 그레이(회의실의 웜 오프화이트가 아니다)
     wallSide: '#e3e6e9',
-    wallAccent: '#dbdee2',   // 다크/흡음 구역은 **PHASE 5-d.2 의 몫**이다. 여기서는 도장 벽 한 단만.
+    // 왼쪽 벽 안쪽 면 = 흡음(다크) 구역(PHASE 5-d.2). 여기 하나만 어둡게 간다.
+    //   콘솔 하부(#343a41)보다는 확실히 밝게 둔다 — 같은 어둠이면 콘솔이 벽에 묻혀
+    //   형태가 사라진다(§6 '검정 위 검정' 금지). 바닥(#8d9095)보다는 어두워야
+    //   '벽면 흡음 마감'으로 읽힌다.
+    wallAccent: '#5a6068',
     baseboard: '#d2d6da',
     // 곡선 콘솔 — 이 두 자리가 '기업 관제실'의 인상을 만든다.
     consoleTop: '#d7dadd',   // 중성 테크니컬 라미네이트. 벽보다 한 단 어둡다

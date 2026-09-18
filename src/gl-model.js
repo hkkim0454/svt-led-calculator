@@ -9,10 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=433';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=433';
+import { floorFinishFor, moodFor } from './materials.js?v=434';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=434';
 
-import { cameraPlanForDesign } from './design-camera.js?v=433';
+import { cameraPlanForDesign } from './design-camera.js?v=434';
+import { controlWallPlan } from './control-walls.js?v=434';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -143,6 +144,19 @@ function pointBounds(items, type) {
   });
 }
 
+/**
+ * 방 안에 따로 서는 칸막이(유리 파티션). **자리와 치수는 여기서 정하지 않는다** —
+ *   순수 계획 모듈(control-walls.js)이 mm로 내 준 값을 단위만 바꿔 담는다.
+ *   상황실이 아니거나 세울 자리가 없으면 빈 목록이다(= 예전과 똑같이 아무것도 안 그린다).
+ */
+function partitionsOf(space, design, items) {
+  const plan = controlWallPlan({ W: space.W, D: space.D, H: space.H, design, items });
+  return Object.freeze((plan.partitions || []).map(p => Object.freeze({
+    id: p.id, role: p.role, material: p.material, axis: p.axis,
+    x: u(p.x), y: u(p.y), z: u(p.z), w: u(p.w), d: u(p.d), h: u(p.h),
+  })));
+}
+
 export function buildGLModel({ space, led, items, show, person, roomType, design, sideMonitors, ledImage, renderMode }) {
   // 벽 두께는 '방 바깥쪽'으로 붙인다 — 안쪽 치수(W×H×D)는 계산값 그대로여야 한다.
   const room = {
@@ -203,6 +217,8 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
       cols: Math.max(1, Math.round(led.cols) || 1),   // STEP 1에서는 아직 그리지 않는다
       rows: Math.max(1, Math.round(led.rows) || 1),   //   (다음 단계 캐비닛 격자용)
     },
+    // 방 안에 따로 서는 칸막이. 방 껍데기(벽)를 대신하지 않는다 — 벽 토글과 무관하다.
+    partitions: partitionsOf(space, design || null, items),
     stage: stageItem ? {
       x: u(stageItem.x), z: u(stageItem.z),
       w: u(stageItem.w), d: u(stageItem.d), h: u(stageItem.h || 280),

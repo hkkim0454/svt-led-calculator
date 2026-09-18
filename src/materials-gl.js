@@ -25,8 +25,8 @@
 import * as THREE from './vendor/three/three.module.min.js';
 import {
   tileRepeat, resolveMaterialId, materialPreset, materialParams, renderSemantics,
-} from './materials.js?v=433';
-import { MM_PER_UNIT } from './gl-model.js?v=433';
+} from './materials.js?v=434';
+import { MM_PER_UNIT } from './gl-model.js?v=434';
 
 const TEX_SIZE = 256;
 
@@ -133,6 +133,8 @@ export function createMaterialLibrary({ textureScale = 1 } = {}) {
     //   기존 재질은 예전과 완전히 같은 인자로 만들어진다(결과가 달라질 수 없다).
     if (prm.transparent) { base.transparent = true; base.opacity = prm.opacity; }
     if (prm.doubleSided) base.side = THREE.DoubleSide;
+    // 깊이 기록만 끈다. `depthTest` 는 손대지 않는다(기본값 true = 앞뒤 관계는 그대로 본다).
+    if (prm.depthWrite === false) base.depthWrite = false;
     // 호출한 쪽이 준 값(extra)이 마지막 — 벽처럼 면 방향을 직접 지정하는 경우가 있다.
     const m = new THREE.MeshStandardMaterial({ ...base, ...extra });
     const src = (p.normalScale * textureScale > 0) ? baseTex(p.texture) : null;

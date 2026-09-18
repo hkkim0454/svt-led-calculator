@@ -236,6 +236,11 @@ export const ROOM_DESIGNS = Object.freeze({
     materials: Object.freeze({
       floor: 'carpetTileDark',
       wall: 'paintedWallWhite',
+      // 왼쪽 벽의 **방 안쪽 면**만 흡음 패널로 바꾼다(PHASE 5-d.2, DEC-122).
+      //   임원 회의실이 쓰는 방식과 똑같다 — 새 벽 형상을 만들지 않고, 이미 있는
+      //   '포인트 벽' 자리의 재질만 갈아 끼운다. 어느 벽이 포인트인지는 방 좌표가
+      //   정하는 기존 동작(`ACCENT_WALL_SIDE` = 왼쪽)이라 여기서 바꾸지 않는다.
+      wallAccent: 'acousticPanel',
       consoleTop: 'neutralLaminate',
       consoleBase: 'darkGraphite',
       // 뒤쪽 회의 테이블은 전용 자산이 아니라 기존 회의 테이블이 선다 —
@@ -244,7 +249,9 @@ export const ROOM_DESIGNS = Object.freeze({
       tableBase: 'darkGraphite',
       chair: 'darkGraphite',
     }),
-    wallTreatment: planned('controlWalls'),   // 한쪽 유리 파티션 + 한쪽 다크 패널
+    // PHASE 5-d.2 에서 실제로 만들었다 — 오른쪽 유리 파티션 + 왼쪽 흡음(다크) 벽면.
+    //   자리와 치수는 `control-walls.js`(순수)가 방 크기와 배치에서 계산한다.
+    wallTreatment: 'controlWalls',
     lighting: planned('controlTechnical'),
     camera: planned('controlCamera'),
     accessories: planned('controlAccessories'),

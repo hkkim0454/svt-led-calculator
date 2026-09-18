@@ -18,16 +18,16 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=433';
-import { createMaterialLibrary } from './materials-gl.js?v=433';
-import { MOODS } from './materials.js?v=433';
-import { roomFinishForDesign } from './design-finish.js?v=433';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=434';
+import { createMaterialLibrary } from './materials-gl.js?v=434';
+import { MOODS } from './materials.js?v=434';
+import { roomFinishForDesign } from './design-finish.js?v=434';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
-} from './design-lighting.js?v=433';
-import { ledImageFit } from './led-image.js?v=433';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=433';
+} from './design-lighting.js?v=434';
+import { ledImageFit } from './led-image.js?v=434';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=434';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -35,7 +35,7 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=433';
+} from './gl-model.js?v=434';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -360,6 +360,27 @@ function buildRoomGroup(model, shared) {
   g.add(ceiling);
   g.userData.ceiling = ceiling;
 
+  // ④‴ 방 안 칸막이(유리 파티션) — **벽이 아니다.**
+  //    방 껍데기를 대신하지 않으므로 벽 켜기·끄기(`show.walls`)와 아무 관계가 없고,
+  //    기본으로 꺼져 있는 오른쪽 벽을 억지로 켜서 대신 쓰지도 않는다(오너 지침 §1).
+  //    자리·치수는 순수 계획 모듈이 이미 정해 두었다 — 여기서는 받아서 세우기만 한다.
+  //    그림자·그리기 순서는 **재질이 정한 의미(semantics)**를 그대로 따른다.
+  for (const part of model.partitions || []) {
+    const preset = mats.preset(part.material);
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(part.w, part.h, part.d),
+      mats.get(part.material, preset?.color || '#cfd8e0'),
+    );
+    mesh.position.set(part.x, part.y + part.h / 2, part.z);
+    mesh.name = part.id;
+    const sem = mats.semantics(part.material);
+    // 불투명한 것들을 다 그린 뒤에 그린다 — 반투명은 그리기 순서가 곧 결과다.
+    if (sem.renderClass === 'transparent') mesh.renderOrder = sem.renderOrderHint;
+    // 아래에서 그림자 역할을 한 번에 지정할 때 이 값이 우선한다(유리는 그늘을 드리우지 않는다).
+    mesh.userData.shadow = { cast: sem.castsShadow, receive: sem.receivesShadow };
+    g.add(mesh);
+  }
+
   // ⑤ LED — 벽에서 캐비닛 깊이만큼 튀어나온 상자 + 그 앞면에 붙는 화면.
   //    상자와 화면을 나누면 옆면(두께)과 화면 색을 따로 줄 수 있다.
   const ledGroup = new THREE.Group();
@@ -492,10 +513,13 @@ function buildRoomGroup(model, shared) {
   //   가구·무대·LED 상자는 바닥에 접촉 그림자를 만들고, 바닥·벽은 그림자를 받는다.
   const NO_CAST = new Set(['ceiling', 'floorGrid', 'floor', 'wallFront', 'wallBack', 'wallLeft', 'wallRight']);
   const NO_RECEIVE = new Set(['ceiling', 'floorGrid']);
+  //   재질이 "이 물건은 그림자를 만들지 않는다"고 정해 둔 경우(유리)는 그 뜻이 우선한다.
+  //   그런 표시가 없는 물건은 예전과 **글자 그대로 같은 값**을 받는다.
   g.traverse(o => {
     if (!o.isMesh && !o.isInstancedMesh) return;
-    o.castShadow = rmode.shadows && !NO_CAST.has(o.name);
-    o.receiveShadow = rmode.shadows && !NO_RECEIVE.has(o.name);
+    const own = o.userData?.shadow;
+    o.castShadow = rmode.shadows && !NO_CAST.has(o.name) && (own ? own.cast : true);
+    o.receiveShadow = rmode.shadows && !NO_RECEIVE.has(o.name) && (own ? own.receive : true);
   });
 
   return g;
