@@ -73,6 +73,7 @@
 - **Documentation**: `/docs`
 - **Tests**: `/tests`
 - **Generated Artifacts**: `/dist` 또는 `/outputs`
+- **Agent Instructions**: `CLAUDE.md`(프로젝트 지침) · `.claude/output-styles/`(한국어 작성 지침 본문 — DEC-120)
 - **Structure Rules**: 계산 엔진(engine)·모델 데이터(JSON)·UI를 분리한다. 스펙 데이터는 코드에 하드코딩하지 않는다.
 
 ## Constraints and Assumptions
@@ -111,6 +112,7 @@
 | Reverse Engineering | No | N/A | INCEPTION | Greenfield, 기존 코드 없음 |
 | PDF / Excel Export | Yes | 산출물 | CONSTRUCTION(예정) | 삼성 도구 동일 기능 참조 |
 | Model Data Import | Yes | JSON | CONSTRUCTION(예정) | 데이터시트 실측값 반영용 |
+| 한국어 작성 지침(fluent-korean) | Yes | output-style 본문 + `CLAUDE.md` §6 참조 | INCEPTION(2026-09-18) | 상류 [snflkd/fluent-korean](https://github.com/snflkd/fluent-korean)(MIT) 중 코딩 지침 유지 변형. 본문은 `.claude/output-styles/fluent-korean.md` 한 곳에만 둔다(DEC-120) |
 
 ## Stage Progress
 

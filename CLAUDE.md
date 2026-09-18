@@ -97,6 +97,17 @@ docs/           SPEC.md, aidlc-state.md, audit.md.
 - **Claude 디자인에 줄 프롬프트를 상황에 맞게 제안한다:** (1) 전체 코드를 파일별·생략 없이 받기, (2) "`id`/`data-*` 속성의 이름·위치 유지, 모양만 변경", (3) 현재 파일을 기준으로 수정하도록 최신본을 함께 제공(충돌 최소화).
 - 오너가 GitHub 웹에서 직접 올리려는 경우(방법 B)엔 파일 열기→수정→저장을 클릭 단위로 안내한다.
 
+### 6. 한국어 작성 지침 (fluent-korean, 2026-09-18)
+
+이 저장소에서 출력하는 한국어는 아래 지침을 따른다. 규칙 본문은 `.claude/output-styles/fluent-korean.md` 한 곳에만 두며, 수정도 그 파일에서 한다.
+
+@.claude/output-styles/fluent-korean.md
+
+- 출처는 [snflkd/fluent-korean](https://github.com/snflkd/fluent-korean)(MIT)이다. 코딩 지침을 유지하는 `fluent-korean` 변형을 사용한다.
+- 파일 말미의 '이 저장소에서 추가한 사항' 단락은 오너 상황에 맞춰 덧붙인 선택 조항이다. 원본을 갱신할 때는 원본 부분만 교체하고 이 단락은 유지한다.
+- 코드·주석·커밋 메시지·변수명에는 적용하지 않으며, 기존 관례를 따른다.
+- 이 저장소 밖(클로드 웹·앱 채팅 등)에도 적용하려면 같은 파일 본문을 개인 지침에 붙여넣으면 된다.
+
 ## 다음 작업 (오너 결정 후)
 
 1. SPEC §4 결정 반영 (Q1 충진 규칙 확정 → engine.js `fitCabinets`, Q2 범위, BOM 규칙 → `bom()`).
