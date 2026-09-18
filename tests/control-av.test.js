@@ -128,6 +128,11 @@ test('⑤ 모니터 형상이 계약대로다 — 27인치 · 받침 160 · 기�
   assert.ok(STAND_D <= CM.footprint.d, `받침 깊이 ${STAND_D} > 계약 ${CM.footprint.d}`);
   // **두 번째 모니터 틀을 만들지 않았다** — 개인 모니터와 부품 구성이 같다.
   assert.deepEqual([...new Set(createPersonalMonitor().map(p => p.kind))].sort(), kinds);
+  // 둥글림이 계약 발자국을 밀어내지 않는다. 27인치 패널(625.7)에 계약 여유가 4.3mm 뿐이라
+  //   둥글림이 크면 화면 실측이 630을 넘는다(실제로 r=10 일 때 634.7 이 나왔다).
+  assert.ok(body.r <= 5, `본체 둥글림 ${body.r} — 계약 발자국을 넘긴다`);
+  assert.ok(M.panelW + body.r * 2 <= CM.footprint.w + 1,
+    `본체 폭 ${(M.panelW + body.r * 2).toFixed(1)} > 계약 ${CM.footprint.w}`);
 });
 
 test('⑥ 키보드 형상이 계약대로다 — 얇은 판 하나', () => {
@@ -137,6 +142,10 @@ test('⑥ 키보드 형상이 계약대로다 — 얇은 판 하나', () => {
   assert.equal(p.w, K.w); assert.equal(p.d, K.d); assert.equal(p.h, K.h);
   assert.equal(p.y - p.h / 2, 0, '키보드가 상판에서 뜨거나 파고든다');
   assert.ok(p.h <= 30, '키보드가 두껍다');
+  // **둥글리지 않는다** — 계약 치수가 곧 발자국이라 여유가 0이고, 둥글리면 넘친다(실측 445.4).
+  //   제안서 거리에서 보이지도 않으면서 삼각형만 236 → 12 로 차이가 난다.
+  assert.equal(p.r, undefined, '키보드를 둥글렸다 — 계약 발자국을 넘긴다');
+  assert.equal(p.shape, 'box');
 });
 
 test('⑦ 키보드 마감에 **색이 있다** — 없으면 화면에서 하얗게 뜬다', () => {

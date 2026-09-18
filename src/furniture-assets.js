@@ -1066,7 +1066,10 @@ export function createConsoleMonitor() {
     // ② 받침 목 — 가늘게. 두꺼우면 게이밍 스탠드처럼 보인다(계약이 금지한 인상).
     box('monitorStand', 0, B.h + (S.standH - B.h) / 2, 0, B.neckW, S.standH - B.h, B.neckD),
     // ③ 본체 — 계약이 정한 10° 만큼 뒤로 눕는다.
-    box('monitorBody', 0, bodyY, 0, S.panelW, S.panelH, S.depth, S.tiltDeg, { r: 10, mode: 'face' }),
+    //    **둥글림을 개인 모니터(10)보다 작게 잡는다.** 27인치 패널(625.7)은 계약 발자국(630)에
+    //    여유가 4.3mm 뿐이라, 10으로 두면 둥글림이 사방으로 밀어내 화면 실측이 634.7 로 넘친다.
+    //    패널 크기를 줄여 맞추는 것은 가짜 스펙이므로, 줄이는 것은 **둥글림 쪽**이다.
+    box('monitorBody', 0, bodyY, 0, S.panelW, S.panelH, S.depth, S.tiltDeg, { r: 4, mode: 'face' }),
     // ④ 화면 — 꺼진 화면이다. 밝게 빛나면 LED가 주인공 자리를 잃는다(오너 지침 §11).
     box('screen', 0, scr.y, scr.dz, S.screenW, S.screenH, SCREEN_THK, S.tiltDeg),
   ];
@@ -1084,7 +1087,10 @@ const CONSOLE_MONITOR_BASE = Object.freeze({ w: 260, d: 200, h: 18, neckW: 72, n
  */
 export function createKeyboard() {
   const S = keyboardSize();
-  return [box('keyboardBody', 0, S.h / 2, 0, S.w, S.h, S.d, 0, { r: 6, mode: 'plan' })];
+  // **둥글리지 않는다.** 계약 치수(440×150)가 곧 발자국이라 여유가 0이고, 둥글림은 도형을
+  //   사방으로 밀어내 계약을 넘긴다(실측 445.4). 게다가 제안서 거리에서는 보이지도 않으면서
+  //   삼각형만 236개로 늘어난다 — 각진 판 하나면 12개다.
+  return [box('keyboardBody', 0, S.h / 2, 0, S.w, S.h, S.d)];
 }
 
 /**
