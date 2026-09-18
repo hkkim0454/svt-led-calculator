@@ -62,7 +62,8 @@ test('③④⑤⑥ 보트·사각형(범용 폴백)도 **같은 마감**을 받�
 });
 
 test('빌려 쓰는 디자인은 대회의실 하나뿐이다 — 대기업·임원 폴백은 예전 그대로', () => {
-  assert.deepEqual(Object.keys(GENERIC_TABLE_FINISH), [LC]);
+  // PHASE 5-d.1 에서 상황실이 더해졌다 — 뒤쪽 회의 테이블이 콘솔 마감을 빌려 쓴다.
+  assert.deepEqual(Object.keys(GENERIC_TABLE_FINISH), [LC, 'controlRoom']);
   // 대기업은 테이블 마감이 아예 안 붙는다(팔레트에 그 색이 없다).
   assert.equal(tablePartFinishForDesign(CO), null);
   // 임원은 **제 부품만** — 범용 부품을 빌려 가지 않는다(§19 폴백 모습 동결).
@@ -71,9 +72,15 @@ test('빌려 쓰는 디자인은 대회의실 하나뿐이다 — 대기업·임
     assert.equal(tablePartFinishForDesign(EX)[part], undefined, `임원이 ${part} 를 가져갔다`);
   }
   // 디자인이 없는 경우에도 아무 일도 없다.
-  for (const id of [null, undefined, '', '없는디자인', 'controlRoom']) {
+  for (const id of [null, undefined, '', '없는디자인']) {
     const f = tablePartFinishForDesign(id);
     if (f) for (const part of GENERIC_TABLE_PARTS) assert.equal(f[part], undefined, String(id));
+  }
+  // 상황실은 반대로 **범용 부품만** 가져간다 — 제 전용 테이블 부품은 없다(전용 자산이 없다).
+  const ctrl = tablePartFinishForDesign('controlRoom');
+  assert.deepEqual(Object.keys(ctrl), [...GENERIC_TABLE_PARTS]);
+  for (const part of [...TABLE_PARTS, ...CONFERENCE_TABLE_PARTS]) {
+    assert.equal(ctrl[part], undefined, `상황실이 ${part} 를 가져갔다`);
   }
 });
 

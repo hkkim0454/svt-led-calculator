@@ -322,7 +322,8 @@ test('㉑㉒㉓㉔ 대기업·임원 마감이 한 값도 바뀌지 않았다', 
 
 test('㉕ 마감을 선언하지 않은 공간으로 새지 않는다', () => {
   for (const id of DESIGN_IDS) {
-    if (['corporateMeeting', 'executiveBoardroom', LC].includes(id)) continue;
+    // 상황실은 PHASE 5-d.1 에서 제 마감을 갖게 됐다(대회의실 것을 물려받은 것이 아니다).
+    if (['corporateMeeting', 'executiveBoardroom', LC, 'controlRoom'].includes(id)) continue;
     for (const fn of [roomFinishForDesign, credenzaFinishForDesign,
       floorPartFinishForDesign, tablePartFinishForDesign, avFinishForDesign]) {
       assert.equal(fn(id), null, `${id}: ${fn.name}`);

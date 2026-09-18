@@ -340,11 +340,11 @@ test('㉑ 정식 재질 13종 그대로 — 새 부품 이름도, 새 재질도 
 
 // ── E. 범위 ─────────────────────────────────────────────────────────────────
 
-test('㉒ 상황실 마감·조명·화각은 그대로 planned 다', () => {
+test('㉒ 상황실 벽 구성·조명·화각은 그대로 planned 다', () => {
   const d = ROOM_DESIGNS.controlRoom;
   assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
-  assert.ok(isPlanned(d.palette), '마감을 건드렸다 (PHASE 5-d.1)');
-  for (const m of Object.values(d.materials)) assert.ok(isPlanned(m));
+  assert.equal(d.palette, 'controlPalette', '마감은 PHASE 5-d.1 에서 생겼다');
+  for (const m of Object.values(d.materials)) assert.equal(isPlanned(m), false, '재질이 아직 planned 다');
   assert.ok(isPlanned(d.wallTreatment), '벽 구성을 건드렸다 (PHASE 5-d.2)');
   assert.ok(isPlanned(d.lighting), '조명을 건드렸다 (PHASE 5-d.3)');
   assert.ok(isPlanned(d.camera), '화각을 건드렸다 (PHASE 5-d.4)');

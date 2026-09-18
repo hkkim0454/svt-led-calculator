@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=432';
-import { resolveMaterialId, finishForPart } from './materials.js?v=432';
+import { roomDesign, isPlanned } from './room-design.js?v=433';
+import { resolveMaterialId, finishForPart } from './materials.js?v=433';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -53,6 +53,14 @@ export const CONFERENCE_TABLE_PARTS = Object.freeze(['conferenceTop', 'conferenc
 
 /** 마감이 붙는 테이블 부품 전부. **어느 공간에 붙는지는 팔레트가 정한다**(색이 없으면 안 붙는다). */
 export const ALL_TABLE_PARTS = Object.freeze([...TABLE_PARTS, ...CONFERENCE_TABLE_PARTS]);
+
+/**
+ * 상황실 곡선 콘솔의 부품(PHASE 5-d.1). 이름이 다른 공간과 겹치지 않는 것은 같은 이유다 —
+ *   겹치면 상황실 마감을 정하는 순간 다른 공간의 가구까지 따라 바뀐다.
+ *   **PHASE 5-b 까지 이 두 이름은 어느 마감표에도 없어서** 옛 대응표(woodTable·metalFrame)로 떨어졌다.
+ *   그 결과 상판이 거의 흰색(#f3f6f9), 하부가 밝은 청회색 금속(#9ba6b4)이었다 — 실측으로 확인.
+ */
+export const CONSOLE_PARTS = Object.freeze(['consoleTop', 'consoleBase']);
 
 /**
  * AV 장비에서 마감이 붙는 부품(PHASE 4-d.1).
@@ -171,6 +179,42 @@ export const DESIGN_PALETTES = Object.freeze({
     // 러그 — Reference는 전체 카펫이다. 바닥과 거의 같은 톤으로 두어 구역을 가르지 않게 한다.
     rug: '#c4c5c3',
   }),
+
+  /**
+   * **상황실 — 차분한 테크니컬 그레이.** (PHASE 5-d.1)
+   *
+   * 회의실 3종과 무엇이 다른가 — **밝기의 방향**이다.
+   *   회의실은 벽·바닥·상판이 모두 밝은 오프화이트 계열이고, 장비가 그 위에 얹힌다.
+   *   상황실은 **바닥이 확실히 내려간다**(카펫 타일 어두움). 하루 종일 화면을 보는 방이라
+   *   바닥이 밝으면 시선이 아래로 끌리고, 무엇보다 **LED와 콘솔 화면이 묻힌다.**
+   *
+   * 그렇다고 어둡게 만들지 않는다(§6).
+   *   · 벽·천장은 여전히 밝다 — 새까만 방은 관제실이 아니라 영화 세트다.
+   *   · 바닥도 **검정이 아니라 짙은 회색**이다. 검정으로 내리면 의자 실루엣이 바닥에 먹힌다
+   *     (의자 프레임이 #3a3e44 다 — 바닥이 그보다 어두우면 다리가 사라진다).
+   *   · 파랑·청록 기를 넣지 않는다. 그 순간 게이밍/네온 NOC 이 된다.
+   *
+   *   대회의실 → 상황실 (같은 자리끼리)
+   *     바닥   #c0c1c0 → #8d9095   **세 단 아래**. 이 한 자리가 상황실의 정체성이다
+   *     정면벽 #f3f1ed → #ebedef   웜 오프화이트 → 중성 그레이(따뜻한 기를 뺀다)
+   *     상판   #e2ddd1 → #d7dadd   나무결 애시 → **중성 테크니컬 라미네이트**
+   *
+   * 콘솔 상·하부는 이 공간의 인상을 만드는 두 자리다.
+   *   상판은 벽보다 **한 단 어둡게** 둔다 — 1.8m 상판이 8대 깔리므로 벽보다 밝으면 방이 뒤집힌다.
+   *   하부는 짙은 그라파이트. 의자와 같은 계열이라 **콘솔과 의자가 한 덩어리로 읽힌다**(§6).
+   */
+  controlPalette: Object.freeze({
+    id: 'controlPalette', label: '상황실 테크니컬 그레이 마감',
+    floor: '#8d9095',        // 짙은 테크니컬 카펫 타일. 검정이 아니다 — 의자 실루엣이 살아야 한다
+    wallFront: '#ebedef',    // LED가 붙는 정면 벽. 중성 그레이(회의실의 웜 오프화이트가 아니다)
+    wallSide: '#e3e6e9',
+    wallAccent: '#dbdee2',   // 다크/흡음 구역은 **PHASE 5-d.2 의 몫**이다. 여기서는 도장 벽 한 단만.
+    baseboard: '#d2d6da',
+    // 곡선 콘솔 — 이 두 자리가 '기업 관제실'의 인상을 만든다.
+    consoleTop: '#d7dadd',   // 중성 테크니컬 라미네이트. 벽보다 한 단 어둡다
+    consoleBase: '#343a41',  // 짙은 그라파이트. 의자와 같은 계열 = 한 덩어리로 읽힌다
+    // 러그는 상황실 배치에 없다(layoutControl 이 깔지 않는다) — 색을 두지 않는다.
+  }),
 });
 
 /** 팔레트 이름 → 색 묶음. 모르는 이름이면 null. */
@@ -277,10 +321,50 @@ export const GENERIC_TABLE_FINISH = Object.freeze({
     tableBase: 'conferenceBase',
     tableBeam: 'conferenceBase',   // 받침을 잇는 보. 하부와 같은 계열이어야 한 덩어리로 읽힌다
   }),
+  // 상황실 뒤쪽 회의 테이블(PHASE 5-d.1) — 전용 자산이 아니라 **기존 회의 테이블**이 선다.
+  //   콘솔 마감을 그대로 빌려 와야 '같은 방의 가구'로 읽힌다. 빌려 오지 않으면
+  //   짙은 콘솔 옆에 크림색 나무 상판(#ece6db)이 홀로 남는다(실측으로 확인).
+  controlRoom: Object.freeze({
+    tableTop: 'consoleTop',
+    tableBase: 'consoleBase',
+    tableBeam: 'consoleBase',
+  }),
 });
 
 /** 범용 테이블 부품 이름(폴백 테이블이 쓰는 이름). 테이블 말고는 쓰는 곳이 없다. */
 export const GENERIC_TABLE_PARTS = Object.freeze(['tableTop', 'tableBase', 'tableBeam']);
+
+/**
+ * 부품 이름 → 그 디자인이 정한 **재질 이름**. 테이블과 콘솔을 한 표로 본다 —
+ *   범용(폴백) 테이블이 콘솔 마감을 빌려 쓸 수 있어야 하기 때문이다(상황실이 그렇다).
+ */
+function partMaterials(src) {
+  const top = materialName(src.m.tableTop), base = materialName(src.m.tableBase);
+  return {
+    boardroomTop: top, boardroomBase: base,
+    conferenceTop: top, conferenceBase: base,
+    consoleTop: materialName(src.m.consoleTop),
+    consoleBase: materialName(src.m.consoleBase),
+  };
+}
+
+/**
+ * 곡선 콘솔(상판·하부)의 마감 (PHASE 5-d.1).
+ *   **형상은 그대로 두고 마감만 갈아 끼운다** — 다른 자산과 이름이 겹치지 않으므로
+ *   여기에 색을 붙여도 회의실 가구는 한 값도 바뀌지 않는다.
+ *   디자인이 재질이나 색을 정하지 않았으면 그 자리는 빠진다(= 지금 그리던 그대로).
+ */
+export function consoleFinishForDesign(designId) {
+  const src = sourcesOf(designId);
+  if (!src) return null;
+  const byPart = partMaterials(src);
+  const out = {};
+  for (const part of CONSOLE_PARTS) {
+    const f = finish(byPart[part], src.pal[part], part);
+    if (f) out[part] = f;
+  }
+  return Object.keys(out).length ? Object.freeze(out) : null;
+}
 
 /**
  * 테이블 부품(임원 U 테이블 상판·하부)의 마감.
@@ -291,11 +375,7 @@ export const GENERIC_TABLE_PARTS = Object.freeze(['tableTop', 'tableBase', 'tabl
 export function tablePartFinishForDesign(designId) {
   const src = sourcesOf(designId);
   if (!src) return null;
-  const top = materialName(src.m.tableTop), base = materialName(src.m.tableBase);
-  const byPart = {
-    boardroomTop: top, boardroomBase: base,
-    conferenceTop: top, conferenceBase: base,
-  };
+  const byPart = partMaterials(src);
   const out = {};
   // **어느 공간에 어떤 부품이 붙는지는 팔레트가 정한다** — 그 공간 팔레트에 그 부품 색이
   //   없으면 `finish()`가 null을 돌려주고 그 자리는 빠진다(대기업은 둘 다 없어서 아무것도 안 붙는다).
@@ -356,12 +436,14 @@ export function finishStatusForDesign(designId) {
   const floorParts = floorPartFinishForDesign(designId);
   const tableParts = tablePartFinishForDesign(designId);
   const av = avFinishForDesign(designId);
+  const consoleParts = consoleFinishForDesign(designId);
   return Object.freeze({
     palette: roomDesign(designId).palette || null,
     room: room ? Object.freeze(Object.keys(room)) : null,
     credenza: credenza ? Object.freeze(Object.keys(credenza)) : null,
     floorParts: floorParts ? Object.freeze(Object.keys(floorParts)) : null,
     tableParts: tableParts ? Object.freeze(Object.keys(tableParts)) : null,
+    consoleParts: consoleParts ? Object.freeze(Object.keys(consoleParts)) : null,
     av: av ? Object.freeze(Object.keys(av)) : null,
   });
 }
