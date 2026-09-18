@@ -260,7 +260,7 @@ test('⑫ 소품만 그대로 planned 다 — 조명·화각은 구현됐다', (
   assert.equal(isPlanned(D.wallTreatment), false, '벽 구성은 PHASE 5-d.2 에서 실재한다');
   assert.equal(D.wallTreatment, 'controlWalls');
   assert.ok(isPlanned(D.accessories));
-  assert.equal(D.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
+  assert.equal(D.status, 'ready', 'PHASE 5-e 릴리스 게이트를 통과했다(DEC-125)');
   assert.ok(MATERIAL_IDS.includes('glassPartition'));
   assert.ok(MATERIAL_IDS.includes('acousticPanel'));
   // **유리는 방 껍데기(벽·바닥·걸레받이)에 붙지 않는다.** 유리는 방 안에 따로 서는 물건이라

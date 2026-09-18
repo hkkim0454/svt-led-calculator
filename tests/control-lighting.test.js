@@ -231,11 +231,11 @@ test('⑰ 단 높이(tier Y)가 그대로다', () => {
   }
 });
 
-test('⑱ 소품만 남았다 — 상태는 승급하지 않았다', () => {
+test('⑱ 소품만 남았다 — 상태는 PHASE 5-e 에서 ready 로 올랐다', () => {
   const d = ROOM_DESIGNS[CR];
   assert.equal(d.camera, 'controlProposal', '화각은 PHASE 5-d.4 에서 생겼다');
   assert.ok(isPlanned(d.accessories));
-  assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
+  assert.equal(d.status, 'ready', 'PHASE 5-e 릴리스 게이트를 통과했다(DEC-125)');
 });
 
 test('⑲ 배치(layoutControl)를 조명이 건드리지 않았다', () => {

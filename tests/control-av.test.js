@@ -376,7 +376,7 @@ test('⑱ 콘솔·의자·배치가 그대로다 — 이번 단계는 AV 단계�
 
 test('⑲ 상황실 소품은 그대로 planned 다(가구·AV·마감·벽·조명·화각은 구현됐다)', () => {
   const d = ROOM_DESIGNS.controlRoom;
-  assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
+  assert.equal(d.status, 'ready', 'PHASE 5-e 릴리스 게이트를 통과했다(DEC-125)');
   assert.equal(d.palette, 'controlPalette', '마감은 PHASE 5-d.1 에서 생겼다');
   for (const m of Object.values(d.materials)) assert.equal(isPlanned(m), false, '재질이 아직 planned 다');
   assert.equal(d.wallTreatment, 'controlWalls', '벽 구성은 PHASE 5-d.2 에서 생겼다');
