@@ -133,7 +133,10 @@ export const ROOM_DESIGNS = Object.freeze({
     label: '임원 회의실',
     roomType: 'meeting',
     layoutVariant: 'executive-u',
-    status: DESIGN_STATUS.PLANNED,
+    // PHASE 3-e 릴리스 게이트에서 이미 RELEASE READY 판정을 받았는데 이 값만 따라오지 않았다.
+    //   **실제 판정에 맞춰 메타데이터를 맞춘 것뿐이다** — 동작은 한 값도 달라지지 않는다
+    //   (status 는 어디에서도 동작에 쓰이지 않는다).
+    status: DESIGN_STATUS.READY,
     phase: 3,
     furniture: Object.freeze({
       // PHASE 3-a — 의자만 실제로 만들었다. `planned(...)`가 아니라 **맨 문자열**이라는 점이 중요하다.
