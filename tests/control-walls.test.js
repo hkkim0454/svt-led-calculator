@@ -268,6 +268,15 @@ test('⑰ 깊이 기록 정책은 **유리에만** 걸린다 — 다른 재질�
   // 프리셋 표에서도 이 표시를 단 재질은 유리뿐이다.
   const flagged = Object.entries(MATERIAL_PRESETS).filter(([, v]) => v.depthWrite === false).map(([k]) => k);
   assert.deepEqual(flagged, ['glassPartition']);
+  // **조건의 모양까지 고정한다.** 지금은 반투명 재질이 유리 하나뿐이라, 조건을
+  //   'transparent 이면 depthWrite 를 끈다'로 바꿔도 결과가 같아 눈에 띄지 않는다.
+  //   그대로 두면 나중에 반투명 재질이 하나만 늘어도 이 정책이 조용히 번진다.
+  const code = src('materials.js').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(/if \(p\.depthWrite === false\) out\.depthWrite = false;/.test(code),
+    '깊이 기록 정책이 재질별 표시가 아니라 다른 조건으로 걸려 있다');
+  //   깊이 기록을 끄는 자리는 **그 한 줄뿐**이어야 한다(다른 조건으로 또 끄지 않는다).
+  assert.equal((code.match(/out\.depthWrite = false/g) || []).length, 1,
+    '깊이 기록을 끄는 자리가 여러 곳이다');
 });
 
 test('⑱ 정식 재질은 13종 그대로다 — 새 재질을 만들지 않았다', () => {
