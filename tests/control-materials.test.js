@@ -29,6 +29,12 @@ const CR = 'controlRoom';
 const D = ROOM_DESIGNS[CR];
 const P = DESIGN_PALETTES.controlPalette;
 const finishSrc = readFileSync(new URL('../src/design-finish.js', import.meta.url), 'utf8');
+
+/** 상대 밝기 — 색을 '밝다/어둡다'로 비교할 때 쓴다(사람 눈의 가중치). */
+function lum(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+}
 const glSrc = readFileSync(new URL('../src/furniture-gl.js', import.meta.url), 'utf8');
 
 function control(W, D2, H, over = {}) {
@@ -91,14 +97,20 @@ test('③ 콘솔 상판·하부가 **해석된다** — 더 이상 옛 대응표
 });
 
 test('④ 상판이 벽보다 어둡고, 하부가 의자와 같은 계열이다', () => {
-  const lum = hex => { const n = parseInt(hex.slice(1), 16);
-    return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255); };
   assert.ok(lum(P.wallFront) > lum(P.consoleTop),
     `상판(${P.consoleTop})이 정면 벽(${P.wallFront})보다 밝다 — 방이 뒤집힌다`);
   assert.ok(lum(P.consoleTop) > lum(P.floor), '상판이 바닥보다 어둡다');
   // 하부는 의자 프레임과 같은 계열(둘 다 darkGraphite)이라 한 덩어리로 읽힌다.
   assert.equal(consoleFinishForDesign(CR).consoleBase.canonical, 'darkGraphite');
   assert.equal(finishForPart('chairFrame').material, 'darkGraphite');
+  // **하부는 실제로 어두워야 한다.** 재질 이름만 맞고 색이 밝으면 '밝은 흰 콘솔 받침'이 된다(§6).
+  //   상판·바닥보다 확실히 어둡고, 의자 프레임 근처 밝기여야 한 덩어리로 읽힌다.
+  assert.ok(lum(P.consoleBase) < lum(P.floor) - 40,
+    `콘솔 하부(${P.consoleBase})가 바닥(${P.floor})만큼 밝다`);
+  assert.ok(lum(P.consoleBase) < lum(P.consoleTop) - 80,
+    `콘솔 하부(${P.consoleBase})가 상판(${P.consoleTop})과 갈리지 않는다`);
+  assert.ok(Math.abs(lum(P.consoleBase) - lum(finishForPart('chairFrame').color)) < 30,
+    `콘솔 하부(${P.consoleBase})가 의자 프레임과 다른 계열로 읽힌다`);
   // **바닥이 의자보다 밝다** — 어두우면 의자 실루엣이 바닥에 먹힌다.
   assert.ok(lum(P.floor) > lum(finishForPart('chairFrame').color),
     `바닥(${P.floor})이 의자 프레임보다 어둡다 — 실루엣이 사라진다`);
@@ -112,8 +124,6 @@ test('⑤ 바닥이 짙은 카펫 타일이다 — 회의실 3종보다 확실�
   assert.ok(room, '방 껍데기 마감이 붙지 않는다');
   assert.equal(room.floor.canonical, 'carpetTileDark');
   assert.equal(room.floor.color, P.floor);
-  const lum = hex => { const n = parseInt(hex.slice(1), 16);
-    return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255); };
   for (const other of ['corporateNeutral', 'executiveBright', 'conferenceBright']) {
     assert.ok(lum(P.floor) < lum(DESIGN_PALETTES[other].floor) - 20,
       `바닥이 ${other} 보다 충분히 어둡지 않다`);
@@ -175,6 +185,20 @@ test('⑧ 다른 공간의 마감이 한 값도 바뀌지 않았다', () => {
   // 상황실은 수납장·러그 마감을 정하지 않았다(그 가구가 배치에 없다).
   assert.equal(credenzaFinishForDesign(CR), null);
   assert.equal(floorPartFinishForDesign(CR), null);
+});
+
+test('⑧-2 **전역 범용 테이블 색을 건드리지 않았다** — 다른 공간 폴백이 같이 바뀌면 안 된다', () => {
+  // 상황실 뒤 테이블은 **디자인 한정 표**로 칠한다. 전역 가구 팔레트를 고치면
+  //   대기업·임원·강의실의 폴백 테이블까지 한꺼번에 따라 바뀐다(그래서 여기서 고정한다).
+  assert.equal(FURNITURE_COLORS.tableTop, '#ece6db', '전역 범용 상판 색을 고쳤다');
+  assert.equal(FURNITURE_COLORS.tableBase, '#a9b3c0', '전역 범용 하부 색을 고쳤다');
+  assert.equal(FURNITURE_COLORS.tableBeam, '#9ba6b4', '전역 범용 보 색을 고쳤다');
+  assert.equal(FURNITURE_COLORS.consoleTop, '#f3f6f9', '전역 콘솔 상판 색을 고쳤다');
+  assert.equal(FURNITURE_COLORS.consoleBase, '#9ba6b4', '전역 콘솔 하부 색을 고쳤다');
+  // 상황실이 쓰는 색은 전역값과 **달라야** 한다 — 같으면 디자인 한정 경로가 죽은 것이다.
+  const t = tablePartFinishForDesign(CR);
+  assert.notEqual(t.tableTop.color, FURNITURE_COLORS.tableTop);
+  assert.notEqual(t.tableBase.color, FURNITURE_COLORS.tableBase);
 });
 
 test('⑨ 전역 재질 수치를 고치지 않았다 — 정식 재질 표가 그대로다', () => {
