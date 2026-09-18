@@ -19,8 +19,9 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=431';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=431';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=432';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=432';
+import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=432';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -1045,6 +1046,48 @@ export function createPersonalMonitor() {
 }
 
 /**
+ * 상황실 운용 모니터 (PHASE 5-c).
+ * ─────────────────────────────────────────────────────────────────────────
+ * 개인 모니터(4-c)와 **부품 구성이 같다** — 계약이 그렇게 맞춰 두었다(받침판·받침목·본체·화면).
+ *   그래서 두 번째 모니터 틀을 만들지 않고 같은 방식을 그대로 쓴다. 다른 것은 숫자뿐이다:
+ *   27인치(개인용 22) · 받침 160(개인용은 더 낮다) · 기울기 10°.
+ *
+ * **상판 위에 놓이는 물건이다** — 자산의 y = 0 이 콘솔 상판 윗면이다.
+ *   단(tier) 높이는 여기 넣지 않는다. 그것은 배치가 주는 item.y 의 몫이다.
+ */
+export function createConsoleMonitor() {
+  const S = consoleMonitorSize();
+  const B = CONSOLE_MONITOR_BASE;
+  const bodyY = S.standH + S.panelH / 2;
+  const scr = tiltedFront(bodyY, S.depth / 2 + SCREEN_GAP + SCREEN_THK / 2, S.tiltDeg);
+  return [
+    // ① 받침 판 — 상판 위에 놓인다(y = 0 이 상판 윗면이다).
+    box('monitorStand', 0, B.h / 2, 0, B.w, B.h, B.d, 0, { r: 8, mode: 'plan' }),
+    // ② 받침 목 — 가늘게. 두꺼우면 게이밍 스탠드처럼 보인다(계약이 금지한 인상).
+    box('monitorStand', 0, B.h + (S.standH - B.h) / 2, 0, B.neckW, S.standH - B.h, B.neckD),
+    // ③ 본체 — 계약이 정한 10° 만큼 뒤로 눕는다.
+    box('monitorBody', 0, bodyY, 0, S.panelW, S.panelH, S.depth, S.tiltDeg, { r: 10, mode: 'face' }),
+    // ④ 화면 — 꺼진 화면이다. 밝게 빛나면 LED가 주인공 자리를 잃는다(오너 지침 §11).
+    box('screen', 0, scr.y, scr.dz, S.screenW, S.screenH, SCREEN_THK, S.tiltDeg),
+  ];
+}
+// 운용 모니터 받침 — 개인 모니터(240×200)보다 조금 크다. 27인치를 받치는 크기다.
+const CONSOLE_MONITOR_BASE = Object.freeze({ w: 260, d: 200, h: 18, neckW: 72, neckD: 28 });
+
+/**
+ * 키보드 (PHASE 5-c).
+ * ─────────────────────────────────────────────────────────────────────────
+ * **부품 하나짜리 판이다.** 계약이 그렇게 정했다 — 콘솔 수십 대에 하나씩 깔리는데
+ *   부품을 둘로 쪼개면 그리기 호출이 그대로 두 배가 된다. 자판도 새기지 않는다
+ *   (제안서 거리에서는 보이지도 않고 삼각형만 는다).
+ * 상판 위에 놓이므로 자산의 y = 0 이 상판 윗면이다.
+ */
+export function createKeyboard() {
+  const S = keyboardSize();
+  return [box('keyboardBody', 0, S.h / 2, 0, S.w, S.h, S.d, 0, { r: 6, mode: 'plan' })];
+}
+
+/**
  * 중앙 프롬프터 / 컨피던스 모니터 (PHASE 4-c).
  * ─────────────────────────────────────────────────────────────────────────
  * U자 **가운데 빈 공간**에 선다 — 그 자리에는 상판이 없으므로 **바닥에 서는 기둥형**이다.
@@ -1226,14 +1269,14 @@ export function createControlConsole(w = 1800, d = 900) {
  *
  * 치수는 전부 계약(FURNITURE_CONTRACTS.curvedConsole)에서 온다.
  */
-// 띠(책상면) 자체가 이보다 얇아지면 앉아서 쓸 수 없는 선반이 된다 — 휨을 그만큼만 준다.
-//   배치가 주는 900mm 에서는 걸리지 않는다(900 − 180 = 720). 더 얕은 콘솔을 위한 안전장치다.
-export const CONSOLE_MIN_BAND_DEPTH = 520;
+// 휨 규칙(그 깊이에서 실제로 쓸 수 있는 휨)은 **control-av.js 하나가 정한다** —
+//   AV 자리 계산이 같은 곡선을 읽어야 하므로 두 곳에 적으면 언젠가 어긋난다.
+export { CONSOLE_MIN_BAND_DEPTH };
 
 export function createCurvedConsole(w = 1800, d = 900) {
   const S = DIMS.curvedConsole;
   const under = S.surfaceY - S.topThk;                 // 상판 아랫면 = 690
-  const sag = Math.min(S.curveSagitta, Math.max(0, d - CONSOLE_MIN_BAND_DEPTH));
+  const sag = consoleSag(d);
   // 옆 판 — 상판 밑에 완전히 가려지는 자리에 세운다. 날개 쪽은 상판이 얕아지므로
   //   판을 너무 바깥에 두면 상판 밖으로 발이 삐져나온다.
   const panelDx = w / 2 - 140, panelD = d - 340, panelThk = 60;
@@ -1300,6 +1343,10 @@ export const FURNITURE_ASSETS = Object.freeze({
   // PHASE 4-c — 좌석마다 한 대씩 깔리므로 **반드시 InstancedMesh**로 묶는다(계약의 요구).
   personalMonitor: { id: 'personalMonitor', label: '참석자 개인 모니터', instanced: true, sized: false, build: () => createPersonalMonitor() },
   prompter: { id: 'prompter', label: '중앙 프롬프터', instanced: true, sized: false, build: () => createPrompter() },
+  // PHASE 5-c — 상황실 콘솔 AV. 콘솔 한 대에 모니터 2대 + 키보드 1개가 깔리므로
+  //   **반드시 InstancedMesh**로 묶는다(계약의 요구).
+  consoleMonitor: { id: 'consoleMonitor', label: '상황실 운용 모니터', instanced: true, sized: false, build: () => createConsoleMonitor() },
+  keyboard: { id: 'keyboard', label: '키보드', instanced: true, sized: false, build: () => createKeyboard() },
 });
 
 /** V1에서 준비한 가구 자산 4종 — 보고·테스트용 목록. */

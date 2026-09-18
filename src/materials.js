@@ -336,7 +336,10 @@ export const PART_FINISH = Object.freeze({
   monitorBody: Object.freeze({ material: 'blackEquipment', color: '#23282f' }),
   monitorStand: Object.freeze({ material: 'blackEquipment', color: '#2b3038', metalness: 0.24 }),
   prompterBody: Object.freeze({ material: 'blackEquipment', color: '#23282f' }),
-  keyboardBody: Object.freeze({ material: 'blackEquipment', roughness: 0.60 }),
+  // PHASE 5-c — **색을 채웠다.** 계약만 있고 색이 없어서, 실제로 쓰는 순간 이 부품만
+  //   재질을 못 받아 **하얗게** 뜰 상태였다(임원 의자 헤드레스트에서 한 번 겪은 함정).
+  //   정식 재질은 그대로 `blackEquipment` 다 — 새 재질을 만들지 않았다(13종 유지).
+  keyboardBody: Object.freeze({ material: 'blackEquipment', color: '#262b33', roughness: 0.60 }),
   // 건축 마감
   glassWall: Object.freeze({ material: 'glassPartition' }),
   acousticWall: Object.freeze({ material: 'acousticPanel' }),

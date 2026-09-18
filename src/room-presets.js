@@ -54,8 +54,9 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=431';
-import { conferenceAVItems } from './conference-av.js?v=431';
+import { isOccupied } from './viewangle.js?v=432';
+import { conferenceAVItems } from './conference-av.js?v=432';
+import { controlAVItems } from './control-av.js?v=432';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -100,6 +101,13 @@ export function wantsConferenceAV(designId) {
 // ── 테이블 방향 옵션 ────────────────────────────────────────────────────────
 // **대회의실에만** 있는 옵션이다. 다른 공간에서는 화면에 나오지도, 적용되지도 않는다 —
 //   대기업·임원 회의실은 옵션 값이 저장돼 있더라도 **가로 배치 그대로**다.
+// 콘솔마다 운용 모니터 2대 + 키보드 1개를 놓는 공간(PHASE 5-c).
+//   **여기 없는 디자인에는 AV 항목이 하나도 생기지 않는다** — 다른 공간은 그대로다.
+export const CONSOLE_AV_DESIGNS = Object.freeze(['controlRoom']);
+export function wantsControlAV(designId) {
+  return CONSOLE_AV_DESIGNS.includes(designId);
+}
+
 export const TABLE_DIR_DESIGNS = Object.freeze(['largeConference']);
 export function wantsTableDir(designId) {
   return TABLE_DIR_DESIGNS.includes(designId);
@@ -832,8 +840,17 @@ function layoutControl(o, W, D) {
       items.push(chairAt(cx, z + 1200 / 2 + F.chairClear, cx, z));   // 테이블 바깥에 앉아 테이블을 바라본다
     }
   }
+  // 콘솔 AV(운용 모니터·키보드) — **콘솔을 한 자리도 바꾸지 않고 덧붙이기만 한다.**
+  //   자리 계산은 전부 control-av.js(순수)가 하고, 여기서는 넘겨주고 받아 담기만 한다.
+  const placed = { consoles: rows * perRow, rows, perRow };
+  if (wantsControlAV(o.design)) {
+    const av = controlAVItems({ consoles: items.filter(i => i.type === 'console') });
+    items.push(...av.items);
+    placed.monitors = av.monitors.length;
+    placed.keyboards = av.keyboards.length;
+  }
   if (o.plant) addPlant(items, W, D);
-  return { items, placed: { consoles: rows * perRow, rows, perRow }, capacity: maxRows * maxPerRow, notes };
+  return { items, placed, capacity: maxRows * maxPerRow, notes };
 }
 
 // 화분은 방 뒤쪽 구석(LED에서 먼 쪽)에 둔다 — 시야를 가리지 않게.

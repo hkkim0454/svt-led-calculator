@@ -226,7 +226,7 @@ export const ROOM_DESIGNS = Object.freeze({
     furniture: Object.freeze({
       chair: 'taskChair',                       // PHASE 5-a — 실제 도형이 생겼다
       console: 'curvedConsole',                 // PHASE 5-b — 실제 도형이 생겼다
-      av: Object.freeze([planned('consoleMonitor'), planned('keyboard')]),
+      av: Object.freeze(['consoleMonitor', 'keyboard']),   // PHASE 5-c — 실제 도형이 생겼다
     }),
     palette: planned('controlPalette'),
     materials: Object.freeze({
