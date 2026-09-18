@@ -24,6 +24,7 @@ import { LIGHTING_PRESETS } from '../src/design-lighting.js';
 import { DESIGN_PALETTES } from '../src/design-finish.js';
 import { controlWallPlan } from '../src/control-walls.js';
 import { MATERIAL_IDS } from '../src/materials.js';
+import { CAMERA_PRESETS, presetPose, FOV_DEG } from '../src/gl-model.js';
 
 const CR = 'controlRoom';
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
@@ -83,7 +84,8 @@ test('④ 시점 기준값이 고정돼 있다', () => {
     { eye: 1.72, fov: 44, band: 0.12, xRatio: 0.85, feature: 'acoustic', featureMix: 0.42 });
   assert.deepEqual({ ...CONTROL_CAMERA_PLANS.rear },
     { eye: 1.62, fov: 41, band: 0.09, xRatio: 0.50, feature: null, featureMix: 0 });
-  assert.deepEqual({ ...CONTROL_FOV_RANGE }, { min: 38, max: 50 });
+  // **제안서 원근의 하드 게이트**다. 값이 아니라 탐색의 상한이 46 이어야 한다(오너 검토).
+  assert.deepEqual({ ...CONTROL_FOV_RANGE }, { min: 38, max: 46 });
   assert.equal(CONTROL_BAND_MAX, 0.18);
   assert.equal(CAMERA_GLASS_CLEAR, 1.1);
 });
@@ -279,4 +281,128 @@ test('⑳ 소품만 남았다 — 상태는 승급하지 않았다', () => {
   const d = ROOM_DESIGNS[CR];
   assert.ok(isPlanned(d.accessories), '소품을 건드렸다');
   assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
+});
+
+
+// ── ⑦ 제안 원근의 하드 게이트(46°) ─────────────────────────────────────────
+// 오너 검토(2026-09-18)에서 확정된 규칙이다. **대표 장면이 우연히 46 이하로 떨어지는 것과
+//   탐색 자체가 46 을 넘지 못하는 것은 다르다** — 그래서 상한 상수와 실제 결과를 함께 고정한다.
+
+/** 이 계열이 **제품 화면에 실제로 내보내는** 시점. rear 는 화면 버튼이 없다(아래 ㉙에서 고정). */
+const SHIPPED = ['interior', 'corner-l', 'corner-r'];
+/** 검증 구성 — 방 3종 × 대표 옵션. 명세가 요구한 조합을 모두 덮는다. */
+const MATRIX = [
+  ['컴팩트', 10000, 3400, 8000, {}],
+  ['중형', 12000, 3600, 10000, {}],
+  ['대형', 16000, 3900, 14000, {}],
+  ['대형 단2', 16000, 3900, 14000, { tiers: 2 }],
+  ['대형 단3', 16000, 3900, 14000, { tiers: 3, riserH: 300 }],
+  ['대형 콘솔최대', 16000, 3900, 14000, { perRow: 12, consoleRows: 8 }],
+  ['대형 뒤테이블없음', 16000, 3900, 14000, { backTable: false }],
+  ['중형 콘솔최대', 12000, 3600, 10000, { perRow: 12, consoleRows: 8 }],
+  ['컴팩트 단2', 10000, 3400, 8000, { tiers: 2 }],
+];
+const everyCase = fn => {
+  for (const [name, W, H, D, extra] of MATRIX) {
+    const m = makeModel(W, H, D, extra);
+    for (const v of SHIPPED) fn(`${name}/${v}`, cameraPlanForDesign(CR, v, m, A), m, v);
+  }
+};
+
+test('㉑ 솔버의 화각 상한 자체가 46 이다 — 값이 아니라 규칙을 고정한다', () => {
+  assert.equal(CONTROL_FOV_RANGE.max, 46, '탐색 상한이 46 이 아니다');
+  // 소스에서도 50 이 남아 있지 않은지 본다(주석은 걷어낸다).
+  const code = src('design-camera.js').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const m = code.match(/CONTROL_FOV_RANGE = Object\.freeze\(\{[^}]*\}\)/);
+  assert.ok(m, '상한 선언을 찾지 못했다');
+  assert.equal(/max:\s*46/.test(m[0]), true, `상한이 46 이 아니다: ${m[0]}`);
+  // 대회의실과 같은 값이다 — 상황실이라고 더 넓게 보지 않는다.
+  assert.equal(CONTROL_FOV_RANGE.max, CONFERENCE_FOV_RANGE.max);
+});
+
+test('㉒ 제품에 나가는 세 시점이 어떤 구성에서도 46°를 넘지 않는다', () => {
+  let worst = 0, who = '';
+  everyCase((tag, p) => {
+    assert.ok(p.fov <= 46 + 1e-9, `${tag}: 화각 ${p.fov}°`);
+    assert.ok(p.fov >= CONTROL_FOV_RANGE.min, `${tag}: 화각 ${p.fov}°`);
+    if (p.fov > worst) { worst = p.fov; who = tag; }
+  });
+  assert.ok(worst <= 46 + 1e-9, `최대 화각 ${worst} (${who})`);
+});
+
+test('㉓ 화면비가 달라져도 46°를 넘지 않는다', () => {
+  // 세로로 긴 화면일수록 같은 것을 담으려면 세로 화각이 커진다 — 거기서도 상한을 지켜야 한다.
+  for (const aspect of [0.7, 1.0, 1.422, 1.78, 2.4]) {
+    for (const [name, W, H, D, extra] of MATRIX) {
+      const m = makeModel(W, H, D, extra);
+      for (const v of SHIPPED) {
+        const p = cameraPlanForDesign(CR, v, m, aspect);
+        assert.ok(p.fov <= 46 + 1e-9, `${name}/${v}/화면비 ${aspect}: ${p.fov}°`);
+      }
+    }
+  }
+});
+
+test('㉔ 46°로 좁혀도 LED 는 여전히 온전히 담긴다', () => {
+  everyCase((tag, p) => {
+    assert.equal(p.ledFullyVisible, true, `${tag}: LED 가 잘렸다(${p.ledVisibleShare})`);
+    assert.equal(p.ledVisibleShare, 1, tag);
+  });
+});
+
+test('㉕ 46°로 좁혀도 담당 벽이 읽힌다 — 없는 유리는 없다고 말한다', () => {
+  everyCase((tag, p, m, v) => {
+    const feature = CONTROL_CAMERA_PLANS[v].feature;
+    const hasGlass = (m.partitions || []).some(q => q.role === 'partition');
+    if (feature === 'glass' && !hasGlass) {
+      // **유리를 세우지 못한 방이다.** 안 보이는 것이 아니라 대상이 없는 것이다.
+      assert.equal(p.featureVisibleShare, null, `${tag}: 없는 유리를 쟀다`);
+      return;
+    }
+    assert.ok(p.featureVisibleShare > 0, `${tag}: 담당 벽이 하나도 안 보인다`);
+  });
+});
+
+test('㉖ 사람 눈높이와 시선 규칙이 그대로다', () => {
+  everyCase((tag, p) => {
+    assert.ok(p.eye >= 1.45 && p.eye <= 1.90, `${tag}: 눈높이 ${p.eye}m`);
+    assert.ok(p.target[1] < p.position[1], `${tag}: 시선이 눈높이보다 높다`);
+  });
+});
+
+test('㉗ 카메라가 유리 밖에 서고, 빈 바닥이 다시 커지지 않는다', () => {
+  everyCase((tag, p, m) => {
+    const g = (m.partitions || []).find(q => q.role === 'partition');
+    if (g) assert.ok(p.position[0] <= g.x - CAMERA_GLASS_CLEAR + 1e-9, `${tag}: 유리에 붙었다`);
+    assert.ok(p.emptyFloor <= 2.6, `${tag}: 빈 바닥 ${p.emptyFloor}m`);
+  });
+});
+
+// ── ⑧ 건드리지 않기로 한 시점 ──────────────────────────────────────────────
+
+test('㉘ 아이소·평면도·정면은 이 계열이 만들지 않는다 — 기존 계산 그대로다', () => {
+  const m = makeModel(16000, 3900, 14000);
+  for (const v of ['iso', 'top', 'front']) {
+    assert.equal(cameraPlanForDesign(CR, v, m, A), null, `${v} 를 이 계열이 만들었다`);
+    // 기존 경로(presetPose)가 상황실에서도 그대로 답한다.
+    //   평면도는 **정사투영**이라 화각 대신 담는 높이(orthoHeight)를 쓴다 — 둘 중 하나는 있어야 한다.
+    const pose = presetPose(v, m, A);
+    assert.ok(pose, `${v}: 기존 계산이 사라졌다`);
+    assert.ok(Number.isFinite(pose.fov) || Number.isFinite(pose.orthoHeight),
+      `${v}: 화각도 담는 높이도 없다`);
+    assert.equal(pose.ortho, v === 'top', `${v}: 투영 방식이 바뀌었다`);
+  }
+  // 평면도는 정사투영, 나머지는 원근 — 그 성격도 그대로다.
+  assert.equal(CAMERA_PRESETS.find(p => p.id === 'top').ortho, true);
+  assert.equal(CAMERA_PRESETS.find(p => p.id === 'iso').ortho, false);
+  assert.equal(FOV_DEG, 40, '기본 화각을 건드렸다');
+});
+
+test('㉙ rear 는 화면에 내보내지 않는다 — 버튼이 없는 시점이다', () => {
+  assert.deepEqual(CAMERA_PRESETS.map(p => p.id),
+    ['interior', 'corner-l', 'front', 'corner-r', 'iso', 'top']);
+  assert.equal(CAMERA_PRESETS.some(p => p.id === 'rear'), false,
+    'rear 에 화면 버튼이 생겼다 — 그러면 46° 게이트 검증 대상에 넣어야 한다');
+  // 계산은 되지만(계열이 알고 있다) 제품 경로로는 나가지 않는다.
+  assert.ok(CONTROL_CAMERA_PLANS.rear);
 });
