@@ -87,25 +87,25 @@ test('대기업 회의 의자 — PHASE 2-a 에서 실제로 만들어져 대체
   assert.equal(r.category, 'chair');
 });
 
-test('남은 의자 1종 — 아직 도형이 없다(기존 의자로 대신 그린다)', () => {
-  // 임원 의자는 PHASE 3-a, 대회의실 의자는 PHASE 4-a 에서 만들어져 이 목록에서 빠졌다.
+test('의자 계약 4종 — 이제 전부 제 도형으로 선다(대신 그리는 의자가 없다)', () => {
+  // PHASE 5-a 에서 운용자 의자가 만들어져, 도형이 없는 **의자 계약은 하나도 남지 않았다.**
   const CASES = [
+    ['corporateMeeting', 'corporateChair'],
+    ['executiveBoardroom', 'executiveChair'],
+    ['largeConference', 'conferenceErgoChair'],
     ['controlRoom', 'taskChair'],
   ];
   for (const [design, want] of CASES) {
-    // 계약은 있다.
     assert.ok(FURNITURE_CONTRACTS[want], `${want}: 계약이 없다`);
-    // 도형은 아직 없다.
-    assert.equal(hasRuntimeFurnitureAsset(want), false, `${want}: 벌써 구현됐다고 나온다`);
-    // 요청을 직접 주면 — 갈래가 같은 기존 의자로 대신한다.
+    assert.equal(hasRuntimeFurnitureAsset(want), true, `${want}: 도형이 사라졌다`);
     const r = resolveFurnitureForDesign({ type: 'chair', asset: want }, design);
     assert.equal(r.requestedAsset, want);
     assert.equal(r.category, 'chair');
-    assert.equal(r.implemented, false, `${want}: 구현된 것처럼 취급됐다`);
-    assert.equal(r.runtimeAsset, 'conferenceChair', `${want}: 의자가 아닌 것으로 대체됐다`);
-    assert.equal(r.fallbackUsed, true);
+    assert.equal(r.implemented, true, `${want}: 구현되지 않은 것처럼 취급됐다`);
+    assert.equal(r.runtimeAsset, want, `${want}: 다른 의자로 대체됐다`);
+    assert.equal(r.fallbackUsed, false, `${want}: 있는 것을 대체하면 안 된다`);
     assert.equal(r.renderable, true);
-    assert.equal(r.contractStatus, CONTRACT_STATUS.CONTRACT_READY);
+    assert.equal(r.contractStatus, CONTRACT_STATUS.IMPLEMENTED);
   }
 });
 
@@ -119,16 +119,9 @@ test('대기업 회의 테이블 — PHASE 2-b 에서 실제로 만들어져 대
   assert.equal(r.contractStatus, CONTRACT_STATUS.IMPLEMENTED);
 });
 
-test('나머지 의자·콘솔 — 갈래에 맞는 기존 자산으로만 대신한다', () => {
-  // PHASE 4-b 에서 largeUTable 이 실제로 생겨, 아직 도형이 없는 테이블 계약은 하나도 남지 않았다.
-  //   그래서 여기서는 **아직 없는 것**(운용자 의자)으로 같은 규칙을 확인한다.
-  for (const want of ['taskChair']) {
-    const r = resolveFurnitureForDesign({ type: 'chair', asset: want }, 'controlRoom');
-    assert.equal(r.category, 'chair', want);
-    assert.equal(r.implemented, false, want);
-    assert.equal(r.runtimeAsset, 'conferenceChair', `${want}: 의자가 아닌 것으로 대체됐다`);
-    assert.equal(r.fallbackUsed, true, want);
-  }
+test('남은 콘솔 — 갈래에 맞는 기존 자산으로만 대신한다', () => {
+  // PHASE 5-a 에서 운용자 의자까지 생겨, 아직 도형이 없는 **의자 계약은 하나도 남지 않았다.**
+  //   그래서 여기서는 **아직 없는 것**(곡선 콘솔)으로 같은 규칙을 확인한다.
   const c = resolveFurnitureForDesign({ type: 'console', asset: 'curvedConsole' }, 'controlRoom');
   assert.equal(c.category, 'console');
   assert.equal(c.runtimeAsset, 'controlConsole', '콘솔은 콘솔로 대신한다');
@@ -242,7 +235,7 @@ test('디자인 요청 목록 — 네 공간이 서로 다른 가구를 원한�
     .filter(s => s.implemented).map(s => s.requested);
   assert.deepEqual([...new Set(done)].sort(),
     ['avCredenza', 'boardroomTable', 'conferenceErgoChair', 'corporateChair', 'corporateTable',
-      'executiveChair', 'largeUTable', 'personalMonitor', 'prompter']);
+      'executiveChair', 'largeUTable', 'personalMonitor', 'prompter', 'taskChair']);
 });
 
 test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수납장·러그·화분은 그대로)', () => {
@@ -257,8 +250,8 @@ test('대기업 회의실 — 바뀌는 것은 의자와 테이블뿐이다(수�
   for (const it of res.items.filter(i => i.type !== 'chair' && i.type !== 'table')) {
     assert.equal(resolveFurnitureForDesign(it, 'corporateMeeting').runtimeAsset, assetFor(it), it.type);
   }
-  // 곡선 콘솔·운용자 의자는 아직 계약만 있다(대회의실 테이블은 PHASE 4-b 에서 생겼다).
-  for (const id of ['curvedConsole', 'taskChair']) {
+  // 곡선 콘솔은 아직 계약만 있다(운용자 의자는 PHASE 5-a 에서 생겼다).
+  for (const id of ['curvedConsole', 'consoleMonitor', 'keyboard']) {
     assert.equal(hasRuntimeFurnitureAsset(id), false, id);
   }
 });

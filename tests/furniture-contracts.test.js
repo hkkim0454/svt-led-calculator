@@ -175,12 +175,12 @@ test('avCredenza — 이미 있는 자산이고, 치수를 두 번 적지 않는
   // '이미 있는 것'은 이 하나뿐이고, 나머지는 전부 아직 도형이 없다.
   const existing = CONTRACT_IDS.filter(id => FURNITURE_CONTRACTS[id].status === CONTRACT_STATUS.EXISTING);
   assert.deepEqual(existing, ['avCredenza'], '계약보다 먼저 있던 자산은 AV 수납장뿐이다');
-  // 계약대로 실제 도형까지 만든 것들(PHASE 2-a·2-b·3-a·3-b·4-a·4-b).
+  // 계약대로 실제 도형까지 만든 것들(PHASE 2-a·2-b·3-a·3-b·4-a·4-b·4-c·5-a).
   const built = CONTRACT_IDS.filter(id => FURNITURE_CONTRACTS[id].status === CONTRACT_STATUS.IMPLEMENTED);
-  assert.deepEqual(built, ['corporateChair', 'executiveChair', 'conferenceErgoChair',
+  assert.deepEqual(built, ['corporateChair', 'executiveChair', 'conferenceErgoChair', 'taskChair',
     'corporateTable', 'boardroomTable', 'largeUTable', 'personalMonitor', 'prompter']);
   const BUILT_IDS = ['avCredenza', 'corporateChair', 'executiveChair', 'conferenceErgoChair',
-    'corporateTable', 'boardroomTable', 'largeUTable', 'personalMonitor', 'prompter'];
+    'taskChair', 'corporateTable', 'boardroomTable', 'largeUTable', 'personalMonitor', 'prompter'];
   for (const id of CONTRACT_IDS.filter(x => !BUILT_IDS.includes(x))) {
     assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.CONTRACT_READY, id);
   }
@@ -248,6 +248,12 @@ test('런타임 분리 — 계약이 런타임 카탈로그에 들어가지 않�
   // 아직 안 만든 것으로 같은 질문을 한다 — 계약만 있고 도형은 없어야 한다.
   assert.equal(hasFurnitureContract('largeUTable'), true);
   assert.ok(FURNITURE_ASSETS.largeUTable, '대회의실 U 테이블은 PHASE 4-b 에서 만들어졌다');
+  // 운용자 의자는 PHASE 5-a 에서 만들어졌다 — 이제 둘 다 있다.
+  assert.equal(hasFurnitureContract('taskChair'), true);
+  assert.ok(FURNITURE_ASSETS.taskChair, '운용자 의자는 PHASE 5-a 에서 만들어졌다');
+  // 아직 안 만든 것으로 같은 질문을 한다 — 계약만 있고 도형은 없어야 한다.
+  assert.equal(hasFurnitureContract('curvedConsole'), true);
+  assert.equal(FURNITURE_ASSETS.curvedConsole, undefined, '곡선 콘솔은 아직 PHASE 5-b 다');
   // 아직 안 만든 것으로 같은 질문을 한다 — 계약만 있고 도형은 없어야 한다.
   assert.equal(hasFurnitureContract('consoleMonitor'), true);
   assert.equal(FURNITURE_ASSETS.consoleMonitor, undefined, 'PHASE 5 전까지는 도형이 없다');
@@ -255,7 +261,7 @@ test('런타임 분리 — 계약이 런타임 카탈로그에 들어가지 않�
   assert.ok(FURNITURE_ASSETS.conferenceChair, '기존 자산은 그대로 있다');
   // 런타임에도 있는 계약 = 만들었다고 표시된 것들뿐이다(PHASE 2-a: 의자 하나가 늘었다).
   const overlap = CONTRACT_IDS.filter(id => FURNITURE_ASSETS[id]);
-  assert.deepEqual(overlap, ['corporateChair', 'executiveChair', 'conferenceErgoChair',
+  assert.deepEqual(overlap, ['corporateChair', 'executiveChair', 'conferenceErgoChair', 'taskChair',
     'corporateTable', 'boardroomTable', 'largeUTable', 'avCredenza',
     'personalMonitor', 'prompter']);
   for (const id of overlap) {
@@ -266,7 +272,7 @@ test('런타임 분리 — 계약이 런타임 카탈로그에 들어가지 않�
 test('기존 가구 무변경 — 카탈로그·치수·부품·묶음 열쇠가 그대로다', () => {
   // 런타임 자산 목록. **기존 것은 순서까지 그대로**이고 새로 만든 것만 제자리에 끼어든다.
   assert.deepEqual(Object.keys(FURNITURE_ASSETS), [
-    'conferenceChair', 'corporateChair', 'executiveChair', 'conferenceErgoChair',
+    'conferenceChair', 'corporateChair', 'executiveChair', 'conferenceErgoChair', 'taskChair',
     'auditoriumChair', 'trainingChair', 'trainingDesk',
     'controlConsole', 'podium', 'avCredenza', 'highTable', 'stool', 'loungeChair', 'collabTable',
     'seatedPerson', 'mobileStand', 'conferenceTable', 'corporateTable', 'boardroomTable',

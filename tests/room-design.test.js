@@ -139,10 +139,16 @@ test('fallback 격리 — corporateMeeting은 "모든 공간의 기본"이 아�
   //   normalizeDesign이 그 디자인에 **닿지 않으므로**, 값이 무엇이든 강당·강의실은 그대로다.
   const asIfPhase2 = { ...ROOM_DESIGNS.corporateMeeting, furniture: { chair: 'corporateChair' } };
   assert.equal(asIfPhase2.furniture.chair, 'corporateChair');   // 값이 들어갔다고 가정
+  //   상황실은 PHASE 5-a 에서 **제 의자**를 정했으므로 INHERIT 가 아니다 —
+  //   여기서 볼 것은 '회의실 값이 샜는가'이지 '값이 있는가'가 아니다.
   for (const t of NON_MEETING) {
     const id = normalizeDesign(undefined, t);
     const r = resolveDesign(id);
-    for (const f of VALUE_FIELDS) assert.equal(r[f], INHERIT, `${t}.${f}: 회의실 값이 새어 들어왔다`);
+    for (const f of VALUE_FIELDS) {
+      const ids = appliedIds(r[f]);
+      assert.ok(!ids.some(x => String(x).startsWith('corporate')),
+        `${t}.${f}: 회의실 값이 새어 들어왔다 — ${ids.join(', ')}`);
+    }
   }
 });
 
@@ -161,16 +167,15 @@ test('고를 수 있는 목록 — 회의실 3종·상황실 1종, 나머지 용
 // ── PHASE 1-a 의 핵심 안전장치 ──────────────────────────────────────────────
 
 test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌지 않는다(전부 INHERIT)', () => {
-  // PHASE 4-a 에서 대회의실에 **의자 하나**가 들어갔다(그 외 항목은 여전히 전부 planned).
-  //   이제 아무것도 정하지 않은 공간은 상황실 하나뿐이다.
-  const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference'];
-  for (const id of DESIGN_IDS.filter(x => !STARTED.includes(x))) {
-    assert.ok(isNeutralDesign(id), `${id}: 아직 화면을 바꾸면 안 된다`);
-    const r = resolveDesign(id);
-    for (const f of VALUE_FIELDS) {
-      assert.equal(r[f], INHERIT, `${id}.${f} 가 INHERIT가 아니다`);
-    }
-  }
+  // PHASE 5-a 에서 상황실에도 **의자 하나**가 들어갔다(그 외 항목은 여전히 전부 planned).
+  //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
+  const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom'];
+  assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), []);
+  // 상황실이 정한 것은 **의자 하나뿐**이다. 나머지(콘솔·AV·마감·조명·화각)는 전부 planned 다.
+  const ctrl = resolveDesign('controlRoom');
+  assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(ctrl[f])), ['taskChair'],
+    '상황실이 의자 말고 다른 것까지 정했다 — 이번 단계는 의자 단계다');
+  assert.equal(isNeutralDesign('controlRoom'), false, '상황실은 이제 의자를 정한다');
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
   // 대회의실은 가구·AV(4-a~4-c)와 마감(4-d.1)까지 정했다 — 조명·화각·벽 구성은 아직 planned 다.
   assert.equal(isNeutralDesign('largeConference'), false, '대회의실은 이제 가구를 정한다');
@@ -225,8 +230,8 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     // **적용되는 값은 반드시 실재해야 한다.** 이것이 '가짜 스펙 금지'의 핵심이다.
     for (const x of ids) assert.ok(exists(x), `${id}: 없는 자산·재질 ${x}`);
   }
-  // 지금 실제로 적용되는 값 — 세 회의실의 가구·AV·마감 한 벌씩.
-  //   대회의실의 벽 구성·소품은 아직 planned 다(다음 단계). 조명·화각은 켜졌다.
+  // 지금 실제로 적용되는 값 — 세 회의실의 가구·AV·마감 한 벌씩 + 상황실 의자 하나(PHASE 5-a).
+  //   대회의실의 벽 구성·소품은 아직 planned 다. 상황실은 의자 말고 전부 planned 다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
     'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileLight',
@@ -236,6 +241,7 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'executiveBright', 'executiveChair',
     'executiveProposal', 'executiveSoft', 'largeUTable', 'lightAsh', 'lightOak', 'neutralLaminate',
     'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite', 'personalMonitor', 'prompter',
+    'taskChair',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
