@@ -221,7 +221,9 @@ export const ROOM_DESIGNS = Object.freeze({
     label: '상황실 · 관제실',
     roomType: 'control',
     layoutVariant: 'curved-console',
-    status: DESIGN_STATUS.PLANNED,
+    // PHASE 5-e(2026-09-18, DEC-125) — 최종 시각 QA/릴리스 게이트를 통과해 ready 로 올렸다.
+    //   **표시만 바뀐다.** 이 값은 그리는 코드가 한 곳도 읽지 않으므로 화면은 그대로다.
+    status: DESIGN_STATUS.READY,
     phase: 5,
     furniture: Object.freeze({
       chair: 'taskChair',                       // PHASE 5-a — 실제 도형이 생겼다

@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=436';
-import { resolveMaterialId, finishForPart } from './materials.js?v=436';
+import { roomDesign, isPlanned } from './room-design.js?v=437';
+import { resolveMaterialId, finishForPart } from './materials.js?v=437';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.

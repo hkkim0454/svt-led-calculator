@@ -255,16 +255,16 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
       || lightingPreset(id) || CAMERA_PLAN_IDS.has(id) || WALL_PLAN_IDS.includes(id),
       `${id} 는 실재하는 가구·재질·팔레트·조명·화각·벽 구성이어야 한다`);
   }
-  // 아직 구현 전인 것만 planned 표시를 단다(빈 껍데기가 아니라 '계획'이라는 뜻).
-  //   지금 그런 공간은 상황실 하나뿐이다.
-  for (const id of ['controlRoom']) {
+  // 릴리스 게이트를 통과한 네 공간이 ready 다.
+  //   임원은 PHASE 3-e, 대회의실은 PHASE 4-e, 상황실은 PHASE 5-e 에서 판정을 받았다.
+  for (const id of ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom']) {
+    assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.READY, id);
+  }
+  // 아직 게이트를 받지 않은 디자인이 생기면 planned 로만 적는다(중간 상태를 만들지 않는다).
+  for (const id of DESIGN_IDS) {
+    if (['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom'].includes(id)) continue;
     assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.PLANNED, id);
     assert.ok(ROOM_DESIGNS[id].phase >= 3, `${id}: PHASE 3 이후 구현`);
-  }
-  // 릴리스 게이트를 통과한 회의실 3종은 ready 다.
-  //   임원은 PHASE 3-e, 대회의실은 PHASE 4-e 에서 판정을 받았다.
-  for (const id of ['corporateMeeting', 'executiveBoardroom', 'largeConference']) {
-    assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.READY, id);
   }
 });
 

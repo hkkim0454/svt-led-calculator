@@ -277,10 +277,10 @@ test('⑲ 카메라는 배치를 읽기만 한다 — 같은 입력이면 같은
   assert.equal(JSON.stringify({ items: m.items, partitions: m.partitions }), before, '배치가 바뀌었다');
 });
 
-test('⑳ 소품만 남았다 — 상태는 승급하지 않았다', () => {
+test('⑳ 소품만 남았다 — 상태는 PHASE 5-e 에서 ready 로 올랐다', () => {
   const d = ROOM_DESIGNS[CR];
   assert.ok(isPlanned(d.accessories), '소품을 건드렸다');
-  assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
+  assert.equal(d.status, 'ready', 'PHASE 5-e 릴리스 게이트를 통과했다(DEC-125)');
 });
 
 
