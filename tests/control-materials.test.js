@@ -254,9 +254,9 @@ test('⑪ 배치가 한 값도 바뀌지 않았다', () => {
   }
 });
 
-test('⑫ 화각은 그대로 planned 다 — 조명은 PHASE 5-d.3 에서 생겼다', () => {
+test('⑫ 소품만 그대로 planned 다 — 조명·화각은 구현됐다', () => {
   assert.equal(D.lighting, 'controlTechnical', '조명은 PHASE 5-d.3 에서 생겼다');
-  assert.ok(isPlanned(D.camera), '화각을 건드렸다 (PHASE 5-d.4)');
+  assert.equal(D.camera, 'controlProposal', '화각은 PHASE 5-d.4 에서 생겼다');
   assert.equal(isPlanned(D.wallTreatment), false, '벽 구성은 PHASE 5-d.2 에서 실재한다');
   assert.equal(D.wallTreatment, 'controlWalls');
   assert.ok(isPlanned(D.accessories));

@@ -255,7 +255,9 @@ export const ROOM_DESIGNS = Object.freeze({
     // PHASE 5-d.3 에서 실제로 만들었다 — 회의실보다 어둡고 차분한 기술 조명.
     //   조명 **개수와 종류는 그대로**이고 세기와 그림자 설정만 달라진다.
     lighting: 'controlTechnical',
-    camera: planned('controlCamera'),
+    // PHASE 5-d.4 에서 실제로 만들었다 — 유리 파티션과 흡음 벽이 화면에 읽히는 구도.
+    //   배치·형상·마감·조명은 한 값도 건드리지 않고 **카메라만** 옮긴다.
+    camera: 'controlProposal',
     accessories: planned('controlAccessories'),
   }),
 });

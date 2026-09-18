@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=435';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=435';
+import { floorFinishFor, moodFor } from './materials.js?v=436';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=436';
 
-import { cameraPlanForDesign } from './design-camera.js?v=435';
-import { controlWallPlan } from './control-walls.js?v=435';
+import { cameraPlanForDesign } from './design-camera.js?v=436';
+import { controlWallPlan } from './control-walls.js?v=436';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -128,6 +128,18 @@ function framingFields(items) {
     }) : null,
     // 개인 모니터는 w·d를 들고 다니지 않는다(자산이 크기를 안다) — 중심점으로 감싼다.
     monitors: pointBounds(items, 'monitor'),
+    // 상황실 콘솔 배열의 범위(PHASE 5-d.4). 카메라가 '어디까지 물러설지'를 여기서 읽는다.
+    //   콘솔은 w·d를 들고 다니므로 실제 폭까지 감싼다 — 중심점만 쓰면 맨 뒷줄이 잘린다.
+    consoles: (() => {
+      const c = (items || []).filter(i => i && i.type === 'console'
+        && i.w > 0 && i.d > 0 && Number.isFinite(i.x) && Number.isFinite(i.z));
+      if (!c.length) return null;
+      return Object.freeze({
+        x0: u(Math.min(...c.map(i => i.x - i.w / 2))), x1: u(Math.max(...c.map(i => i.x + i.w / 2))),
+        z0: u(Math.min(...c.map(i => i.z - i.d / 2))), z1: u(Math.max(...c.map(i => i.z + i.d / 2))),
+        count: c.length,
+      });
+    })(),
     prompter: one ? Object.freeze({ x: u(one.x), z: u(one.z) }) : null,
   });
 }

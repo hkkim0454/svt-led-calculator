@@ -340,14 +340,14 @@ test('㉑ 정식 재질 13종 그대로 — 새 부품 이름도, 새 재질도 
 
 // ── E. 범위 ─────────────────────────────────────────────────────────────────
 
-test('㉒ 상황실 화각은 그대로 planned 다(벽 구성은 5-d.2 에서 생겼다)', () => {
+test('㉒ 상황실 소품은 그대로 planned 다(가구·AV·마감·벽·조명·화각은 구현됐다)', () => {
   const d = ROOM_DESIGNS.controlRoom;
   assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');
   assert.equal(d.palette, 'controlPalette', '마감은 PHASE 5-d.1 에서 생겼다');
   for (const m of Object.values(d.materials)) assert.equal(isPlanned(m), false, '재질이 아직 planned 다');
   assert.equal(d.wallTreatment, 'controlWalls', '벽 구성은 PHASE 5-d.2 에서 생겼다');
   assert.equal(d.lighting, 'controlTechnical', '조명은 PHASE 5-d.3 에서 생겼다');
-  assert.ok(isPlanned(d.camera), '화각을 건드렸다 (PHASE 5-d.4)');
+  assert.equal(d.camera, 'controlProposal', '화각은 PHASE 5-d.4 에서 생겼다');
   // AV(모니터·키보드)는 PHASE 5-c 에서 생겼다 — 여기서 보는 것은 마감·조명·화각이다.
   for (const id of ['consoleMonitor', 'keyboard']) {
     assert.equal(FURNITURE_CONTRACTS[id].status, CONTRACT_STATUS.IMPLEMENTED, id);

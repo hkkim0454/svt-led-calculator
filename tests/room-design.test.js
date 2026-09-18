@@ -22,7 +22,7 @@ import { designPalette } from '../src/design-finish.js';
 import { lightingPreset } from '../src/design-lighting.js';
 import { WALL_PLAN_IDS } from '../src/control-walls.js';
 // 화각 계획 이름 — 실재하는 계획인지 확인하기 위한 목록(가짜 스펙 금지).
-const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal']);
+const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal', 'controlProposal']);
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
 const ROOM_TYPE_IDS = ROOM_TYPES.map(t => t.id);
@@ -172,13 +172,14 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
   const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom'];
   assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), []);
-  // 상황실이 정한 것은 **가구 2종 + AV 2종 + 마감 + 벽 구성 + 조명**이다. 화각은 아직 planned 다.
+  // 상황실이 정한 것은 **가구 2종 + AV 2종 + 마감 + 벽 구성 + 조명 + 화각**이다. 소품만 planned 다.
   const ctrl = resolveDesign('controlRoom');
   assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(ctrl[f])),
     ['taskChair', 'curvedConsole', 'consoleMonitor', 'keyboard', 'controlPalette',
       'carpetTileDark', 'paintedWallWhite', 'acousticPanel', 'neutralLaminate', 'darkGraphite',
-      'neutralLaminate', 'darkGraphite', 'darkGraphite', 'controlWalls', 'controlTechnical'],
-    '상황실이 가구·AV·마감·벽 구성·조명 말고 다른 것까지 정했다 (화각은 5-d.4 다)');
+      'neutralLaminate', 'darkGraphite', 'darkGraphite', 'controlWalls', 'controlTechnical',
+      'controlProposal'],
+    '상황실이 가구·AV·마감·벽·조명·화각 말고 다른 것까지 정했다 (소품은 아직이다)');
   assert.equal(isNeutralDesign('controlRoom'), false, '상황실은 이제 의자를 정한다');
   assert.equal(isNeutralDesign('corporateMeeting'), false, '회의실은 이제 의자를 정한다');
   // 대회의실은 가구·AV(4-a~4-c)와 마감(4-d.1)까지 정했다 — 조명·화각·벽 구성은 아직 planned 다.
@@ -240,7 +241,7 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   assert.deepEqual(applied.slice().sort(), [
     'acousticPanel', 'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileDark',
     'carpetTileLight', 'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
-    'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'controlTechnical', 'controlWalls', 'corporateChair',
+    'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'controlProposal', 'controlTechnical', 'controlWalls', 'corporateChair',
     'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable', 'curvedConsole',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
@@ -331,7 +332,7 @@ test('기존 계산 무변경 ② LED — 삼성 검증 기준값(MP012F 6×3.4m
   // 디자인 모듈은 이 값에 닿을 수 없다 — 계산에 넘기는 인자가 하나도 없다.
   //   디자인이 정하는 것은 **가구의 생김새와 마감·조명·화각**뿐이다 — 계산에는 닿지 않는다.
   const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
-    largeConference: 'conferenceProposal' };
+    largeConference: 'conferenceProposal', controlRoom: 'controlProposal' };
   for (const id of [...DESIGN_IDS, undefined]) {
     if (CAM[id]) { assert.equal(resolveDesign(id).camera, CAM[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각은 아직 디자인이 정하지 않는다`);

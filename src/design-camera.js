@@ -21,7 +21,7 @@
 // 디자인이 화각을 정하지 않았으면 **null**을 돌려준다. 그러면 기존 계산이 그대로 쓰인다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=435';
+import { roomDesign, isPlanned } from './room-design.js?v=436';
 
 /** 이 파일이 다루는 시점. 아이소·평면도는 **손대지 않는다**(오너 지침 §12). */
 export const CORPORATE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
@@ -281,6 +281,13 @@ function tableFit(table, x, z, eye, pitchDown, halfVRad) {
  */
 export function cameraPlanForDesign(designId, presetId, model, aspect = 16 / 9) {
   if (!model) return null;
+  // 상황실 — 콘솔 배열과 **이미 세워진 칸막이**를 읽어 구도를 잡는다(PHASE 5-d.4).
+  //   칸막이 자리를 여기서 정하지 않는다. control-walls.js 가 정한 것을 받아 쓸 뿐이다.
+  const ct = controlCameraPlanId(designId, presetId);
+  if (ct) {
+    return controlCameraPlan(model.room, model.led, ct, aspect,
+      { consoles: model.fields?.consoles || null, partitions: model.partitions || null });
+  }
   // 대회의실 — 배치 범위(테이블·좌석·모니터·프롬프터)까지 보고 구도를 잡는다.
   const cf = conferenceCameraPlanId(designId, presetId);
   if (cf) {
@@ -637,5 +644,359 @@ export function conferenceCameraPlan(room, led, preset, aspect = 16 / 9, fields 
     monitorsVisibleShare: monShare,
     prompterVisible: prompter,
     fovCapped: fov >= CONFERENCE_FOV_RANGE.max - 1e-9,
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 상황실 카메라 (PHASE 5-d.4)
+// ─────────────────────────────────────────────────────────────────────────────
+// **무엇을 고치려는 것인가.** PHASE 5-d.2·5-d.3 에서 오른쪽 유리 파티션과 왼쪽 흡음 벽을
+//   만들었는데, 실내·코너 시점에서 **한 픽셀도 화면에 들어오지 않았다.** 실측하면
+//   16m 방에서 왼쪽 벽 중앙이 화면 가로 −92.5%, 오른쪽 끝이 213.6% 에 찍힌다 —
+//   화면에 담기는 것은 방 폭의 3분의 1뿐이고 나머지는 프레임 밖이다.
+//   자리도 마감도 조명도 문제가 아니라 **구도의 문제**이고, 그것이 이 단계의 몫이다.
+//
+// **양쪽 벽을 한 화면에 함께 넣는 것은 불가능하다.** 방 안에 선 사람이 좌우 벽을 동시에
+//   보려면 화각이 100°를 넘어야 하고, 그러면 제안서에 쓸 수 없는 어안 사진이 된다.
+//   그래서 **시점마다 한쪽씩 맡긴다** — 이것이 이 계열의 핵심 결정이다.
+//     interior  LED 정면 구도를 지키되 살짝 비켜서서 유리가 프레임 끝에 걸리게
+//     corner-l  왼쪽 뒤에 서서 **오른쪽 유리 파티션**을 대각으로
+//     corner-r  오른쪽 뒤에 서서 **왼쪽 흡음 벽**을 대각으로
+//     rear      뒤 가운데에서 좁게(기존 성격 유지 — 아직 화면 버튼이 없다)
+//
+// 앞의 세 계열과 **무엇이 다른가.** 대기업·임원·대회의실은 '테이블이 화면에 남는가'를 풀었다.
+//   상황실은 거기에 **'벽면 마감이 읽히는가'**가 더해진다. 그래서 화각을 넓힐 때
+//   LED 네 모서리뿐 아니라 **그 시점이 맡은 벽의 대표점**까지 담기도록 넓힌다.
+//   담기지 않으면 억지로 넓히지 않고 `featureVisible: false` 로 **정직하게 말한다.**
+//
+// **새 카메라 프레임워크를 만들지 않는다.** 대회의실 계열이 쓰는 헬퍼(toView·hFovDeg·
+//   sampleShare·clamp)를 그대로 쓰고, 그 함수 자체는 한 줄도 건드리지 않는다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 이 계열이 다루는 시점. 아이소·평면도·정면은 **언제나 제외**다(앞 단계들과 같다). */
+export const CONTROL_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
+
+/**
+ * 상황실 화각 허용 범위(°).
+ *   **상한 46 — 제안서 원근의 하드 게이트다.** 오너 검토(2026-09-18)에서 확정됐다.
+ *   한때 50 까지 열어 두었는데, 대표 장면이 우연히 46 이하로 떨어지더라도 **탐색 자체가
+ *   46 을 넘을 수 있다는 것**이 문제였다. 그래서 값이 아니라 **탐색의 상한**을 46 으로 내렸다.
+ *   대회의실(46)과 같은 값이다 — 상황실이라고 더 넓게 볼 이유가 없다.
+ *   46 으로 부족하면 화각을 넓히지 않고 **카메라를 뒤로 물리고 좌우·시선을 다시 잡는다**.
+ */
+export const CONTROL_FOV_RANGE = Object.freeze({ min: 38, max: 46 });
+
+/** 화면 위쪽에 남길 천장 띠의 상한 비율. 대회의실과 같은 기준이다. */
+export const CONTROL_BAND_MAX = 0.18;
+
+/** 콘솔 맨 뒷줄에서 물러설 거리(m)의 범위. 뒷벽을 뚫지 않는 선에서 잡는다. */
+export const CONTROL_STANDOFF = Object.freeze({ min: 0.90, max: 12.0 });
+
+/**
+ * **벽면을 맡은 시점은 뒷벽 앞까지 물러선다.**
+ *   왜 — 벽면은 카메라 옆에 있고 LED 는 앞에 있다. 가까이 서면 둘 사이 각도가 벌어져
+ *   화각 상한(50°)으로도 함께 담기지 않는다(실측: 16m 방 실내 시점에서 LED 가 82.6%만 남았다).
+ *   뒤로 물러나면 두 방향의 각도 차가 줄어 **같은 화각에 둘 다 들어온다**(LED 100% · 유리 보임).
+ *   벽면을 맡지 않은 후방 시점은 기존 방식 그대로 '바닥이 보이기 시작하는 거리 + 여유'다.
+ */
+export const FEATURE_VIEW_GOES_REAR = true;
+
+/** 벽면 대표점을 담을 때 두는 여유(°). LED 모서리 여유와 같은 뜻이다. */
+export const FEATURE_MARGIN_DEG = 1.0;
+
+/** LED 가 잘릴 때 시선을 LED 쪽으로 되돌리는 단계 수. 대회의실의 '옆으로 되돌리기'와 같은 장치다. */
+export const FEATURE_RELAX_STEPS = 6;
+
+/** 카메라가 유리 파티션에서 떨어져 서는 최소 거리(m). 사람이 유리 앞에 서는 거리다. */
+export const CAMERA_GLASS_CLEAR = 1.1;
+
+/** 물러설 거리를 찾을 때 시험하는 단계 수. 조건을 만족하는 **가장 가까운** 자리를 고른다. */
+export const STANDOFF_STEPS = 10;
+
+/**
+ * 상황실 시점 기준값. **전부 비율이거나 사람 치수**다.
+ *   eye         눈높이(m)
+ *   fov         기준 화각(°) — 여기서 시작해 LED와 담당 벽이 들어갈 만큼만 넓힌다(상한 50)
+ *   band        화면 위쪽 천장 띠 목표 비율
+ *   xRatio      카메라 좌우 자리 = 방 너비 × 이 값
+ *   feature     이 시점이 맡은 벽면 — 'glass'(오른쪽 유리) · 'acoustic'(왼쪽 흡음) · null
+ *   featureMix  시선을 LED 중심(0)에서 담당 벽 쪽(1)으로 얼마나 돌리는가.
+ *               **LED 가 주인공이라는 규칙이 이 값의 상한을 정한다** — 크게 돌리면
+ *               LED 가 화면 가장자리로 밀려난다. 실측으로 고른 값이다.
+ */
+export const CONTROL_CAMERA_PLANS = Object.freeze({
+  // 실내 — LED 정면 구도. 가운데에서 살짝 왼쪽으로 비켜서 **오른쪽 유리가 프레임에 걸리게** 한다.
+  //   정중앙(0.50)에서는 유리가 화면 오른쪽 밖 213% 에 있어 어떤 화각으로도 담기지 않는다(실측).
+  interior: Object.freeze({ eye: 1.66, fov: 43, band: 0.10, xRatio: 0.34, feature: 'glass', featureMix: 0.30 }),
+  // 좌측 코너 — 왼쪽 뒤에 서서 **오른쪽 유리 파티션**을 대각으로 본다.
+  //   왼쪽 벽은 카메라 뒤에 있어 어차피 보이지 않는다 — 그 벽은 corner-r 이 맡는다.
+  'corner-l': Object.freeze({ eye: 1.72, fov: 44, band: 0.12, xRatio: 0.15, feature: 'glass', featureMix: 0.42 }),
+  // 우측 코너 — 오른쪽 뒤에 서서 **왼쪽 흡음 벽**을 대각으로 본다. 이 방에서 흡음 벽이
+  //   화면에 들어오는 **유일한 시점**이다.
+  'corner-r': Object.freeze({ eye: 1.72, fov: 44, band: 0.12, xRatio: 0.85, feature: 'acoustic', featureMix: 0.42 }),
+  // 후방 — 뒤 가운데에서 조금 낮고 좁게. 벽면을 맡지 않는다(LED 와 콘솔 배열만 본다).
+  rear: Object.freeze({ eye: 1.62, fov: 41, band: 0.09, xRatio: 0.50, feature: null, featureMix: 0 }),
+});
+
+/** 이 디자인이 **상황실 계열** 카메라를 쓰는가. 아니면 null. */
+export function controlCameraPlanId(designId, presetId) {
+  const v = roomDesign(designId).camera;
+  if (isPlanned(v) || typeof v !== 'string' || v !== 'controlProposal') return null;
+  return CONTROL_CAMERA_PRESETS.includes(presetId) ? presetId : null;
+}
+
+/** 이 디자인이 쓰는 상황실 시점 이름들(검증·디버깅용). */
+export function controlCameraPresets(designId) {
+  return Object.freeze(CONTROL_CAMERA_PRESETS.filter(p => controlCameraPlanId(designId, p)));
+}
+
+/**
+ * 그 시점이 맡은 벽면의 **대표점**(m). 화각을 넓힐 때 이 점들이 화면에 들어가야 한다.
+ *   유리  — 계획이 실제로 세운 파티션에서 읽는다. 세우지 못한 방(좁은 방)이면 null 이다.
+ *           **여기서 자리를 정하지 않는다** — control-walls.js 가 정한 값을 받아 쓴다.
+ *   흡음  — 왼쪽 벽(x = 0)의 방 안쪽 면. 카메라 앞쪽 절반을 대표점으로 삼는다.
+ */
+export function controlFeaturePoints(feature, room, partitions) {
+  if (!feature || !room) return null;
+  if (feature === 'glass') {
+    const g = (partitions || []).find(p => p && p.role === 'partition');
+    if (!g) return null;
+    const z0 = g.z - g.d / 2, z1 = g.z + g.d / 2, len = z1 - z0;
+    const y = clamp(room.H * 0.45, 0.4, room.H - 0.3);
+    // **LED 쪽 구간을 고른다.** 카메라는 뒷벽 앞에 서므로, 옆에 있는 파티션은 카메라에
+    //   가까운 뒤쪽일수록 화면 밖으로 벌어지고 **LED 쪽(먼 쪽)이 화면 안에 들어온다**(실측).
+    //   목적은 '유리 전체를 담는 것'이 아니라 '유리가 읽히는 것'이다.
+    return [[g.x, y, z0 + len * 0.10], [g.x, y, z0 + len * 0.28], [g.x, y, z0 + len * 0.46]];
+  }
+  if (feature === 'acoustic') {
+    const y = clamp(room.H * 0.45, 0.4, room.H - 0.3);
+    // 같은 이유로 LED 쪽 절반을 고른다 — 벽 전체가 아니라 벽면 마감이 읽히면 된다.
+    return [[0.02, y, room.D * 0.12], [0.02, y, room.D * 0.30], [0.02, y, room.D * 0.48]];
+  }
+  return null;
+}
+
+/**
+ * 상황실 시점 계산.
+ *
+ * @param fields `{ consoles, partitions }` — 배치가 이미 만든 것을 **읽기만 한다.**
+ * @returns 카메라 자리·시선·화각과 **실측 지표**(LED·담당 벽이 얼마나 화면에 남는가).
+ */
+export function controlCameraPlan(room, led, preset, aspect = 16 / 9, fields = null) {
+  const s = CONTROL_CAMERA_PLANS[preset];
+  if (!s || !room || !led) return null;
+  const a = Math.max(0.3, aspect);
+  const f = fields || {};
+
+  // ── 내용물 범위 ──  콘솔 배열이 '보여 줘야 할 것'이다. 없으면 방 비율로 어림잡는다.
+  // 콘솔 **과 뒤쪽 회의 테이블**이 '보여 줘야 할 것'이다. 뒤 테이블을 빼면 카메라가
+  //   그 너머까지 물러나 앞쪽 빈 바닥이 화면을 먹는다(실측: 바닥이 화면의 47.9%였다).
+  const content = mergeBounds([f.consoles, f.table]) || {
+    x0: room.W * 0.2, x1: room.W * 0.8, z0: room.D * 0.15, z1: room.D * 0.6,
+  };
+  const contentCx = (content.x0 + content.x1) / 2;
+  const contentCz = (content.z0 + content.z1) / 2;
+
+  const eye = clamp(s.eye, EYE_RANGE.min, Math.min(EYE_RANGE.max, room.H - WALL_MARGIN - 0.2));
+  const rearMost = clamp(room.D - clamp(room.D * 0.05, 0.35, 0.70), WALL_MARGIN, room.D - WALL_MARGIN);
+  const backZ = Math.max(content.z1, 0);
+
+  const ledPts = [[led.x, led.y, led.depth], [led.x + led.w, led.y, led.depth],
+    [led.x, led.y + led.h, led.depth], [led.x + led.w, led.y + led.h, led.depth]];
+  const featPts = controlFeaturePoints(s.feature, room, f.partitions);
+
+  // ── 카메라 좌우 ── 기본 자리에서 시작하되, **유리 파티션 안에 서지 않는다.**
+  //   파티션은 운용 구역 오른쪽 끝에 있어서 xRatio 0.85 가 그 자리와 겹친다(실측: 16m 방에서
+  //   카메라 x 13.6 = 파티션 x 13.606). 그대로 두면 화면이 온통 유리 한 장이 된다.
+  //   그래서 파티션이 있으면 **운용 구역 쪽으로** 한 걸음 물러난 자리까지만 간다.
+  const glass = (f.partitions || []).find(p => p && p.role === 'partition');
+  const xLimit = glass ? glass.x - CAMERA_GLASS_CLEAR : Infinity;
+  const x0 = Math.min(xLimit,
+    clamp(room.W * s.xRatio, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN)));
+
+  // 화각·내려본 각·서는 깊이가 서로를 물고 있어 네 번 되풀이하면 수렴한다(대회의실과 같은 방식).
+  function solveWith(mix, want = null, x = x0) {
+  let fov = clamp(s.fov, CONTROL_FOV_RANGE.min, CONTROL_FOV_RANGE.max);
+  let standOff = CONTROL_STANDOFF.min;
+  let z = rearMost, pitch = 0, yaw = 0, dzWall = Math.max(0.5, z - led.depth);
+
+  for (let it = 0; it < 4; it++) {
+    z = clamp(Math.min(rearMost, backZ + standOff), WALL_MARGIN, rearMost);
+    dzWall = Math.max(0.5, z - led.depth);
+    const halfV = fov * DEG / 2;
+
+    // 시선 — LED 가로 중심에서 **담당 벽 쪽으로** featureMix 만큼 돌린다.
+    //   담당 벽이 없거나(후방) 유리를 세우지 못한 방이면 LED 중심을 그대로 본다.
+    const ledCx = led.x + led.w / 2;
+    let aimX = ledCx;
+    let aimZ = led.depth + (contentCz - led.depth) * 0.35;
+    if (featPts && featPts.length) {
+      const fx = featPts.reduce((t, p) => t + p[0], 0) / featPts.length;
+      const fz = featPts.reduce((t, p) => t + p[2], 0) / featPts.length;
+      aimX = ledCx + (fx - ledCx) * mix;
+      aimZ = aimZ + (fz - aimZ) * mix;
+    }
+    yaw = Math.atan2(aimX - x, aimZ - z);
+
+    // 천장 띠에서 내려본 각을 역산한다.
+    const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+    const band = clamp(s.band, 0, CONTROL_BAND_MAX);
+    pitch = Math.atan((1 - 2 * band) * Math.tan(halfV)) - eCeil;
+    pitch = Math.max(pitch, Math.atan(POLAR_GAP_PER_DIST));
+
+    // LED 네 모서리 **와 담당 벽 대표점**이 들어갈 만큼만 넓힌다(상한 50°에서 멈춘다).
+    let needV = 0, needH = 0;
+    for (const p of ledPts) {
+      const q = toView(p, [x, eye, z], yaw, pitch);
+      if (!q) continue;
+      needV = Math.max(needV, Math.abs(q.v)); needH = Math.max(needH, Math.abs(q.u));
+    }
+    const m = Math.tan(LED_EDGE_MARGIN_DEG * DEG);
+    let wantV = 2 * Math.atan(Math.max(needV + m, (needH + m) / a)) / DEG;
+    if (featPts) {
+      // 벽 대표점은 **가로로 멀리** 있다 — 세로가 아니라 가로에서 화각을 정한다.
+      let fH = 0, fV = 0;
+      for (const p of featPts) {
+        const q = toView(p, [x, eye, z], yaw, pitch);
+        if (!q) continue;
+        fH = Math.max(fH, Math.abs(q.u)); fV = Math.max(fV, Math.abs(q.v));
+      }
+      if (fH > 0) {
+        const fm = Math.tan(FEATURE_MARGIN_DEG * DEG);
+        wantV = Math.max(wantV, 2 * Math.atan(Math.max(fV + fm, (fH + fm) / a)) / DEG);
+      }
+    }
+    fov = clamp(Math.max(s.fov, wantV), CONTROL_FOV_RANGE.min, CONTROL_FOV_RANGE.max);
+
+    const down = pitch + fov * DEG / 2;
+    const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down));
+    standOff = clamp(want === null ? floorNear + 0.45 : want,
+      CONTROL_STANDOFF.min, CONTROL_STANDOFF.max);
+  }
+  const tanV0 = Math.tan(fov * DEG / 2);
+  const tanH0 = Math.tan(hFovDeg(fov, a) * DEG / 2);
+  const inside = q => q && Math.abs(q.u) <= tanH0 + 1e-9 && Math.abs(q.v) <= tanV0 + 1e-9;
+  const lv = ledPts.map(q => toView(q, [x, eye, z], yaw, pitch));
+  const ok = lv.every(inside);
+  const fv = featPts ? featPts.map(q => toView(q, [x, eye, z], yaw, pitch)) : [];
+  const featOk = !featPts || fv.every(inside);
+  // 카메라 앞에 깔리는 **빈 바닥의 길이(m)** — 가장 가까운 내용물이 '바닥이 보이기 시작하는
+  //   거리'보다 얼마나 더 뒤에 있는가. 0 이면 내용물이 화면 아래까지 꽉 찬다.
+  const down0 = pitch + fov * DEG / 2;
+  const fn = down0 >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down0));
+  const emptyFloor = Math.max(0, (z - content.z1) - fn);
+  return { fov, z, pitch, yaw, dzWall, mix, want, x, emptyFloor,
+    ledFullyVisible: ok, featureAllVisible: featOk,
+    ledShare: lv.filter(inside).length / Math.max(1, lv.length),
+    featShare: featPts ? fv.filter(inside).length / Math.max(1, fv.length) : 0 };
+  }
+
+  // **LED 가 먼저다.** 벽 쪽으로 돌린 시선 때문에 LED 가 잘리면, 시선을 LED 쪽으로
+  //   조금씩 되돌린다 — 벽면은 덜 보여도 되지만 LED 가 잘린 제안서 그림은 쓸 수 없다.
+  //   끝까지 담기지 않으면 억지로 넓히지 않고 `ledFullyVisible: false` 로 정직하게 말한다.
+  // ── 물러설 거리 ── **필요한 만큼만 물러난다.**
+  //   뒤로 갈수록 LED 와 벽면의 각도 차가 줄어 둘 다 담기지만, 그만큼 앞쪽 빈 바닥이
+  //   화면을 먹는다(실측: 뒷벽까지 밀었더니 바닥이 화면의 47.9%였다). 그래서 가까운
+  //   자리부터 시험해 **조건을 만족하는 첫 자리**에서 멈춘다.
+  const maxWant = Math.max(CONTROL_STANDOFF.min, rearMost - backZ);
+  const wants = featPts
+    ? Array.from({ length: STANDOFF_STEPS }, (_, i) => CONTROL_STANDOFF.min
+      + (maxWant - CONTROL_STANDOFF.min) * ((i + 1) / STANDOFF_STEPS))
+    : [null];
+  //   고르는 순서가 곧 우선순위다. ① LED 도 벽도 다 담기는 **가장 가까운** 자리,
+  //   ② 없으면 LED 만이라도 다 담기는 가장 가까운 자리, ③ 그것도 없으면 LED 를 가장 많이 담는 자리.
+  // **카메라 좌우도 되돌린다.** 코너에서 카메라가 LED 폭 바깥에 서면 LED 반대쪽 끝이
+  //   화각을 간신히 넘어간다(실측: 12m 방에서 33.8° 대 허용 33.2°). 그때는 옆으로 나간 만큼을
+  //   가운데로 조금씩 되돌린다 — 코너의 성격은 최대한 남기고 LED 를 담는 쪽이다(대회의실과 같은 장치).
+  const mid = room.W / 2;
+  const xs = [x0];
+  for (let k = 1; k <= LATERAL_RELAX_STEPS; k++) {
+    const cand = x0 + (mid + Math.sign(x0 - mid) * room.W * MIN_CORNER_OFFSET - x0) * (k / LATERAL_RELAX_STEPS);
+    xs.push(Math.min(xLimit, clamp(cand, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN))));
+  }
+  // **시선·좌우·물러섬 셋을 함께 본다.** 하나씩 차례로 되돌리면 조합을 놓친다 —
+  //   실측에서 '카메라를 가운데로 되돌렸더니 시선이 그만큼 더 돌아가 LED 가 그대로 잘리는'
+  //   경우가 나왔다. 셋을 같이 훑고 **우선순위로** 고르는 편이 짧고 정확하다.
+  const mixes = Array.from({ length: FEATURE_RELAX_STEPS + 1 },
+    (_, k) => s.featureMix * (1 - k / FEATURE_RELAX_STEPS));
+  const tried = [];
+  for (const xc of xs) for (const w of wants) for (const mx of mixes) tried.push(solveWith(mx, w, xc));
+  // 고르는 기준(앞쪽이 셀수록 강하다).
+  //   ① **LED 가 온전히 담기는가** — 잘린 LED 는 제안서 그림이 아니다.
+  //   ② 담당 벽이 얼마나 보이는가 — 이 단계가 풀려는 문제다.
+  //   ③ 시선을 덜 되돌렸는가 — 벽 쪽을 향한 본래 구도에 가까울수록 좋다.
+  //   ④ 코너다운가(기본 자리에서 덜 옮겼는가) · ⑤ 필요 이상 물러나지 않았는가.
+  //   ③ **빈 바닥이 화면을 먹지 않는가** — 뒤로 물러날수록 카메라 앞에 빈 바닥이 깔린다.
+  //   벽은 '전부 담기는가'가 아니라 **'읽히는가'**가 기준이다. 전부 담으려 들면 카메라가
+  //   뒷벽까지 밀려 바닥이 화면의 절반을 먹는다(실측 47.9%). 그래서 ② 는 보이는지 여부만 보고,
+  //   얼마나 많이 보이는지는 ④ 로 내린다.
+  const rank = c => [c.ledFullyVisible ? 0 : 1, c.featShare > 0 ? 0 : 1,
+    Math.round(c.emptyFloor * 4) / 4, -c.featShare, -c.mix, Math.abs(c.x - x0)];
+  const sol = tried.reduce((best, c) => {
+    const A = rank(c), B = rank(best);
+    for (let i = 0; i < A.length; i++) { if (A[i] < B[i] - 1e-9) return c; if (A[i] > B[i] + 1e-9) return best; }
+    return best;
+  }, tried[0]);
+  const { fov, z, pitch, yaw, dzWall, x } = sol;
+  const featureMixUsed = +sol.mix.toFixed(4);
+  const lateralRelax = +Math.abs(x - x0).toFixed(4);
+
+  const cam = [x, eye, z];
+  const tanV = Math.tan(fov * DEG / 2);
+  const tanH = Math.tan(hFovDeg(fov, a) * DEG / 2);
+
+  // ── 시선점 ── 방향은 그대로 두고 점만 앞으로 당긴다(깊은 방에서 바닥 아래로 내려가지 않게).
+  const aimDist = Math.hypot(contentCx - x, contentCz - z);
+  let tDist = clamp(aimDist, 1.2, Math.max(1.2, dzWall));
+  const maxDist = Math.tan(pitch) > 1e-6 ? (eye - WALL_MARGIN) / Math.tan(pitch) : tDist;
+  tDist = Math.max(1.2, Math.min(tDist, maxDist));
+  const targetY = Math.min(eye - eyeAboveTargetFor(tDist), eye - tDist * Math.tan(pitch));
+  const target = [
+    clamp(x + Math.sin(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN)),
+    clamp(targetY, 0.05, room.H - WALL_MARGIN),
+    clamp(z + Math.cos(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.D - WALL_MARGIN)),
+  ];
+
+  // ── 지표 ── '보인다'고 말하려면 재고 말해야 한다.
+  const inFrame = q => q && Math.abs(q.u) <= tanH + 1e-9 && Math.abs(q.v) <= tanV + 1e-9;
+  const v4 = ledPts.map(q => toView(q, cam, yaw, pitch));
+  const ledFullyVisible = v4.every(inFrame);
+  const ledShare = (() => {
+    const q = v4.filter(Boolean);
+    if (q.length < 4) return 0;
+    const u0 = Math.min(...q.map(t => t.u)), u1 = Math.max(...q.map(t => t.u));
+    const v0 = Math.min(...q.map(t => t.v)), v1 = Math.max(...q.map(t => t.v));
+    const full = Math.max(1e-9, (u1 - u0) * (v1 - v0));
+    const iw = Math.max(0, Math.min(u1, tanH) - Math.max(u0, -tanH));
+    const ih = Math.max(0, Math.min(v1, tanV) - Math.max(v0, -tanV));
+    return +(iw * ih / full).toFixed(4);
+  })();
+  // **담당 벽이 실제로 화면에 남는가.** 대표점 중 몇 개가 프레임 안인지 센다.
+  const featureShare = featPts ? sampleShare(featPts, cam, yaw, pitch, tanH, tanV) : null;
+  const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+  const ceilingBand = +clamp((1 - Math.tan(eCeil + pitch) / tanV) / 2, 0, 1).toFixed(4);
+  const down = pitch + fov * DEG / 2;
+  const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down));
+
+  return Object.freeze({
+    position: [+x.toFixed(4), +eye.toFixed(4), +z.toFixed(4)],
+    target: target.map(v => +v.toFixed(4)),
+    fov: +fov.toFixed(3),
+    eye,
+    feature: s.feature,
+    featureMix: featureMixUsed,
+    lateralRelax,
+    standOff: +(z - backZ).toFixed(4),
+    pitchDeg: +(pitch / DEG).toFixed(3),
+    yawDeg: +(yaw / DEG).toFixed(3),
+    ceilingBand,
+    floorNear: +floorNear.toFixed(4),
+    emptyFloor: +sol.emptyFloor.toFixed(4),
+    ledFullyVisible,
+    ledVisibleShare: ledShare,
+    // 담당 벽이 없으면 null(모르는 것이 아니라 '맡지 않았다'는 뜻이다).
+    featureVisible: featureShare === null ? null : featureShare > 0,
+    featureVisibleShare: featureShare,
+    fovCapped: fov >= CONTROL_FOV_RANGE.max - 1e-9,
   });
 }
