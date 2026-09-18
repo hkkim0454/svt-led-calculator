@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=427';
-import { resolveMaterialId, finishForPart } from './materials.js?v=427';
+import { roomDesign, isPlanned } from './room-design.js?v=428';
+import { resolveMaterialId, finishForPart } from './materials.js?v=428';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -256,6 +256,33 @@ export function floorPartFinishForDesign(designId) {
 }
 
 /**
+ * **범용(폴백) 테이블에도 그 공간의 마감을 입히는 표.**
+ *
+ * 왜 필요한가 — 전용 테이블 자산은 자기가 아는 모양만 세운다. 대회의실 `largeUTable`은
+ *   U자 조각을 읽어 세우고, 보트·사각형이 오면 세우지 못한다. 그때는 **기존 범용 테이블이
+ *   대신 선다**(설계된 폴백 — 화면에서 테이블이 사라지지 않게 하는 장치다).
+ *   그런데 그 범용 테이블의 부품 이름은 `tableTop`·`tableBase`·`tableBeam` 이라
+ *   공간별 마감표(전용 부품 이름만 있다)에 걸리지 않았다. 그래서 **같은 대회의실인데
+ *   테이블 모양만 바꾸면 상판 색이 달라졌다**(PHASE 4-d.5에서 실측으로 확인).
+ *
+ * 어떻게 고치는가 — 그 공간의 **전용 부품 마감을 그대로 빌려** 범용 부품에 입힌다.
+ *   새 색도, 새 재질도 고르지 않는다(§8·§10). 거칠기·금속성까지 빌려 온 부품의 값을 따른다.
+ *
+ * **이 표에 이름이 없는 디자인은 예전 그대로다** — 대기업·임원의 폴백 모습은 한 값도 바뀌지 않는다(§18·§19).
+ *   값은 '범용 부품 이름 → 빌려 올 전용 부품 이름'이다.
+ */
+export const GENERIC_TABLE_FINISH = Object.freeze({
+  largeConference: Object.freeze({
+    tableTop: 'conferenceTop',
+    tableBase: 'conferenceBase',
+    tableBeam: 'conferenceBase',   // 받침을 잇는 보. 하부와 같은 계열이어야 한 덩어리로 읽힌다
+  }),
+});
+
+/** 범용 테이블 부품 이름(폴백 테이블이 쓰는 이름). 테이블 말고는 쓰는 곳이 없다. */
+export const GENERIC_TABLE_PARTS = Object.freeze(['tableTop', 'tableBase', 'tableBeam']);
+
+/**
  * 테이블 부품(임원 U 테이블 상판·하부)의 마감.
  *   **형상은 그대로 두고 마감만 갈아 끼운다** — 같은 U 테이블을 다른 공간이 쓰게 되어도
  *   그 공간의 팔레트로 마감만 바꾸면 된다.
@@ -275,6 +302,16 @@ export function tablePartFinishForDesign(designId) {
   for (const part of ALL_TABLE_PARTS) {
     const f = finish(byPart[part], src.pal[part], part);
     if (f) out[part] = f;
+  }
+  // 범용(폴백) 테이블 — **이 디자인이 허락한 경우에만** 전용 부품의 마감을 통째로 빌려 온다.
+  //   재질·색·거칠기를 전부 빌려 온 부품(`from`) 기준으로 잡는다 — 그래야 같은 공간 안에서
+  //   테이블 모양을 바꿔도 상판이 같은 재질로 읽힌다.
+  const borrow = GENERIC_TABLE_FINISH[designId];
+  if (borrow) {
+    for (const [part, from] of Object.entries(borrow)) {
+      const f = finish(byPart[from], src.pal[from], from);
+      if (f) out[part] = f;
+    }
   }
   return Object.keys(out).length ? Object.freeze(out) : null;
 }
