@@ -51,7 +51,8 @@ test('① 대회의실이 제 조명 프리셋을 쓴다', () => {
 
 test('⑤ 조명 프리셋이 **그 공간에만** 붙는다', () => {
   for (const id of DESIGN_IDS) {
-    if (['corporateMeeting', 'executiveBoardroom', LC].includes(id)) continue;
+    // 상황실은 PHASE 5-d.3 에서 제 조명(controlTechnical)을 갖게 됐다.
+    if (['corporateMeeting', 'executiveBoardroom', LC, 'controlRoom'].includes(id)) continue;
     assert.equal(lightingForDesign(id), null, `${id} 에 조명이 붙었다`);
     assert.equal(shadowSettingsForDesign(id), null, id);
     assert.equal(fillLightPlacementForDesign(id, ROOM), null, id);
@@ -83,7 +84,7 @@ test('③ 임원 조명이 한 값도 바뀌지 않았다', () => {
 
 test('④ 조명을 정하지 않은 공간은 세기가 그대로다', () => {
   const base = { hemi: 1, ceiling: 1, key: 1, fill: 1, ledSpill: 1 };
-  for (const id of [null, undefined, 'controlRoom', '없는디자인']) {
+  for (const id of [null, undefined, '없는디자인']) {
     assert.deepEqual(applyDesignLighting(base, id), base, String(id));
   }
   // 대회의실은 실제로 바뀐다.

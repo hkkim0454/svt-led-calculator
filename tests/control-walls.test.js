@@ -394,9 +394,9 @@ test('㉗ 그림자 일괄 지정이 재질의 뜻을 덮어쓰지 않는다', (
 
 // ── ⑦ 단계 경계 ────────────────────────────────────────────────────────────
 
-test('㉘ 조명·화각·소품은 그대로 planned 다 — 상태도 승급하지 않았다', () => {
+test('㉘ 화각·소품은 그대로 planned 다 — 상태도 승급하지 않았다', () => {
   const d = ROOM_DESIGNS[CR];
-  assert.ok(isPlanned(d.lighting), '조명을 건드렸다 (PHASE 5-d.3)');
+  assert.equal(d.lighting, 'controlTechnical', '조명은 PHASE 5-d.3 에서 생겼다');
   assert.ok(isPlanned(d.camera), '화각을 건드렸다 (PHASE 5-d.4)');
   assert.ok(isPlanned(d.accessories));
   assert.equal(d.status, 'planned', '릴리스 판정은 PHASE 5-e 의 몫이다');

@@ -252,7 +252,9 @@ export const ROOM_DESIGNS = Object.freeze({
     // PHASE 5-d.2 에서 실제로 만들었다 — 오른쪽 유리 파티션 + 왼쪽 흡음(다크) 벽면.
     //   자리와 치수는 `control-walls.js`(순수)가 방 크기와 배치에서 계산한다.
     wallTreatment: 'controlWalls',
-    lighting: planned('controlTechnical'),
+    // PHASE 5-d.3 에서 실제로 만들었다 — 회의실보다 어둡고 차분한 기술 조명.
+    //   조명 **개수와 종류는 그대로**이고 세기와 그림자 설정만 달라진다.
+    lighting: 'controlTechnical',
     camera: planned('controlCamera'),
     accessories: planned('controlAccessories'),
   }),
