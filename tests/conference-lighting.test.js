@@ -52,7 +52,8 @@ test('① 대회의실이 제 조명 프리셋을 쓴다', () => {
 test('⑤ 조명 프리셋이 **그 공간에만** 붙는다', () => {
   for (const id of DESIGN_IDS) {
     // 상황실은 PHASE 5-d.3 에서 제 조명(controlTechnical)을 갖게 됐다.
-    if (['corporateMeeting', 'executiveBoardroom', LC, 'controlRoom'].includes(id)) continue;
+    //   교육장도 PHASE 7-b 에서 제 조명(trainingSoft)을 갖게 됐다.
+    if (['corporateMeeting', 'executiveBoardroom', LC, 'controlRoom', 'trainingRoom'].includes(id)) continue;
     assert.equal(lightingForDesign(id), null, `${id} 에 조명이 붙었다`);
     assert.equal(shadowSettingsForDesign(id), null, id);
     assert.equal(fillLightPlacementForDesign(id, ROOM), null, id);

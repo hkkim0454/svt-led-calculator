@@ -22,7 +22,7 @@ import { designPalette } from '../src/design-finish.js';
 import { lightingPreset } from '../src/design-lighting.js';
 import { WALL_PLAN_IDS } from '../src/control-walls.js';
 // 화각 계획 이름 — 실재하는 계획인지 확인하기 위한 목록(가짜 스펙 금지).
-const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal', 'controlProposal']);
+const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal', 'controlProposal', 'trainingProposal']);
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
 const ROOM_TYPE_IDS = ROOM_TYPES.map(t => t.id);
@@ -243,8 +243,8 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     for (const x of ids) assert.ok(exists(x), `${id}: 없는 자산·재질 ${x}`);
   }
   // 지금 실제로 적용되는 값 — 다섯 공간의 가구·AV·마감 한 벌씩.
-  //   대회의실의 벽 구성·소품은 아직 planned 다. 교육장(PHASE 7-a)은 **마감만** 정했고
-  //   가구·벽 구성·소품은 INHERIT, 조명·화각은 planned 다(7-b 의 몫).
+  //   대회의실의 벽 구성·소품은 아직 planned 다. 교육장은 마감(7-a)에 더해
+  //   조명·화각(7-b)까지 정했고, 가구·벽 구성·소품은 INHERIT 다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
     'acousticPanel', 'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable',
@@ -261,7 +261,8 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     'neutralLaminate', 'neutralLaminate', 'neutralLaminate',
     'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite',
     'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite',
-    'personalMonitor', 'prompter', 'taskChair', 'trainingNeutral',
+    'personalMonitor', 'prompter', 'taskChair',
+    'trainingNeutral', 'trainingProposal', 'trainingSoft',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
@@ -347,7 +348,8 @@ test('기존 계산 무변경 ② LED — 삼성 검증 기준값(MP012F 6×3.4m
   // 디자인 모듈은 이 값에 닿을 수 없다 — 계산에 넘기는 인자가 하나도 없다.
   //   디자인이 정하는 것은 **가구의 생김새와 마감·조명·화각**뿐이다 — 계산에는 닿지 않는다.
   const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
-    largeConference: 'conferenceProposal', controlRoom: 'controlProposal' };
+    largeConference: 'conferenceProposal', controlRoom: 'controlProposal',
+    trainingRoom: 'trainingProposal' };
   for (const id of [...DESIGN_IDS, undefined]) {
     if (CAM[id]) { assert.equal(resolveDesign(id).camera, CAM[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각은 아직 디자인이 정하지 않는다`);

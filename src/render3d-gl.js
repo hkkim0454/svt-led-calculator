@@ -18,16 +18,16 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=439';
-import { createMaterialLibrary } from './materials-gl.js?v=439';
-import { MOODS } from './materials.js?v=439';
-import { roomFinishForDesign, consoleFinishForDesign } from './design-finish.js?v=439';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=441';
+import { createMaterialLibrary } from './materials-gl.js?v=441';
+import { MOODS } from './materials.js?v=441';
+import { roomFinishForDesign, consoleFinishForDesign } from './design-finish.js?v=441';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
-} from './design-lighting.js?v=439';
-import { ledImageFit } from './led-image.js?v=439';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=439';
+} from './design-lighting.js?v=441';
+import { ledImageFit } from './led-image.js?v=441';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=441';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -35,7 +35,8 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-} from './gl-model.js?v=439';
+  CONTROLS_MAX_POLAR,
+} from './gl-model.js?v=441';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -710,7 +711,9 @@ export function createViewerGL(canvas, { onError } = {}) {
     c.screenSpacePanning = false;
     c.minDistance = 0.8;
     c.maxDistance = 400;
-    c.maxPolarAngle = Math.PI / 2 - 0.02;   // 바닥 아래로 내려가지 않게
+    // 바닥 아래로 내려가지 않게. **값은 gl-model.js 가 갖고 있다** — 순수 검사(settledPose)가
+    //   같은 상한으로 실제 카메라를 예측해야 하므로, 두 곳에 적어 두면 조용히 갈린다.
+    c.maxPolarAngle = CONTROLS_MAX_POLAR;
     c.minPolarAngle = 0;                    // 평면도(바로 위)까지 허용
     // 벽은 방 안쪽을 향한 한쪽 면만 그린다. 옆으로 크게 돌아 방 밖으로 나가면 벽이
     //   사라져 그림이 깨지므로, 실내 시점에서는 LED를 바라보는 범위 안에서만 돌게 막는다.
