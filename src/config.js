@@ -22,6 +22,10 @@ export const CONFIG_DEFAULTS = Object.freeze({
   roomDesign: null,
   wallThk: 100,          // 벽 두께(mm) — 3D 뷰 전용. 방 안쪽 치수(W×H×D)는 그대로 둔다
   customViews: null,     // 3D 뷰에서 사용자가 저장한 시점 목록. null = 없음
+  // 3D 뷰에 세우는 축척 기준 인물(서 있는 사람)을 보일지. **기본은 켬**이다 —
+  //   릴리스된 네 공간의 동결 화면이 이 사람을 포함한 상태이므로(PHASE 6-0 감사, DEC-126),
+  //   항목이 없는 옛 저장값도 반드시 켠 상태로 복원되어야 예전 화면이 그대로 나온다.
+  person3d: true,
   baseHeight: 1000,      // 바닥에서 LED 아래까지(mm)
   ledW: 4000,            // 'LED 크기 지정' 모드의 LED 가로(mm)
   ledH: 2300,            // 'LED 크기 지정' 모드의 LED 세로(mm)
@@ -84,6 +88,8 @@ export function normalizeConfig(raw) {
           && Array.isArray(v.target) && v.target.length === 3)
         .slice(0, 24).map(v => ({ ...v }))
       : D.customViews,
+    // 항목이 없으면(예전 저장값) 기본값 true 로 떨어진다 — 릴리스된 동작 그대로다.
+    person3d: asBool(r.person3d, D.person3d),
     baseHeight: asNum(r.baseHeight, D.baseHeight),
     ledW: asNum(r.ledW, D.ledW),
     ledH: asNum(r.ledH, D.ledH),

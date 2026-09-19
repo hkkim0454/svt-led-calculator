@@ -8,6 +8,7 @@ test('정상 구성은 값이 그대로 왕복(roundtrip)된다', () => {
     spaceW: 6000, spaceH: 3400, baseHeight: 800, ledW: 3200, ledH: 1800,
     spaceD: 7000, roomType: 'classroom', roomOpts: { rows: 5, cols: 4, aisle: true },
     roomDesign: 'largeConference',
+    person3d: false,
     mode: 'manual', manCols: 8, manRows: 6,
     redundancy: true, cs4b: true, gbicFB: false, highWork: true,
     spareRate: '7', spareEdited: true, sboxSpare: 2, signalMode: 'uhd',
