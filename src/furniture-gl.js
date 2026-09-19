@@ -15,22 +15,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=437';
-import { createMaterialLibrary } from './materials-gl.js?v=437';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=437';
-import { GRADE_COLORS } from './viewangle.js?v=437';
-import { createGeometryCache } from './geometry-gl.js?v=437';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=437';
+import { u } from './gl-model.js?v=438';
+import { createMaterialLibrary } from './materials-gl.js?v=438';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=438';
+import { GRADE_COLORS } from './viewangle.js?v=438';
+import { createGeometryCache } from './geometry-gl.js?v=438';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=438';
 import {
   credenzaFinishForDesign, avFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
   consoleFinishForDesign,
-} from './design-finish.js?v=437';
+} from './design-finish.js?v=438';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=437';
+} from './furniture-assets.js?v=438';
 
 const DEG = Math.PI / 180;
 
@@ -340,6 +340,11 @@ function plantMesh(mat, geoCache) {
   const pot = new THREE.Mesh(
     geoCache.cyl(u(S.potR), u(S.potR * 0.78), u(S.potH)), mat.plantPot);
   pot.position.y = u(S.potH / 2);
+  // 부품에 이름을 붙인다(PHASE 6-a) — 화분은 Group 이라 **바깥 Group 만** `plant` 이름을 받고
+  //   속 부품 둘은 무명이었다. 그러면 화면 검사·충돌 검사·수명주기 검사가 화분을 셀 수 없다
+  //   (PHASE 6-0 감사에서 실제로 '화분 없음'으로 잘못 읽혔다). 이름은 다른 직접 제작 가구
+  //   (`rug`·`riserTop`)와 같은 방식으로 **부품 종류 이름 그대로** 쓴다. 그리기에는 영향이 없다.
+  pot.name = 'plantPot';
   g.add(pot);
   // 둥글게 뭉친 잎 — 아래→위 지름 곡선을 돌려 만든다(막대를 쌓으면 기계 부품처럼 보인다).
   const profile = [0.42, 0.88, 1.12, 1.15, 0.98, 0.58, 0.12];
@@ -348,6 +353,7 @@ function plantMesh(mat, geoCache) {
     u(S.potH - 40 + (i * S.leafH) / (profile.length - 1)),
   ));
   const leaf = new THREE.Mesh(new THREE.LatheGeometry(pts, 28), mat.plantLeaf);
+  leaf.name = 'plantLeaf';
   g.add(leaf);
   return g;
 }

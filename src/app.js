@@ -4,22 +4,22 @@ import { MODELS } from './models.js?v=276';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=276';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=277';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=437';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=438';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign,
-} from './room-presets.js?v=437';
-import { createViewerGL } from './render3d-gl.js?v=437';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=437';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=437';
-import { normalizeDesign, designsFor } from './room-design.js?v=437';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=437';
-import { sideMonitorLayout } from './monitors.js?v=437';
-import { ledImageFit } from './led-image.js?v=437';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=437';
+} from './room-presets.js?v=438';
+import { createViewerGL } from './render3d-gl.js?v=438';
+import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=438';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=438';
+import { normalizeDesign, designsFor } from './room-design.js?v=438';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=438';
+import { sideMonitorLayout } from './monitors.js?v=438';
+import { ledImageFit } from './led-image.js?v=438';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=438';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -1384,7 +1384,9 @@ document.addEventListener('click', e => {
   const k = b.dataset.t3d;
   pv3dShow[k] = !pv3dShow[k];
   b.classList.toggle('on', pv3dShow[k]);
-  if (k === 'person') syncPerson3dSel();
+  // 사람만 저장한다(PHASE 6-a). 나머지 토글(치수·격자·포인트 벽·천장·시야각)은 화면 보조선이라
+  //   저장하지 않는다 — 그 방침은 그대로 두고, **그림 자체를 바꾸는 사람만** 기억한다.
+  if (k === 'person') { syncPerson3dSel(); saveLastSession(); }
   renderPreview();
 });
 
@@ -3065,6 +3067,9 @@ function gatherConfig() {
     roomType: roomTypeId, roomOpts: { ...roomOpts }, roomDesign: designId,
     wallThk: num($('#wallThk')?.value) || CONFIG_DEFAULTS.wallThk,
     customViews: customViews.map(v => ({ ...v })),
+    // 3D 축척 인물 표시 여부(PHASE 6-a). 다른 3D 표시 토글은 화면 보조선이라 저장하지 않지만,
+    //   사람은 **제안서에 나가는 그림 자체**를 바꾸므로 저장해 두어야 같은 구성이 같게 복원된다.
+    person3d: pv3dShow.person,
     baseHeight: num($('#baseHeight').value), ledW: num($('#ledW').value), ledH: num($('#ledH').value),
     mode, manCols: num($('#manCols').value), manRows: num($('#manRows').value),
     redundancy: $('#redundancy').checked, cs4b: userCS4B, gbicFB: $('#gbicFB').checked,
@@ -3094,6 +3099,10 @@ function applyConfig(raw) {
   designId = normalizeDesign(c.roomDesign, roomTypeId);
   if ($('#wallThk')) $('#wallThk').value = c.wallThk;
   customViews = Array.isArray(c.customViews) ? c.customViews.map(v => ({ ...v })) : [];
+  // 항목이 없는 옛 저장값은 normalizeConfig 이 true 로 채워 준다 — 예전 화면 그대로 복원된다.
+  pv3dShow.person = c.person3d;
+  $('[data-t3d="person"]')?.classList.toggle('on', pv3dShow.person);
+  syncPerson3dSel();
   renderPresetBar();
   renderRoomOptions();
   $('#baseHeight').value = c.baseHeight; $('#ledW').value = c.ledW; $('#ledH').value = c.ledH;
