@@ -27,7 +27,7 @@ test('조명 프리셋 — 대기업 회의실만 새 조명을 쓴다', () => {
 });
 
 // ② 조명을 선언하지 않은 공간은 기존 조명 그대로 — 이 단계에서 가장 중요한 테스트
-const LIT = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom']);   // PHASE 2-d.1 · 3-d.1 · 4-d.2 · 5-d.3
+const LIT = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom', 'trainingRoom']);   // PHASE 2-d.1 · 3-d.1 · 4-d.2 · 5-d.3 · 7-b
 test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
   for (const id of DESIGN_IDS) {
     if (LIT.has(id)) continue;
@@ -49,7 +49,8 @@ test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
 
 // ③ 화면 프리셋 목록·기본 화각 무변경 — 조명 단계가 화각 '구조'를 건드리지 않았다
 const CAMERA_DESIGNS = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
-  largeConference: 'conferenceProposal', controlRoom: 'controlProposal' };
+  largeConference: 'conferenceProposal', controlRoom: 'controlProposal',
+  trainingRoom: 'trainingProposal' };
 test('화각 — 프리셋 목록·기본 화각·범위가 그대로다(PHASE 2-d.2 에서도 늘리지 않았다)', () => {
   // 아직 구현 전인 공간은 여전히 화각을 적용하지 않는다(planned = '아직 없음').
   for (const id of DESIGN_IDS) {

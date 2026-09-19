@@ -269,9 +269,9 @@ test('⑳ 회의실 3종의 조명이 한 값도 바뀌지 않았다', () => {
   assert.equal(LIGHTING_PRESETS.executiveSoft.keyPos, undefined);
 });
 
-test('㉑ 조명 프리셋은 4벌이고, 디자인이 없는 공간은 여전히 기준값 그대로다', () => {
+test('㉑ 조명 프리셋은 5벌이고, 디자인이 없는 공간은 여전히 기준값 그대로다', () => {
   assert.deepEqual(Object.keys(LIGHTING_PRESETS),
-    ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'controlTechnical']);
+    ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'trainingSoft', 'controlTechnical']);
   const base = { hemi: 1, ceiling: 1, key: 1, fill: 1, ledSpill: 1 };
   for (const id of [null, undefined, '', '없는디자인', 0, {}]) {
     assert.deepEqual(applyDesignLighting(base, id), base, String(id));

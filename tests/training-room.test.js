@@ -27,7 +27,8 @@ import { MATERIAL_IDS, resolveMaterialId, PART_MATERIAL, moodFor, floorFinishFor
 import { layoutRoom, defaultOptions, FURNITURE } from '../src/room-presets.js';
 import { DIMS, FURNITURE_ASSETS } from '../src/furniture-assets.js';
 import { lightingPreset } from '../src/design-lighting.js';
-import { cameraPlanForDesign, controlCameraPlanId, conferenceCameraPlanId } from '../src/design-camera.js';
+import { cameraPlanForDesign, controlCameraPlanId, conferenceCameraPlanId,
+  trainingCameraPlanId } from '../src/design-camera.js';
 
 const TR = 'trainingRoom';
 const 동결 = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom'];
@@ -258,23 +259,17 @@ test('⑫ 정원·통로·방 크기 적응이 그대로다', () => {
 
 // ── ④ 조명·화각은 아직 손대지 않았다 ─────────────────────────────────────────
 
-test('⑬ 교육장 조명·화각은 아직 없다 — 이름만 적혀 있고 동작하지 않는다', () => {
+test('⑬ 교육장 조명·화각이 PHASE 7-b 에서 실제로 켜졌다', () => {
   const d = ROOM_DESIGNS[TR];
-  assert.ok(isPlanned(d.lighting), '조명이 planned 가 아니다 — 7-b 보다 먼저 켰다');
-  assert.ok(isPlanned(d.camera), '화각이 planned 가 아니다 — 7-b 보다 먼저 켰다');
-  assert.equal(d.lighting.planned, 'trainingLighting');
-  assert.equal(d.camera.planned, 'trainingProposal');
-  // **실재하지 않아야 한다.** 이름만 적힌 것과 만들어 둔 것은 다르다.
-  assert.equal(lightingPreset('trainingLighting'), null, '교육장 조명이 이미 만들어져 있다');
-  // 화각 계열 해석기가 교육장을 모른다 — 어떤 계열도 교육장을 집어 가지 않는다.
-  assert.equal(controlCameraPlanId(TR, 'interior'), null);
-  assert.equal(conferenceCameraPlanId(TR, 'interior'), null);
-  assert.equal(/trainingProposal/.test(code('design-camera.js')), false,
-    '교육장 화각이 이미 만들어져 있다');
-  // 해석 결과에도 남지 않는다(planned 는 적용되지 않는다).
+  assert.equal(d.lighting, 'trainingSoft', '조명이 붙지 않았다');
+  assert.equal(d.camera, 'trainingProposal', '화각이 붙지 않았다');
+  // 이름만 적힌 것이 아니라 **실재해야** 한다.
+  assert.ok(lightingPreset('trainingSoft'), '교육장 조명 프리셋이 없다');
+  assert.ok(trainingCameraPlanId(TR, 'interior'), '교육장 화각이 실내 시점에 걸리지 않는다');
+  // 해석 결과에도 그대로 적용된다.
   const r = resolveDesign(TR);
-  assert.equal(r.lighting, INHERIT, '조명이 적용되고 있다');
-  assert.equal(r.camera, INHERIT, '화각이 적용되고 있다');
+  assert.equal(r.lighting, 'trainingSoft');
+  assert.equal(r.camera, 'trainingProposal');
 });
 
 test('⑭ 가구·벽 구성·소품은 이 단계에서 정하지 않았다', () => {

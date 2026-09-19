@@ -21,7 +21,7 @@
 // 디자인이 화각을 정하지 않았으면 **null**을 돌려준다. 그러면 기존 계산이 그대로 쓰인다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=439';
+import { roomDesign, isPlanned } from './room-design.js?v=440';
 
 /** 이 파일이 다루는 시점. 아이소·평면도는 **손대지 않는다**(오너 지침 §12). */
 export const CORPORATE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
@@ -287,6 +287,13 @@ export function cameraPlanForDesign(designId, presetId, model, aspect = 16 / 9) 
   if (ct) {
     return controlCameraPlan(model.room, model.led, ct, aspect,
       { consoles: model.fields?.consoles || null, partitions: model.partitions || null });
+  }
+  // 교육장 — 책상 배열을 읽어 구도를 잡는다(PHASE 7-b).
+  const tr = trainingCameraPlanId(designId, presetId);
+  if (tr) {
+    return trainingCameraPlan(model.room, model.led, tr, aspect,
+      { desks: model.fields?.desks || null, seats: model.fields?.seats || null,
+        seatPoints: model.fields?.seatPoints || null });
   }
   // 대회의실 — 배치 범위(테이블·좌석·모니터·프롬프터)까지 보고 구도를 잡는다.
   const cf = conferenceCameraPlanId(designId, presetId);
@@ -998,5 +1005,193 @@ export function controlCameraPlan(room, led, preset, aspect = 16 / 9, fields = n
     featureVisible: featureShare === null ? null : featureShare > 0,
     featureVisibleShare: featureShare,
     fovCapped: fov >= CONTROL_FOV_RANGE.max - 1e-9,
+  });
+}
+
+// ── 교육장 · 트레이닝룸 제안용 화각 (PHASE 7-b) ───────────────────────────────
+// **PHASE 7-0 이 남긴 '화각 높이 불일치'를 푸는 자리이기도 하다.**
+//   공용 실내 시점(`INSIDE.interior`)은 눈 1.75 · 시선 1.85 로 **눈이 시선보다 낮다.**
+//   그러면 극각이 90°를 넘어 조작기 상한(`CONTROLS_MAX_POLAR`)에 걸리고, 조작기가
+//   카메라를 시선 둘레로 **위로 돌려 버린다** — 올라가는 높이가 반지름에 비례해서
+//   방이 깊을수록 커진다(강의실 2.03 · 중강당 2.13 · 대강당 2.24). 선언값과 화면이 갈린 이유다.
+//   그래서 이 계열은 회의실 3종·상황실과 같은 규칙을 따른다:
+//   **시선은 언제나 눈높이보다 `eyeAboveTargetFor(거리)` 만큼 아래**다. 조작기가 손댈 일이 없다.
+//
+// 교육장 구도의 성격 — 회의실처럼 테이블 하나를 둘러싸는 그림이 아니라,
+//   **LED 를 향해 줄지어 앉은 작업면**을 보여 주는 그림이다. 그래서 내용물의 기준은
+//   테이블이 아니라 **책상 배열**이고(`fields.desks`), 좌우 코너도 크게 돌지 않는다 —
+//   많이 돌면 줄이 겹쳐 '책상 더미'가 된다(강당 코너에서 이미 확인된 현상이다).
+export const TRAINING_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r']);
+
+/** 제안서 원근의 하드 게이트. 회의실 3종·상황실과 같은 46° 상한을 쓴다. */
+export const TRAINING_FOV_RANGE = Object.freeze({ min: 36, max: 46 });
+
+/** 천장 띠 상한 — 이보다 크면 천장이 화면을 먹는다. */
+export const TRAINING_BAND_MAX = 0.18;
+
+/** 맨 뒷줄에서 물러설 거리(m). */
+export const TRAINING_STANDOFF = Object.freeze({ min: 0.90, max: 4.20 });
+
+/**
+ * 시점별 기준값.
+ *   eye    — 사람 눈높이. 릴리스된 네 공간과 같은 범위(1.6~1.75)다.
+ *   band   — 천장 띠 목표 비율.
+ *   xRatio — 방 폭에서 카메라가 서는 자리.
+ *   aimMix — 시선을 LED 가로 중심에서 책상 배열 가운데 쪽으로 얼마나 당길지.
+ */
+export const TRAINING_CAMERA_PLANS = Object.freeze({
+  // band 0.14 는 **실측에서 골랐다.** 0.10 / 0.14 / 0.18 을 재 보면 (기본 / 대형 방 바닥 점유)
+  //   0.10 → 25.2 / 32.2% (천장 10.6%) · 0.14 → 22.6 / 29.0% (천장 14.9%) · 0.18 → 19.9 / 25.2% (천장 19.1%).
+  //   눈높이를 2.03 에서 1.66 으로 내리면 바닥이 더 보이는 것은 당연한 대가라, 천장을 과하게
+  //   내주지 않는 선에서 바닥을 깎았다. 천장 14.9% 는 상황실(13.0%)과 대기업(20.4%) 사이다.
+  interior: Object.freeze({ eye: 1.66, fov: 42, band: 0.14, xRatio: 0.50, aimMix: 0.16 }),
+  'corner-l': Object.freeze({ eye: 1.70, fov: 43, band: 0.12, xRatio: 0.26, aimMix: 0.30 }),
+  'corner-r': Object.freeze({ eye: 1.70, fov: 43, band: 0.12, xRatio: 0.74, aimMix: 0.30 }),
+});
+
+/** 이 디자인·시점이 교육장 화각을 쓰는가. 아니면 null(= 기존 공용 시점 그대로). */
+export function trainingCameraPlanId(designId, presetId) {
+  if (roomDesign(designId).camera !== 'trainingProposal') return null;
+  return TRAINING_CAMERA_PRESETS.includes(presetId) ? presetId : null;
+}
+
+/** 이 디자인이 쓰는 시점 이름들(검증·디버깅용). */
+export function trainingCameraPresets(designId) {
+  return Object.freeze(TRAINING_CAMERA_PRESETS.filter(p => trainingCameraPlanId(designId, p)));
+}
+
+/**
+ * 교육장 제안용 카메라. **배치·형상·마감은 한 값도 읽어 바꾸지 않는다** — 이미 놓인 것을
+ *   감싸는 범위만 읽어 카메라 자리를 고른다.
+ *
+ * @param fields `model.fields` — 여기서는 `desks`(책상 배열)와 `seats`(의자 범위)를 쓴다.
+ */
+export function trainingCameraPlan(room, led, preset, aspect = 16 / 9, fields = null) {
+  const s = TRAINING_CAMERA_PLANS[preset];
+  if (!s || !room || !led) return null;
+  const a = Math.max(0.3, aspect);
+  const f = fields || {};
+
+  // ── 내용물 범위 ── 책상이 주인공이고, 의자는 뒤쪽 끝을 알려 준다.
+  const content = mergeBounds([f.desks, f.seats]) || {
+    x0: room.W * 0.2, x1: room.W * 0.8, z0: room.D * 0.2, z1: room.D * 0.75,
+  };
+  const contentCx = (content.x0 + content.x1) / 2;
+  const contentCz = (content.z0 + content.z1) / 2;
+
+  // ── 눈높이 ── 낮은 천장에서도 천장을 뚫지 않게 자른다.
+  const eye = clamp(s.eye, EYE_RANGE.min, Math.min(EYE_RANGE.max, room.H - WALL_MARGIN - 0.2));
+  const rearMost = clamp(room.D - clamp(room.D * 0.05, 0.35, 0.70), WALL_MARGIN, room.D - WALL_MARGIN);
+  const backZ = content.z1;
+
+  const ledPts = [[led.x, led.y, led.depth], [led.x + led.w, led.y, led.depth],
+    [led.x, led.y + led.h, led.depth], [led.x + led.w, led.y + led.h, led.depth]];
+
+  // 화각·내려본 각·서는 깊이가 서로를 물고 있어 네 번 되풀이해 수렴시킨다(회의실과 같은 방법).
+  function solveAt(x) {
+    let fov = clamp(s.fov, TRAINING_FOV_RANGE.min, TRAINING_FOV_RANGE.max);
+    let standOff = TRAINING_STANDOFF.min;
+    let z = rearMost, pitch = 0, yaw = 0, dzWall = Math.max(0.5, z - led.depth);
+
+    for (let it = 0; it < 4; it++) {
+      z = clamp(Math.min(rearMost, backZ + standOff), WALL_MARGIN, rearMost);
+      dzWall = Math.max(0.5, z - led.depth);
+      const halfV = fov * DEG / 2;
+
+      const aimX = (led.x + led.w / 2) + (contentCx - (led.x + led.w / 2)) * s.aimMix;
+      const aimZ = led.depth + (contentCz - led.depth) * s.aimMix;
+      yaw = Math.atan2(aimX - x, aimZ - z);
+
+      const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+      const band = clamp(s.band, 0, TRAINING_BAND_MAX);
+      pitch = Math.atan((1 - 2 * band) * Math.tan(halfV)) - eCeil;
+      // **시선은 언제나 눈높이보다 낮다** — 조작기가 카메라를 끌어올리지 못하게 한다.
+      pitch = Math.max(pitch, Math.atan(POLAR_GAP_PER_DIST));
+
+      let needV = 0, needH = 0;
+      for (const p of ledPts) {
+        const q = toView(p, [x, eye, z], yaw, pitch);
+        if (!q) continue;
+        needV = Math.max(needV, Math.abs(q.v)); needH = Math.max(needH, Math.abs(q.u));
+      }
+      const m = Math.tan(LED_EDGE_MARGIN_DEG * DEG);
+      const wantV = 2 * Math.atan(Math.max(needV + m, (needH + m) / a)) / DEG;
+      fov = clamp(Math.max(s.fov, wantV), TRAINING_FOV_RANGE.min, TRAINING_FOV_RANGE.max);
+
+      // 바닥이 보이기 시작하는 거리보다 조금 더 뒤에 선다 — 앞줄 책상이 화면 아래로 빠지지 않게.
+      const down = pitch + fov * DEG / 2;
+      const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down));
+      standOff = clamp(floorNear + FLOOR_STRIP, TRAINING_STANDOFF.min, TRAINING_STANDOFF.max);
+    }
+
+    const tanV = Math.tan(fov * DEG / 2);
+    const tanH = Math.tan(hFovDeg(fov, a) * DEG / 2);
+    const v = ledPts.map(q => toView(q, [x, eye, z], yaw, pitch)).filter(Boolean);
+    const ledFullyVisible = v.length === 4
+      && v.every(q => Math.abs(q.u) <= tanH + 1e-9 && Math.abs(q.v) <= tanV + 1e-9);
+    return { x, z, fov, pitch, yaw, dzWall, tanV, tanH, ledFullyVisible };
+  }
+
+  // LED 가 다 안 들어오면 화각부터 넓히지 않는다 — 코너를 조금씩 가운데로 되돌린다.
+  const mid = room.W / 2;
+  const x0 = clamp(room.W * s.xRatio, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN));
+  let sol = solveAt(x0);
+  const side = Math.sign(x0 - mid);
+  const limit = mid + side * room.W * MIN_CORNER_OFFSET;
+  if (!sol.ledFullyVisible && side !== 0 && Math.abs(limit - mid) < Math.abs(x0 - mid)) {
+    for (let k = 1; k <= LATERAL_RELAX_STEPS; k++) {
+      sol = solveAt(x0 + (limit - x0) * (k / LATERAL_RELAX_STEPS));
+      if (sol.ledFullyVisible) break;
+    }
+  }
+  const { x, z, fov, pitch, yaw, dzWall, tanV, tanH, ledFullyVisible } = sol;
+
+  // ── 시선점 ── 방향은 그대로 두고 점만 앞으로 당겨 값이 방 안에 남게 한다.
+  const aimDist = Math.hypot(contentCx - x, contentCz - z);
+  let tDist = clamp(aimDist, 1.2, Math.max(1.2, dzWall));
+  const maxDist = Math.tan(pitch) > 1e-6 ? (eye - WALL_MARGIN) / Math.tan(pitch) : tDist;
+  tDist = Math.max(1.2, Math.min(tDist, maxDist));
+  const targetY = Math.min(eye - eyeAboveTargetFor(tDist), eye - tDist * Math.tan(pitch));
+  const target = [
+    clamp(x + Math.sin(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN)),
+    clamp(targetY, 0.05, room.H - WALL_MARGIN),
+    clamp(z + Math.cos(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.D - WALL_MARGIN)),
+  ];
+
+  const cam = [x, eye, z];
+  const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+  const ceilingBand = +clamp((1 - Math.tan(eCeil + pitch) / tanV) / 2, 0, 1).toFixed(4);
+  const down = pitch + fov * DEG / 2;
+  const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down));
+  // 책상 상판(0.73m)과 의자 등받이 윗부분(0.96m)에 점을 뿌려 화면 점유를 센다.
+  const deskShare = sampleShare(topSamples(f.desks ? [f.desks] : null, 0.73), cam, yaw, pitch, tanH, tanV);
+  const seatsShare = sampleShare(atHeight(f.seatPoints, 0.96), cam, yaw, pitch, tanH, tanV);
+  const ledShare = (() => {
+    const q = ledPts.map(t => toView(t, cam, yaw, pitch)).filter(Boolean);
+    if (q.length < 4) return 0;
+    const u0 = Math.min(...q.map(t => t.u)), u1 = Math.max(...q.map(t => t.u));
+    const v0 = Math.min(...q.map(t => t.v)), v1 = Math.max(...q.map(t => t.v));
+    const full = Math.max(1e-9, (u1 - u0) * (v1 - v0));
+    const iw = Math.max(0, Math.min(u1, tanH) - Math.max(u0, -tanH));
+    const ih = Math.max(0, Math.min(v1, tanV) - Math.max(v0, -tanV));
+    return +(iw * ih / full).toFixed(4);
+  })();
+  const nearestMargin = +((z - content.z1) - floorNear).toFixed(4);
+
+  return Object.freeze({
+    position: [+x.toFixed(4), +eye.toFixed(4), +z.toFixed(4)],
+    target: target.map(v => +v.toFixed(4)),
+    fov: +fov.toFixed(3),
+    eye,
+    standOff: +(z - backZ).toFixed(4),
+    pitchDeg: +(pitch / DEG).toFixed(3),
+    yawDeg: +(yaw / DEG).toFixed(3),
+    ceilingBand,
+    floorNear: +floorNear.toFixed(4),
+    nearestMargin,
+    ledFullyVisible,
+    ledVisibleShare: ledShare,
+    deskShare,
+    seatsShare,
   });
 }

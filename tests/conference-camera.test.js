@@ -24,7 +24,13 @@ import {
   executiveCameraPlan, executiveCameraPlanId, executiveCameraPresets, EXECUTIVE_CAMERA_PLANS,
   cameraPlanForDesign,
 } from '../src/design-camera.js';
-import { buildGLModel, presetPose, CAMERA_PRESETS, FOV_RANGE } from '../src/gl-model.js';
+import {
+  buildGLModel,
+  presetPose,
+  CAMERA_PRESETS,
+  FOV_RANGE,
+  CONTROLS_MAX_POLAR,
+} from '../src/gl-model.js';
 import { ROOM_DESIGNS, DESIGN_IDS, resolveDesign, INHERIT } from '../src/room-design.js';
 import { LIGHTING_PRESETS, lightingForDesign } from '../src/design-lighting.js';
 import { DESIGN_PALETTES } from '../src/design-finish.js';
@@ -192,7 +198,11 @@ test('⑩ 조작기가 카메라를 끌어올릴 수 없다 — 눈높이와 시
   // 렌더러가 계획한 시선을 **그대로** 조작기에 넣는지(§28).
   assert.ok(/controls\.target\.copy\(to\.target\)/.test(rendSrc), '프리셋 적용이 시선을 동기화하지 않는다');
   assert.ok(/camera\.lookAt\(controls\.target\)/.test(rendSrc), '카메라가 시선을 보지 않는다');
-  assert.ok(/maxPolarAngle\s*=\s*Math\.PI\s*\/\s*2\s*-\s*0\.02/.test(rendSrc), '조작기 극각 제한이 바뀌었다');
+  // PHASE 7-b 부터 값은 `gl-model.js` 의 `CONTROLS_MAX_POLAR` 한 곳에 있다(순수 검사가 같은
+  //   상한으로 실제 카메라를 예측해야 하기 때문이다). 렌더러가 그 상수를 쓰는지와,
+  //   상수 값 자체가 그대로인지를 함께 본다.
+  assert.ok(/maxPolarAngle\s*=\s*CONTROLS_MAX_POLAR/.test(rendSrc), '조작기가 공용 극각 상한을 쓰지 않는다');
+  assert.equal(CONTROLS_MAX_POLAR, Math.PI / 2 - 0.02, '조작기 극각 제한이 바뀌었다');
 });
 
 // ── C. 모양 × 방향 × 방 크기 (§40 ⑪~㉑) ───────────────────────────────────
@@ -483,7 +493,7 @@ test('㉟㊱ 조명(conferenceSoft)과 마감(conferenceBright)이 그대로다(
   assert.equal(p.screen, '#181f2a');
   // 대회의실 마감·조명은 그대로다. 팔레트는 PHASE 5-d.1(상황실)·7-a(교육장)에서, 조명은
   //   PHASE 5-d.3 에서 늘었을 뿐, 대회의실 값은 위에서 확인한 대로 한 값도 바뀌지 않았다.
-  assert.equal(Object.keys(LIGHTING_PRESETS).length, 4);
+  assert.equal(Object.keys(LIGHTING_PRESETS).length, 5);   // + 교육장(PHASE 7-b)
   assert.equal(Object.keys(DESIGN_PALETTES).length, 5);   // + 교육장(PHASE 7-a)
   assert.deepEqual(Object.keys(DESIGN_PALETTES),
     ['corporateNeutral', 'executiveBright', 'conferenceBright', 'trainingNeutral', 'controlPalette']);

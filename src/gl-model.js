@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=439';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=439';
+import { floorFinishFor, moodFor } from './materials.js?v=440';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=440';
 
-import { cameraPlanForDesign } from './design-camera.js?v=439';
-import { controlWallPlan } from './control-walls.js?v=439';
+import { cameraPlanForDesign } from './design-camera.js?v=440';
+import { controlWallPlan } from './control-walls.js?v=440';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -128,6 +128,19 @@ function framingFields(items) {
     }) : null,
     // 개인 모니터는 w·d를 들고 다니지 않는다(자산이 크기를 안다) — 중심점으로 감싼다.
     monitors: pointBounds(items, 'monitor'),
+    // 교육용 책상 배열의 범위(PHASE 7-b). 교육장은 **작업면이 곧 내용물**이라, 의자만 보면
+    //   구도가 뒤로 밀린다(의자는 책상보다 750mm 뒤에 있다). 책상은 w·d 를 들고 다니므로
+    //   실제 폭까지 감싼다. `desk` 항목은 강의실 배치에만 있어 다른 공간은 null 그대로다.
+    desks: (() => {
+      const d = (items || []).filter(i => i && i.type === 'desk'
+        && i.w > 0 && i.d > 0 && Number.isFinite(i.x) && Number.isFinite(i.z));
+      if (!d.length) return null;
+      return Object.freeze({
+        x0: u(Math.min(...d.map(i => i.x - i.w / 2))), x1: u(Math.max(...d.map(i => i.x + i.w / 2))),
+        z0: u(Math.min(...d.map(i => i.z - i.d / 2))), z1: u(Math.max(...d.map(i => i.z + i.d / 2))),
+        count: d.length,
+      });
+    })(),
     // 상황실 콘솔 배열의 범위(PHASE 5-d.4). 카메라가 '어디까지 물러설지'를 여기서 읽는다.
     //   콘솔은 w·d를 들고 다니므로 실제 폭까지 감싼다 — 중심점만 쓰면 맨 뒷줄이 잘린다.
     consoles: (() => {
@@ -361,6 +374,49 @@ export function clampFov(deg, fallback = FOV_DEG) {
 }
 
 export const TOP_PITCH_DEG = 58;
+
+// ── 조작기(OrbitControls)가 거는 극각 상한 ─────────────────────────────────────
+// **여기가 PHASE 7-0 이 남긴 '화각 높이 불일치'의 원인이다.**
+//   조작기는 카메라가 바닥 아래로 내려가지 못하게 극각(+Y 에서 잰 각)을 이 값으로 자른다.
+//   그런데 `presetPose()`가 돌려준 자세가 **눈높이를 시선보다 낮게** 잡으면 극각이 90°를
+//   넘어 상한에 걸리고, 조작기가 `update()`에서 **카메라를 시선 둘레로 위로 돌려 버린다.**
+//   반지름은 그대로라 올라가는 높이는 `반지름 × sin(0.02)`이고, **방이 깊을수록 커진다.**
+//
+//   실제로 공용 실내 시점(`INSIDE.interior`)이 눈 1.75 · 시선 1.85 로 눈이 시선보다 낮아,
+//   선언값 1.75 와 화면의 실제 눈높이가 갈렸다(강의실 2.03 · 중강당 2.13 · 대강당 2.24).
+//   릴리스된 네 공간은 디자인 화각이 눈을 시선보다 **위**에 두어 이 상한에 걸리지 않는다.
+//
+//   그래서 **`presetPose()`의 결과는 실내 시점에서 그대로 화면이 되지 않는다.**
+//   화면에 실제로 서는 자세를 알려면 `settledPose()`를 거쳐야 한다(아래).
+//   렌더러도 이 상수를 가져다 쓴다 — 두 곳에 적으면 값이 조용히 갈린다.
+export const CONTROLS_MAX_POLAR = Math.PI / 2 - 0.02;
+
+/**
+ * 조작기가 자른 뒤의 **실제 카메라 자세**. 순수 계산이라 브라우저 없이도 잴 수 있다.
+ *
+ * 조작기는 시선(target)을 중심으로 한 구면 좌표로 카메라를 잡고, 극각만 상한으로 자른다.
+ *   반지름과 방위각은 건드리지 않으므로 여기서도 그 둘은 그대로 두고 극각만 자른다.
+ *
+ * @param pose `presetPose()` 결과
+ * @returns 같은 모양의 자세. 상한에 걸리지 않았으면 **입력과 같은 값**을 돌려준다.
+ */
+export function settledPose(pose) {
+  if (!pose || pose.ortho) return pose;
+  const [px, py, pz] = pose.position;
+  const [tx, ty, tz] = pose.target;
+  const dx = px - tx, dy = py - ty, dz = pz - tz;
+  const r = Math.hypot(dx, dy, dz);
+  if (!(r > 0)) return pose;
+  const polar = Math.acos(clamp(dy / r, -1, 1));
+  if (polar <= CONTROLS_MAX_POLAR) return pose;
+  const flat = Math.hypot(dx, dz);
+  const want = r * Math.sin(CONTROLS_MAX_POLAR);
+  const k = flat > 0 ? want / flat : 0;
+  return Object.freeze({
+    ...pose,
+    position: [tx + dx * k, ty + r * Math.cos(CONTROLS_MAX_POLAR), tz + dz * k],
+  });
+}
 
 /**
  * 정사투영 카메라가 방 전체를 담으려면 세로로 몇 m를 봐야 하는지.
