@@ -58,9 +58,9 @@ test('③ 조명을 선언하지 않은 공간은 여전히 전부 null 이다',
   for (const id of DESIGN_IDS) {
     // 대회의실은 PHASE 4-d.2 에서 제 조명을 갖게 됐다(임원 것을 물려받은 것이 아니다).
     // 상황실도 PHASE 5-d.3 에서 제 조명을 갖게 됐다.
-    // 교육장도 PHASE 7-b 에서 제 조명을 갖게 됐다.
+    // 교육장도 PHASE 7-b 에서, 아이디에이션도 PHASE 8-2a 에서 제 조명을 갖게 됐다.
     if (id === CO || id === EX || id === 'largeConference' || id === 'controlRoom'
-      || id === 'trainingRoom') continue;
+      || id === 'trainingRoom' || id === 'ideationRoom') continue;
     assert.equal(lightingForDesign(id), null, `${id} 에 조명이 붙었다`);
     assert.equal(shadowSettingsForDesign(id), null, id);
     assert.equal(keyLightPlacementForDesign(id, { W: 10, H: 3.5, D: 8.5 }), null, id);

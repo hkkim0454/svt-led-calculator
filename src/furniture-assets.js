@@ -19,9 +19,9 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=442';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=442';
-import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=442';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=443';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=443';
+import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=443';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -36,10 +36,16 @@ export const FURNITURE_COLORS = Object.freeze({
   podium: '#eef2f7', podiumTop: '#efeae1',
   credenzaBody: '#e7ecf2', credenzaDoor: '#dfe5ed', credenzaTop: '#ece6db', credenzaToe: '#b9c1cd',
   // 아이디에이션 공간 — 회의실보다 밝고 가볍게. 채도는 여전히 낮다.
-  highTop: '#efe9df', highLeg: '#aeb8c4',
+  // 상판 두 값은 PHASE 8-2a 에서 #efe9df 에서 내렸다. 조명을 고친 뒤에도 하이 테이블 상판이
+  //   좁은 방 코너 시점에서 72%, 협업 상판이 평면 시점에서 98% 잘렸다 — 조명이 아니라
+  //   **재질 자체가 밝아서** 생긴 문제라 색만 한 단 낮춘다(측정: 최대 98.33% → 3.33%).
+  //   더 어둡게 해도 남는 3.33%는 줄지 않는다(평면 시점 협업 상판의 반사) — 여기가 최소값이다.
+  //   이 두 값은 아이디에이션 전용이다(`createHighTable`·`createCollabTable` 만 읽고,
+  //   그 자산은 `layoutIdeation` 만 세운다). 다른 방의 상판은 한 값도 건드리지 않는다.
+  highTop: '#ded9cf', highLeg: '#aeb8c4',
   stoolSeat: '#cfdcd8', stoolBase: '#a9b3c0',
   loungeSeat: '#d5dfe6', loungeBack: '#d5dfe6', loungeLeg: '#b3bcc8',
-  collabTop: '#efe9df', collabLeg: '#aeb8c4',
+  collabTop: '#ded9cf', collabLeg: '#aeb8c4',
   standBase: '#9ba6b4', standPole: '#aeb8c4', standPanel: '#1b2532',
   // 객석 착석 인원 — 실루엣만 읽히면 되므로 채도를 낮춘다(좌석·LED보다 튀면 안 된다).
   bodySkin: '#d9c3b0', bodyTop: '#8fa0b5', bodyLeg: '#5f6b7d',

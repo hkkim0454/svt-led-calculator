@@ -63,7 +63,7 @@ test('② 강의실이 교육장 디자인으로 떨어진다 — 잘못된 값�
   // 다른 용도는 건드리지 않았다.
   assert.equal(normalizeDesign(undefined, 'meeting'), 'corporateMeeting');
   assert.equal(normalizeDesign(undefined, 'control'), 'controlRoom');
-  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation']) {
+  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
     assert.equal(normalizeDesign(undefined, t), null, `${t}: 디자인이 붙으면 안 된다`);
   }
 });
@@ -314,13 +314,14 @@ test('⑯ 릴리스된 네 공간과 나머지 레거시가 그대로다', () =>
   assert.equal(DESIGN_PALETTES.conferenceBright.floor, '#c0c1c0');
   assert.equal(DESIGN_PALETTES.controlPalette.floor, '#8d9095');
   assert.equal(DESIGN_PALETTES.controlPalette.wallAccent, '#5a6068');
-  // 강당·아이디에이션에는 여전히 디자인이 없다.
-  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation']) {
+  // 강당에는 여전히 디자인이 없다(아이디에이션은 PHASE 8-2a 에서 생겼다).
+  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
     assert.deepEqual(designsFor(t).map(d => d.id), [], `${t}: 디자인이 생겼다`);
   }
-  // 디자인 목록은 다섯이고, 교육장 말고는 이름이 그대로다.
+  // 디자인 목록은 여섯이고, 교육장 말고는 이름이 그대로다.
   assert.deepEqual([...DESIGN_IDS],
-    ['corporateMeeting', 'executiveBoardroom', 'largeConference', TR, 'controlRoom']);
+    ['corporateMeeting', 'executiveBoardroom', 'largeConference', TR, 'controlRoom',
+      'ideationRoom']);
 });
 
 test('⑰ 강당·아이디에이션 배치가 한 값도 바뀌지 않았다', () => {
