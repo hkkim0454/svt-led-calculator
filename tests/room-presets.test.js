@@ -599,14 +599,23 @@ test('아이디에이션 — 줄·열이 아니라 구역 배치이고, 가운�
 });
 
 test('아이디에이션 — 가구 수를 바꿔도 방 안에 들어가고, 모두 끄면 빈 공간이 된다', () => {
-  for (const [W, D] of [[6000, 5600], [9000, 8500], [16000, 15000]]) {
-    const full = layoutRoom('ideation', { highTables: 3, stools: 8, collabTables: 4, lounge: true,
-      mobileStand: true, rug: true, plant: true }, { W, D });
+  const 최대 = { highTables: 3, stools: 8, collabTables: 4, lounge: true,
+    mobileStand: true, rug: true, plant: true };
+  // 방이 넉넉하면 요청한 최대 구성이 그대로 들어간다. 11m 부터 전부 들어간다(PHASE 8-2a 실측).
+  for (const [W, D] of [[11000, 10450], [16000, 15000]]) {
+    const full = layoutRoom('ideation', 최대, { W, D });
     assertInside(full, W, D, `가득 ${W}×${D}`);
     assert.equal(full.placed.stools, 24);
     assert.equal(full.placed.lounge, 12);
     assert.equal(full.placed.chairs, 36);
   }
+  // 방이 좁으면 **줄어들되 방 안에 있어야 한다.** 예전에는 숫자만 맞고 가구가 서로 뚫렸다
+  //   (PHASE 8-1 에서 6 × 5.7m 하이 테이블 ↔ 협업 테이블 309mm 겹침으로 확인).
+  const 좁은방 = layoutRoom('ideation', 최대, { W: 6000, D: 5600 });
+  assertInside(좁은방, 6000, 5600, '좁은 방');
+  assert.ok(좁은방.placed.chairs < 36, '좁은 방에서는 좌석이 줄어야 한다');
+  assert.ok(좁은방.notes.some(n => n.includes('놓지 못했습니다')), '줄었다는 안내가 있어야 한다');
+
   const empty = layoutRoom('ideation', { highTables: 0, stools: 0, collabTables: 0, lounge: false,
     mobileStand: false, rug: false, plant: false }, { W: 9000, D: 8500 });
   assert.equal(empty.items.length, 0);

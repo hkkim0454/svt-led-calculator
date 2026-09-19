@@ -27,7 +27,8 @@ test('조명 프리셋 — 대기업 회의실만 새 조명을 쓴다', () => {
 });
 
 // ② 조명을 선언하지 않은 공간은 기존 조명 그대로 — 이 단계에서 가장 중요한 테스트
-const LIT = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom', 'trainingRoom']);   // PHASE 2-d.1 · 3-d.1 · 4-d.2 · 5-d.3 · 7-b
+const LIT = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom',
+  'trainingRoom', 'ideationRoom']);   // PHASE 2-d.1 · 3-d.1 · 4-d.2 · 5-d.3 · 7-b · 8-2a
 test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
   for (const id of DESIGN_IDS) {
     if (LIT.has(id)) continue;
@@ -39,7 +40,7 @@ test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
   // 임원 회의실은 조명을 정했지만 **주광 자리는 정하지 않았다** — 그 자리는 기존 그대로다.
   assert.equal(keyLightPlacementForDesign('executiveBoardroom', { W: 10, H: 3.5, D: 8.5 }), null,
     '임원 회의실이 주광 자리를 옮긴다 — 실측에서 고치려던 것과 반대로 움직였다');
-  // 디자인이 아예 없는 공간(강의실·강당·아이디에이션)도 마찬가지다.
+  // 디자인이 아예 없는 공간(강당)도 마찬가지다.
   for (const id of [null, undefined, '', '없는디자인', 0, {}]) {
     assert.equal(lightingForDesign(id), null, String(id));
     assert.deepEqual(applyDesignLighting(base, id), base, String(id));

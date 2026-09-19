@@ -54,9 +54,9 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=442';
-import { conferenceAVItems } from './conference-av.js?v=442';
-import { controlAVItems } from './control-av.js?v=442';
+import { isOccupied } from './viewangle.js?v=443';
+import { conferenceAVItems } from './conference-av.js?v=443';
+import { controlAVItems } from './control-av.js?v=443';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -733,6 +733,123 @@ function layoutHall(o, W, D) {
 // 줄·열이 없다. 방을 몇 개의 **구역**으로 나누고 각 구역에 한 덩어리씩 놓는다.
 //   비율(0~1)로 자리를 잡은 뒤 벽 여유 안으로 당겨서, 방 크기가 달라져도 구성이 유지된다.
 //   목표는 가구를 채우는 것이 아니라 **가운데 바닥을 비워 두는 것**이다.
+//
+// 구역이 차지하는 자리 — 실제 자산 치수(furniture-assets.js 의 `DIMS`)에서 잰 값이다.
+//   둥근 것은 원으로, 네모난 것은 **돌아간 사각형**으로 본다. 둘을 섞어 쓰는 까닭은 정확도다.
+//   전부 원으로 보면 라운지 의자처럼 길쭉하고 뒤로 치우친 물건을 41mm 만큼 넉넉하게 잡아
+//   9m 기본 방까지 건드리게 되고, 반대로 좌석 치수만 보고 어림잡으면 7m 방에서 9mm 를
+//   놓친다. 둘 다 PHASE 8-2a 에서 실제로 겪은 일이라 부품을 재서 모양까지 맞춘다.
+//
+//   스툴      좌석 반지름 190 의 원
+//   협업 테이블 지름 1,100 의 원
+//   화분      반지름 225 의 원
+//   라운지 의자 640 × 720 사각형. 등받이가 18° 기울어 **뒤로 50mm 치우쳐** 있다
+//   이동식 스탠드 화면 폭 1,150 × 받침 깊이 560 사각형
+//   하이 테이블 상판 폭 × 900 사각형(돌아가지 않는다)
+const IDEATION_SHAPE = Object.freeze({
+  stool: { disc: 190 },
+  collabTable: { disc: 550 },
+  plant: { disc: 225 },
+  lounge: { hw: 320, hd: 360, dz: 50 },
+  mobileStand: { hw: 575, hd: 280 },
+});
+
+/** 배치 항목 → 자리 판정용 도형(세계 좌표). */
+function ideationShape(it) {
+  if (it.type === 'highTable') {
+    return { x: it.x, z: it.z, hw: it.w / 2, hd: it.d / 2, rot: 0 };
+  }
+  const s = IDEATION_SHAPE[it.type];
+  if (!s) return { x: it.x, z: it.z, disc: 250 };
+  if (s.disc) return { x: it.x, z: it.z, disc: s.disc };
+  const a = (it.rotY || 0) * Math.PI / 180, dz = s.dz || 0;
+  return { x: it.x + dz * Math.sin(a), z: it.z + dz * Math.cos(a), hw: s.hw, hd: s.hd, rot: a };
+}
+
+/** 사각형을 제 방향으로 돌려세운 좌표계에서 본 점. */
+function toLocal(shape, x, z) {
+  const dx = x - shape.x, dz = z - shape.z, c = Math.cos(shape.rot), sn = Math.sin(shape.rot);
+  return [dx * c - dz * sn, dx * sn + dz * c];
+}
+
+/** 두 도형이 실제로 겹치는가. 원·원, 원·사각형, 사각형·사각형을 각각 맞게 본다. */
+function ideationHits(A, B) {
+  if (A.disc && B.disc) return Math.hypot(A.x - B.x, A.z - B.z) < A.disc + B.disc;
+  if (A.disc || B.disc) {
+    const [c, r] = A.disc ? [B, A] : [A, B];           // c = 사각형, r = 원
+    const [lx, lz] = toLocal(c, r.x, r.z);
+    const qx = Math.max(-c.hw, Math.min(c.hw, lx)), qz = Math.max(-c.hd, Math.min(c.hd, lz));
+    return Math.hypot(lx - qx, lz - qz) < r.disc;
+  }
+  // 사각형끼리 — 분리축 정리. 네 변의 법선 중 하나라도 틈이 있으면 떨어져 있다.
+  const corners = S => {
+    const c = Math.cos(S.rot), sn = Math.sin(S.rot), out = [];
+    for (const sx of [-S.hw, S.hw]) for (const sz of [-S.hd, S.hd]) {
+      out.push([S.x + sx * c + sz * sn, S.z - sx * sn + sz * c]);
+    }
+    return out;
+  };
+  const pa = corners(A), pb = corners(B);
+  for (const S of [A, B]) {
+    const c = Math.cos(S.rot), sn = Math.sin(S.rot);
+    for (const [ux, uz] of [[c, -sn], [sn, c]]) {
+      const span = pts => pts.reduce((r, p) => {
+        const v = p[0] * ux + p[1] * uz;
+        return [Math.min(r[0], v), Math.max(r[1], v)];
+      }, [Infinity, -Infinity]);
+      const [a0, a1] = span(pa), [b0, b1] = span(pb);
+      if (Math.min(a1, b1) - Math.max(a0, b0) <= 0) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * 구역 하나를 놓는다.
+ *
+ * **왜 필요한가.** 자리를 비율로 잡고 벽 안으로 당기기만 하면, 방이 작을수록 여러 구역이
+ *   같은 자리로 밀려 서로 파고든다(가로 8.5m 미만에서 실제로 그랬다). 방이 작다고 가구가
+ *   서로 뚫고 지나가면 제안서 그림으로 쓸 수 없다.
+ *
+ * **어떻게 고치나.** 제자리가 막혔으면 **먼저 띄워 본다.** 허용 범위 안에서 제자리와 가장
+ *   가까운 빈자리를 찾아 구역을 통째로 옮긴다. 그래도 놓을 자리가 없으면 그 구역을 **뺀다**
+ *   (강의실·강당이 "방 크기에 맞춰 줄였습니다"로 줄 수를 줄이는 것과 같은 방식이다).
+ *   가구 치수를 줄이거나 벽을 넘기지 않는다.
+ *
+ * 자리가 넉넉하면 첫 시도가 바로 통과하므로 **기존 배치가 한 값도 달라지지 않는다.**
+ *
+ * @param placed 이미 놓인 것들 `{x, z, r}`
+ * @param build  `(x, z) => 그 자리에 놓을 물건들`
+ * @param x0,z0  제자리
+ * @param bx,bz  옮겨도 되는 범위 `[최소, 최대]`
+ * @returns 놓았으면 물건 배열, 놓을 자리가 없으면 `null`
+ */
+function placeIdeationZone(placed, build, x0, z0, bx, bz) {
+  const 빈자리인가 = (x, z) => {
+    const mem = build(x, z);
+    for (const m of mem) {
+      const c = ideationShape(m);
+      for (const p of placed) if (ideationHits(c, p)) return null;
+    }
+    return mem;
+  };
+  const 제자리 = 빈자리인가(x0, z0);
+  if (제자리) return 제자리;
+
+  // 제자리가 막혔다 — 100mm 격자에서 제자리와 가장 가까운 빈자리를 찾는다(결정적).
+  const STEP = 100;
+  let best = null, bestD = Infinity;
+  for (let x = bx[0]; x <= bx[1] + 1; x += STEP) {
+    for (let z = bz[0]; z <= bz[1] + 1; z += STEP) {
+      const d = Math.hypot(x - x0, z - z0);
+      if (d >= bestD) continue;
+      const mem = 빈자리인가(x, z);
+      if (mem) { best = mem; bestD = d; }
+    }
+  }
+  return best;
+}
+
 function layoutIdeation(o, W, D) {
   const F = FURNITURE;
   const items = [], notes = [];
@@ -740,63 +857,99 @@ function layoutIdeation(o, W, D) {
   const front = Math.max(F.frontClear, D * 0.18);           // LED 앞은 비워 둔다
   const px = (t, half = 0) => clamp(W * t, pad + half, W - pad - half);
   const pz = (t, half = 0) => clamp(D * t, front + half, D - pad - half);
+  // 이미 놓인 것들. 구역을 놓을 때마다 여기에 쌓아 두고 다음 구역이 이것을 피한다.
+  const placed = [];
+  const 자리잡음 = mem => {
+    for (const m of mem) { items.push(m); placed.push(ideationShape(m)); }
+  };
+  let 옮김 = 0, 뺌 = 0;
 
   // ① 하이 테이블 구역 — 서서 쓰는 협업 테이블. 스툴을 둘레에 고르게 돌린다.
   const htW = clamp(W * 0.22, 1200, 2200), htD = 900;
   const nHT = clamp(o.highTables, 0, 3);
   const htSpots = [[0.30, 0.42], [0.72, 0.42], [0.50, 0.30]];
-  let stools = 0;
+  const nStool = clamp(o.stools, 0, 8);
+  let stools = 0, putHT = 0;
+  const htHalfX = htW / 2, htHalfZ = htD / 2 + 700;
   for (let i = 0; i < nHT; i++) {
     const [tx, tz] = htSpots[i];
-    const x = px(tx, htW / 2), z = pz(tz, htD / 2 + 700);
-    items.push({ type: 'highTable', x, z, rotY: 0, w: htW, d: htD });
-    // 스툴은 긴 변(앞뒤)에 반씩. 테이블을 바라보게 둔다.
-    const n = clamp(o.stools, 0, 8);
-    for (let k = 0; k < n; k++) {
-      const side = k % 2 ? 1 : -1;                          // 앞줄 / 뒷줄
-      const idx = Math.floor(k / 2);
-      const perSide = Math.ceil(n / 2);
-      const span = (perSide - 1) * 620;
-      const sx = x - span / 2 + idx * 620;
-      const sz = z + side * (htD / 2 + 430);
-      items.push({ ...chairAt(sx, sz, x, z, 'stool') });
-      stools++;
-    }
+    const x0 = px(tx, htHalfX), z0 = pz(tz, htHalfZ);
+    const build = (x, z) => {
+      const mem = [{ type: 'highTable', x, z, rotY: 0, w: htW, d: htD }];
+      // 스툴은 긴 변(앞뒤)에 반씩. 테이블을 바라보게 둔다.
+      for (let k = 0; k < nStool; k++) {
+        const side = k % 2 ? 1 : -1;                        // 앞줄 / 뒷줄
+        const idx = Math.floor(k / 2);
+        const perSide = Math.ceil(nStool / 2);
+        const span = (perSide - 1) * 620;
+        mem.push({ ...chairAt(x - span / 2 + idx * 620, z + side * (htD / 2 + 430), x, z, 'stool') });
+      }
+      return mem;
+    };
+    const mem = placeIdeationZone(placed, build, x0, z0,
+      [pad + htHalfX, W - pad - htHalfX], [front + htHalfZ, D - pad - htHalfZ]);
+    if (!mem) { 뺌++; continue; }
+    if (mem[0].x !== x0 || mem[0].z !== z0) 옮김++;
+    자리잡음(mem);
+    stools += nStool; putHT++;
   }
 
   // ② 협업 구역 — 낮은 원형 테이블 + 라운지 체어 3개. 서로 마주 본다.
   const nCT = clamp(o.collabTables, 0, 4);
   const ctSpots = [[0.74, 0.70], [0.28, 0.74], [0.74, 0.30], [0.28, 0.30]];
   const dia = 1100;
-  let lounge = 0;
+  const ctHalf = dia / 2 + 700;
+  let lounge = 0, putCT = 0;
   for (let i = 0; i < nCT; i++) {
     const [tx, tz] = ctSpots[i];
-    const x = px(tx, dia / 2 + 700), z = pz(tz, dia / 2 + 700);
-    items.push({ type: 'collabTable', x, z, rotY: 0, w: dia, d: dia });
-    if (o.lounge) {
-      const ring = dia / 2 + 520;
-      for (let k = 0; k < 3; k++) {
-        const a = (k / 3) * Math.PI * 2 + Math.PI / 6;
-        items.push(chairAt(x + Math.sin(a) * ring, z + Math.cos(a) * ring, x, z, 'lounge'));
-        lounge++;
+    const x0 = px(tx, ctHalf), z0 = pz(tz, ctHalf);
+    const build = (x, z) => {
+      const mem = [{ type: 'collabTable', x, z, rotY: 0, w: dia, d: dia }];
+      if (o.lounge) {
+        const ring = dia / 2 + 520;
+        for (let k = 0; k < 3; k++) {
+          const a = (k / 3) * Math.PI * 2 + Math.PI / 6;
+          mem.push(chairAt(x + Math.sin(a) * ring, z + Math.cos(a) * ring, x, z, 'lounge'));
+        }
       }
+      return mem;
+    };
+    const mem = placeIdeationZone(placed, build, x0, z0,
+      [pad + ctHalf, W - pad - ctHalf], [front + ctHalf, D - pad - ctHalf]);
+    if (!mem) { 뺌++; continue; }
+    if (mem[0].x !== x0 || mem[0].z !== z0) 옮김++;
+    자리잡음(mem);
+    if (o.lounge) lounge += 3;
+    // 러그는 첫 협업 구역 아래에 깔린다. 바닥에 눕는 것이라 겹침 판정에서 뺀다.
+    if (o.rug && putCT === 0) {
+      items.push({ type: 'rug', x: mem[0].x, z: mem[0].z, rotY: 0, w: dia + 2800, d: dia + 2800 });
     }
-    if (o.rug && i === 0) {
-      items.push({ type: 'rug', x, z, rotY: 0, w: dia + 2800, d: dia + 2800 });
-    }
+    putCT++;
   }
 
   // ③ 이동식 디스플레이 — LED 벽 옆에 비스듬히. 붙박이 화면과 대비되는 요소다.
   if (o.mobileStand) {
-    items.push({ type: 'mobileStand', x: px(0.90, 700), z: pz(0.16, 700), rotY: -35 });
+    const mem = placeIdeationZone(placed,
+      (x, z) => [{ type: 'mobileStand', x, z, rotY: -35 }],
+      px(0.90, 700), pz(0.16, 700), [pad + 700, W - pad - 700], [front + 700, D - pad - 700]);
+    if (mem) { if (mem[0].x !== px(0.90, 700) || mem[0].z !== pz(0.16, 700)) 옮김++; 자리잡음(mem); }
+    else 뺌++;
   }
-  if (o.plant) addPlant(items, W, D);
+  if (o.plant) {
+    const x0 = W - F.wallClear / 1.6, z0 = D - F.wallClear / 1.6;
+    const mem = placeIdeationZone(placed, (x, z) => [{ type: 'plant', x, z, rotY: 0 }],
+      x0, z0, [pad, W - pad], [front, D - pad]);
+    if (mem) { if (mem[0].x !== x0 || mem[0].z !== z0) 옮김++; 자리잡음(mem); }
+    else 뺌++;
+  }
 
   const seats = stools + lounge;
-  if (nHT === 0 && nCT === 0) notes.push('가구를 모두 끄면 빈 공간만 보입니다.');
+  if (nHT === 0 && nCT === 0) notes.push('가구를 모두 끈 상태라 빈 공간만 보입니다.');
+  if (옮김 > 0) notes.push(`가구가 겹치지 않도록 ${옮김}개 구역의 자리를 옮겼습니다.`);
+  if (뺌 > 0) notes.push(`방이 좁아 ${뺌}개 구역은 놓지 못했습니다(하이 테이블 ${putHT}개 · 협업 구역 ${putCT}개).`);
   return {
     items,
-    placed: { highTables: nHT, stools, collabTables: nCT, lounge, chairs: seats },
+    placed: { highTables: putHT, stools, collabTables: putCT, lounge, chairs: seats },
     capacity: seats,
     notes,
   };

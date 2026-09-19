@@ -256,9 +256,10 @@ test('⑨ 교육장 조명 — 개수·종류는 그대로, 세기와 그림자�
   assert.deepEqual(Object.keys(l.scale).sort(), ['ceiling', 'fill', 'hemi', 'key', 'ledSpill']);
 });
 
-test('⑩ 조명 프리셋 5벌 — 기존 네 벌은 한 값도 바뀌지 않았다', () => {
+test('⑩ 조명 프리셋 6벌 — 기존 다섯 벌은 한 값도 바뀌지 않았다', () => {
   assert.deepEqual(Object.keys(LIGHTING_PRESETS),
-    ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'trainingSoft', 'controlTechnical']);
+    ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'trainingSoft', 'controlTechnical',
+      'ideationSoft']);
   assert.deepEqual({ ...LIGHTING_PRESETS.corporateSoft.scale },
     { hemi: 0.82, ceiling: 0.36, key: 0.88, fill: 1.90, ledSpill: 1.00 });
   assert.deepEqual({ ...LIGHTING_PRESETS.executiveSoft.scale },

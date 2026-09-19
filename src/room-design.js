@@ -80,6 +80,10 @@ export const LAYOUT_VARIANTS = Object.freeze({
     id: 'curved-console', label: '곡선 콘솔 상황실', roomType: 'control', base: 'control',
     note: '직선 콘솔 대신 곡선 콘솔 데스크 2열 + 유리 파티션 — PHASE 5.',
   }),
+  'ideation-zones': Object.freeze({
+    id: 'ideation-zones', label: '아이디에이션 구역 배치', roomType: 'ideation', base: 'ideation',
+    note: '줄·열 대신 하이 테이블 구역 · 협업 구역 · 이동식 디스플레이를 흩어 놓는다 — PHASE 8. 배치는 이미 있던 것 그대로다.',
+  }),
 });
 
 /** 변형 id → 정의. 모르는 값이면 null(=기존 배치 그대로). */
@@ -307,6 +311,39 @@ export const ROOM_DESIGNS = Object.freeze({
     camera: 'controlProposal',
     accessories: planned('controlAccessories'),
   }),
+
+  // ⑥ 아이디에이션 · 협업 공간 — PHASE 8-2a.
+  //    교육장(PHASE 7-a)과 사정이 같다. **가구와 배치는 이미 전용이 있고**
+  //    (`layoutIdeation` · `highTable` · `stool` · `collabTable` · `loungeChair` · `mobileStand`),
+  //    없던 것은 '디자인 층'뿐이다. 그 층이 없으면 조명도 화각도 **걸 자리가 없다** —
+  //    지금까지 아이디에이션이 일반 조명·일반 카메라로만 그려진 까닭이 이것이다(DEC-134).
+  //
+  //    이번 단계가 더하는 것은 **조명 하나뿐**이다. 팔레트는 만들지 않는다 —
+  //    PHASE 8-1 측정에서 벽·바닥·프레임·LED 의 재질 위계는 이미 멀쩡했고, 문제가 있는 값은
+  //    상판 두 개(`highTop` · `collabTop`)뿐이라 그 값만 자산 쪽에서 고쳤다.
+  //    화각은 PHASE 8-2b 의 몫이라 `planned(...)` 로 남긴다 — 적히기만 하고 적용되지 않는다.
+  ideationRoom: Object.freeze({
+    id: 'ideationRoom',
+    label: '아이디에이션 · 협업 공간',
+    roomType: 'ideation',
+    layoutVariant: 'ideation-zones',
+    // **아직 ready 가 아니다.** 화각(8-2b)과 릴리스 게이트(8-2c)가 남아 있다.
+    status: DESIGN_STATUS.PLANNED,
+    phase: 8,
+    // 가구를 적지 않는다(INHERIT) — 배치가 이미 전용 자산을 세운다(교육장과 같은 이유).
+    furniture: INHERIT,
+    // 팔레트·마감도 적지 않는다. 넓은 전용 팔레트를 만들 근거가 측정에서 나오지 않았다.
+    palette: INHERIT,
+    materials: INHERIT,
+    wallTreatment: INHERIT,
+    // PHASE 8-2a 에서 실제로 만들었다 — 천장을 혼자 지배하던 환경광을 내리고,
+    //   그만큼을 천장등·주광으로 돌려 작업면을 살린다. 조명 **개수와 종류는 그대로**다.
+    lighting: 'ideationSoft',
+    // PHASE 8-2b 의 몫이다. 지금은 기존 공용 화각이 그대로 돈다 —
+    //   그래서 협업 구역이 제안서 시점에서 보이지 않는 문제는 이번 단계에 남아 있다.
+    camera: planned('ideationProposal'),
+    accessories: INHERIT,
+  }),
 });
 
 export const DESIGN_IDS = Object.freeze(Object.keys(ROOM_DESIGNS));
@@ -342,6 +379,7 @@ export const DEFAULT_DESIGN_BY_ROOM_TYPE = Object.freeze({
   meeting: 'corporateMeeting',
   classroom: 'trainingRoom',
   control: 'controlRoom',
+  ideation: 'ideationRoom',
 });
 
 /** 그 용도의 기본 디자인 id. 지원하지 않는 용도면 null(= 디자인 없음). */
