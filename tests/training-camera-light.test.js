@@ -311,8 +311,8 @@ test('⑬ 배치·마감·가구는 이 단계에서 한 값도 바뀌지 않았
   assert.equal(ROOM_DESIGNS[TR].palette, 'trainingNeutral');
   assert.equal(ROOM_DESIGNS[TR].materials.floor, 'carpetTile');
   assert.equal(ROOM_DESIGNS[TR].materials.deskTop, 'neutralLaminate');
-  // 상태는 아직 planned 다 — 릴리스 판정은 7-c 다.
-  assert.equal(ROOM_DESIGNS[TR].status, 'planned');
+  // 상태는 PHASE 7-c 릴리스 게이트를 통과해 ready 가 되었다.
+  assert.equal(ROOM_DESIGNS[TR].status, 'ready');
 });
 
 // ── ⑤ 하드 게이트 44° 와 수단 순서 (PHASE 7-b 보완, HOLD 해소) ────────────────
