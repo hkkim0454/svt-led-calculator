@@ -21,7 +21,8 @@ import {
 } from '../src/gl-model.js';
 import {
   TRAINING_CAMERA_PRESETS, TRAINING_CAMERA_PLANS, TRAINING_FOV_RANGE, TRAINING_BAND_MAX,
-  TRAINING_STANDOFF, trainingCameraPlanId, trainingCameraPresets, trainingCameraPlan,
+  TRAINING_STANDOFF, TRAINING_REMEDY_ORDER, TRAINING_RETREAT_STEPS, TRAINING_AIM_STEPS,
+  WALL_MARGIN, trainingCameraPlanId, trainingCameraPresets, trainingCameraPlan,
   cameraPlanForDesign, EYE_RANGE, eyeAboveTargetFor, POLAR_GAP_PER_DIST,
   CONFERENCE_CAMERA_PLANS, CAMERA_PLANS, EXECUTIVE_CAMERA_PLANS, CONTROL_CAMERA_PLANS,
 } from '../src/design-camera.js';
@@ -132,9 +133,9 @@ test('⑤ **조작기가 교육장 카메라를 끌어올리지 못한다** — 
     `천장 높은 교육장에서 하한이 걸리지 않는다(${plan.pitchDeg})`);
 });
 
-test('⑥ 사람 눈높이 · 제안 원근 상한 46° · LED 온전', () => {
-  assert.deepEqual({ ...TRAINING_FOV_RANGE }, { min: 36, max: 46 });
-  assert.ok(TRAINING_FOV_RANGE.max <= 46, '제안 원근의 하드 게이트를 넘겼다');
+test('⑥ 사람 눈높이 · 제안 원근 하드 게이트 44° · LED 온전', () => {
+  assert.deepEqual({ ...TRAINING_FOV_RANGE }, { min: 36, max: 44 });
+  assert.ok(TRAINING_FOV_RANGE.max <= 44, '제안 원근의 하드 게이트를 넘겼다');
   for (const [tag, W, H, D, opt] of ROOMS) {
     const m = modelOf(W, H, D, opt);
     for (const a of ASPECTS) for (const v of TRAINING_CAMERA_PRESETS) {
@@ -312,4 +313,175 @@ test('⑬ 배치·마감·가구는 이 단계에서 한 값도 바뀌지 않았
   assert.equal(ROOM_DESIGNS[TR].materials.deskTop, 'neutralLaminate');
   // 상태는 아직 planned 다 — 릴리스 판정은 7-c 다.
   assert.equal(ROOM_DESIGNS[TR].status, 'planned');
+});
+
+// ── ⑤ 하드 게이트 44° 와 수단 순서 (PHASE 7-b 보완, HOLD 해소) ────────────────
+// 오너 지적: **대표 화면이 우연히 44 이하인 것으로는 부족하다.** 풀이 자체가 44 를 넘을 수
+//   없어야 승인 게이트를 지킨 것이다. 그래서 여기서는 값이 아니라 **정책**을 검사한다.
+
+/** 넓은 조합을 훑는다 — 방 크기·천장·깊이·LED 크기·화면비를 곱한다. */
+function* 조합() {
+  for (const W of [7000, 9000, 12000, 16000, 22000])
+    for (const H of [2600, 3000, 3400, 4200, 6000])
+      for (const D of [6000, 9000, 14000, 20000])
+        for (const frac of [0.35, 0.55, 0.8])
+          for (const ar of [16 / 9, 21 / 9, 4 / 3]) {
+            const ledW = Math.round(W * frac), ledH = Math.round(ledW / ar);
+            if (ledH + 1000 > H - 200) continue;
+            const lay = layoutRoom('classroom', defaultOptions('classroom'), { W, D, design: TR });
+            const m = buildGLModel({
+              space: { W, H, D },
+              led: { marginW: (W - ledW) / 2, mount: 1000, w: ledW, h: ledH, depth: 60, cols: 4, rows: 4 },
+              items: lay.items, roomType: 'classroom', design: TR,
+            });
+            for (const v of TRAINING_CAMERA_PRESETS) yield { tag: `${W}×${H}×${D}/${ledW}`, m, v, W, H, D };
+          }
+}
+
+test('⑭ 하드 게이트 44° 는 **풀이가 넘을 수 없는 상한**이다 — 전수 조합에서 한 건도 없다', () => {
+  assert.equal(TRAINING_FOV_RANGE.max, 44, '하드 게이트 값이 바뀌었다');
+  let n = 0, worst = { fov: 0 };
+  for (const { tag, m, v } of 조합()) {
+    for (const aspect of ASPECTS) {
+      const plan = cameraPlanForDesign(TR, v, m, aspect);
+      n++;
+      assert.ok(plan.fov <= 44 + 1e-9, `${tag}/${v}/${aspect.toFixed(2)}: 화각 ${plan.fov}`);
+      assert.ok(plan.fov >= TRAINING_FOV_RANGE.min - 1e-9, `${tag}/${v}: 화각 ${plan.fov}`);
+      if (plan.fov > worst.fov) worst = { fov: plan.fov, tag, v };
+    }
+  }
+  assert.ok(n > 2000, `조합이 너무 적다(${n})`);
+  assert.ok(worst.fov <= 44, `최대 화각 ${worst.fov}`);
+  // 풀이가 상한을 **직접 적어 두지 않았는지** — 값을 두 곳에 적으면 게이트가 조용히 갈린다.
+  const dc = code('design-camera.js');
+  const 교육장 = dc.slice(dc.indexOf('TRAINING_CAMERA_PRESETS'));
+  // 교육장 구간에는 45 이상의 **홀로 선 정수**가 하나도 없어야 한다 — 45·46·50 같은
+  //   다른 상한을 몰래 적어 두면 게이트가 값과 코드로 갈린다.
+  assert.equal(/(?<![.\d\w])(4[5-9]|[5-9]\d)(?![.\d])/.test(교육장), false,
+    '교육장 풀이에 45 이상의 상한 값이 직접 적혀 있다');
+  assert.ok(/clamp\(s\.fov, TRAINING_FOV_RANGE\.min, cap\)/.test(교육장),
+    '풀이가 공용 상한을 거치지 않고 화각을 정한다');
+  assert.ok(/const cap = clamp\(fovCap, TRAINING_FOV_RANGE\.min, TRAINING_FOV_RANGE\.max\)/.test(교육장),
+    '시도별 상한이 하드 게이트로 다시 잘리지 않는다');
+});
+
+test('⑮ 수단 순서 — 화각은 **마지막**이고, 승인된 대표 구도에서는 한 단계도 돌지 않는다', () => {
+  assert.deepEqual([...TRAINING_REMEDY_ORDER],
+    ['base', 'retreat', 'lateral', 'aim', 'joint', 'fov']);
+  assert.equal(TRAINING_RETREAT_STEPS, 5);
+  assert.equal(TRAINING_AIM_STEPS, 4);
+
+  // 대표 방에서는 승인된 자리 그대로 풀린다 — 어떤 수단도 필요하지 않다.
+  for (const [tag, W, H, D, opt] of ROOMS) {
+    const m = modelOf(W, H, D, opt);
+    for (const v of TRAINING_CAMERA_PRESETS) for (const aspect of ASPECTS) {
+      const plan = cameraPlanForDesign(TR, v, m, aspect);
+      assert.equal(plan.remedy, 'base', `${tag}/${v}/${aspect.toFixed(2)}: 수단 ${plan.remedy} 까지 갔다`);
+      assert.equal(plan.retreat, 0, `${tag}/${v}: 물러서기를 썼다`);
+      assert.equal(plan.ledFullyVisible, true, `${tag}/${v}: LED 가 잘렸다`);
+    }
+  }
+
+  // LED 가 벽을 거의 채우는 방에서는 수단이 켜지고, **화각보다 앞선 수단이 먼저 쓰인다.**
+  const lay = layoutRoom('classroom', defaultOptions('classroom'), { W: 9000, D: 7000, design: TR });
+  const 빡빡 = buildGLModel({
+    space: { W: 9000, H: 3400, D: 7000 },
+    led: { marginW: 400, mount: 1000, w: 8200, h: 2200, depth: 60, cols: 8, rows: 4 },
+    items: lay.items, roomType: 'classroom', design: TR,
+  });
+  const 켜짐 = TRAINING_CAMERA_PRESETS.map(v => cameraPlanForDesign(TR, v, 빡빡, 574 / 563));
+  assert.ok(켜짐.some(p => p.remedy !== 'base'), '빡빡한 방에서도 수단이 켜지지 않는다');
+  for (const p of 켜짐) {
+    assert.ok(TRAINING_REMEDY_ORDER.includes(p.remedy), `모르는 수단 ${p.remedy}`);
+    assert.ok(p.fov <= 44 + 1e-9, `수단을 쓰고도 화각이 ${p.fov}`);
+    // 물러서기·좌우·시선으로 풀렸다면 화각은 기준값 그대로여야 한다(화각은 마지막이다).
+    if (['retreat', 'lateral', 'aim', 'joint'].includes(p.remedy)) {
+      assert.equal(p.fov, TRAINING_CAMERA_PLANS[TRAINING_CAMERA_PRESETS[켜짐.indexOf(p)]].fov,
+        `${p.remedy} 로 풀렸는데 화각까지 넓혔다`);
+    }
+  }
+});
+
+test('⑯ 카메라는 벽을 뚫지 않고 뒷줄 뒤에 선다 — 물러서도 마찬가지다', () => {
+  let minWall = Infinity, minRear = Infinity;
+  for (const { tag, m, v, W, H, D } of 조합()) {
+    const plan = cameraPlanForDesign(TR, v, m, 574 / 563);
+    minWall = Math.min(minWall, plan.wallClearance);
+    minRear = Math.min(minRear, plan.rearClearance);
+    assert.ok(plan.wallClearance >= WALL_MARGIN - 1e-6,
+      `${tag}/${v}: 카메라가 벽에 붙었다(${plan.wallClearance})`);
+    assert.ok(plan.rearClearance >= 0, `${tag}/${v}: 카메라가 뒷줄 안에 있다(${plan.rearClearance})`);
+    // 눈높이는 언제나 사람 높이다 — 어떤 수단을 써도 위에서 내려다보지 않는다.
+    assert.ok(plan.position[1] >= EYE_RANGE.min && plan.position[1] <= EYE_RANGE.max,
+      `${tag}/${v}: 눈높이 ${plan.position[1]}`);
+    assert.ok(plan.position[1] <= H / 1000 - WALL_MARGIN, `${tag}/${v}: 카메라가 천장에 붙었다`);
+    assert.ok(plan.pitchDeg > 0 && plan.pitchDeg < 25, `${tag}/${v}: 내려본 각 ${plan.pitchDeg}`);
+    assert.ok(plan.position[2] < D / 1000 && plan.position[0] > 0 && plan.position[0] < W / 1000,
+      `${tag}/${v}: 카메라가 방 밖이다`);
+  }
+  assert.ok(minWall >= WALL_MARGIN - 1e-6, `벽 여유 최소 ${minWall}`);
+  assert.ok(minRear >= 0, `뒷줄 여유 최소 ${minRear}`);
+});
+
+test('⑰ 대표 화면의 화각 행렬을 고정한다 — 컴팩트·기본·대형 × 실내·좌우 코너', () => {
+  const 행렬 = {
+    '컴팩트/interior': 42, '컴팩트/corner-l': 43, '컴팩트/corner-r': 43,
+    '기본/interior': 42, '기본/corner-l': 43, '기본/corner-r': 43,
+    '대형/interior': 42, '대형/corner-l': 43, '대형/corner-r': 43,
+    '깊은 방/interior': 42, '깊은 방/corner-l': 43, '깊은 방/corner-r': 43,
+    '높은 천장/interior': 42, '높은 천장/corner-l': 43, '높은 천장/corner-r': 43,
+  };
+  for (const [tag, W, H, D, opt] of ROOMS) {
+    const m = modelOf(W, H, D, opt);
+    for (const v of TRAINING_CAMERA_PRESETS) {
+      const plan = cameraPlanForDesign(TR, v, m, 574 / 563);
+      assert.equal(plan.fov, 행렬[`${tag}/${v}`], `${tag}/${v}: 화각이 달라졌다(${plan.fov})`);
+      assert.equal(plan.ledVisibleShare, 1, `${tag}/${v}: LED 가 온전하지 않다`);
+    }
+  }
+});
+
+test('⑱ 수단 네 가지가 **각각 실제로 쓰이는 칸**을 고정한다 — 하나를 빼면 여기서 드러난다', () => {
+  // 값은 v441 에서 실제로 잰 것이다. 각 칸은 그 수단이 아니면 풀리지 않는 자리다.
+  const 칸 = [
+    ['물러서기', 7000, 3400, 6000, 3850, 2166, 'corner-l',
+      { remedy: 'retreat', fov: 43, retreat: 1, aimMix: 0.3, led: 1, x: 1.82, z: 5.75 }],
+    ['좌우 이동', 7000, 3000, 6000, 3850, 1650, 'corner-l',
+      { remedy: 'lateral', fov: 43, retreat: 1, aimMix: 0.3, led: 1, x: 2.1, z: 5.75 }],
+    ['시선 조정', 7000, 4200, 9000, 6650, 2850, 'corner-l',
+      { remedy: 'aim', fov: 43, retreat: 1, aimMix: 0, led: 1, x: 1.82, z: 8.75 }],
+    ['화각(마지막)', 7000, 4200, 6000, 3850, 2888, 'interior',
+      { remedy: 'fov', fov: 44, retreat: 1, aimMix: 0, led: 0.9674, x: 3.5, z: 5.75 }],
+  ];
+  for (const [tag, W, H, D, ledW, ledH, v, want] of 칸) {
+    const lay = layoutRoom('classroom', defaultOptions('classroom'), { W, D, design: TR });
+    const m = buildGLModel({
+      space: { W, H, D },
+      led: { marginW: (W - ledW) / 2, mount: 1000, w: ledW, h: ledH, depth: 60, cols: 4, rows: 4 },
+      items: lay.items, roomType: 'classroom', design: TR,
+    });
+    const p = cameraPlanForDesign(TR, v, m, 574 / 563);
+    assert.equal(p.remedy, want.remedy, `${tag}: 쓰인 수단이 달라졌다(${p.remedy})`);
+    assert.equal(p.fov, want.fov, `${tag}: 화각 ${p.fov}`);
+    assert.equal(p.retreat, want.retreat, `${tag}: 물러선 정도 ${p.retreat}`);
+    assert.equal(p.aimMix, want.aimMix, `${tag}: 시선 당김 ${p.aimMix}`);
+    assert.equal(p.ledVisibleShare, want.led, `${tag}: LED 점유 ${p.ledVisibleShare}`);
+    assert.equal(p.position[0], want.x, `${tag}: 카메라 x ${p.position[0]}`);
+    assert.equal(p.position[2], want.z, `${tag}: 카메라 z ${p.position[2]}`);
+    assert.ok(p.fov <= 44 + 1e-9, `${tag}: 하드 게이트를 넘겼다`);
+  }
+
+  // ④ 동시 탐색은 **승인된 명세가 요구한 마지막 보루**다. 지금까지 조사한 4천여 조합에서는
+  //   앞의 세 수단이 늘 먼저 풀어 실제로 채택된 적이 없다. 동작으로는 구분되지 않으므로
+  //   **코드에 그대로 남아 있는지**를 검사한다(빼 버리면 명세 위반이다).
+  const dc = code('design-camera.js');
+  const 교육장 = dc.slice(dc.indexOf('TRAINING_CAMERA_PRESETS'));
+  assert.ok(/for \(let r = 0; r <= TRAINING_RETREAT_STEPS && !done; r\+\+\)/.test(교육장),
+    '동시 탐색의 물러서기 축이 없다');
+  assert.ok(/for \(let k = 0; k <= LATERAL_RELAX_STEPS && !done; k\+\+\)/.test(교육장),
+    '동시 탐색의 좌우 축이 없다');
+  assert.ok(/for \(let q = 0; q <= TRAINING_AIM_STEPS && !done; q\+\+\)/.test(교육장),
+    '동시 탐색의 시선 축이 없다');
+  assert.ok(/cand\.share > sol\.share \+ 1e-9/.test(교육장),
+    '후보를 고르는 기준이 **더 많이 보이는 쪽**이 아니다');
 });

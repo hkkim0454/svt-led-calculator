@@ -21,7 +21,7 @@
 // 디자인이 화각을 정하지 않았으면 **null**을 돌려준다. 그러면 기존 계산이 그대로 쓰인다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=440';
+import { roomDesign, isPlanned } from './room-design.js?v=441';
 
 /** 이 파일이 다루는 시점. 아이소·평면도는 **손대지 않는다**(오너 지침 §12). */
 export const CORPORATE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
@@ -1023,8 +1023,37 @@ export function controlCameraPlan(room, led, preset, aspect = 16 / 9, fields = n
 //   많이 돌면 줄이 겹쳐 '책상 더미'가 된다(강당 코너에서 이미 확인된 현상이다).
 export const TRAINING_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r']);
 
-/** 제안서 원근의 하드 게이트. 회의실 3종·상황실과 같은 46° 상한을 쓴다. */
-export const TRAINING_FOV_RANGE = Object.freeze({ min: 36, max: 46 });
+/**
+ * 제안서 원근의 **하드 게이트**. 임원 회의실과 같은 44° 상한이다.
+ *   승인 게이트는 '대표 화면이 44 이하'가 아니라 **'풀이 자체가 44 를 넘을 수 없음'** 이다.
+ *   그래서 이 값은 풀이가 실제로 쓰는 상한이고, 화각을 넓히는 것은 언제나 마지막 수단이다.
+ */
+export const TRAINING_FOV_RANGE = Object.freeze({ min: 36, max: 44 });
+
+/** LED 가 안 들어올 때 뒤로 물러서는 단계 수(1순위 수단). */
+export const TRAINING_RETREAT_STEPS = 5;
+
+/** 시선을 LED 한가운데로 되돌리는 단계 수(3순위 수단). */
+export const TRAINING_AIM_STEPS = 4;
+
+/**
+ * LED 가 화각에 안 들어올 때 **쓰는 순서**. 이 순서가 곧 승인된 정책이다.
+ *   ① 물러서기 → ② 좌우 이동 → ③ 시선 조정 → ④ 동시 탐색 → ⑤ 화각(최대 44°)
+ *   화각을 넓히는 것은 언제나 마지막이고, 어떤 경우에도 44° 를 넘지 않는다.
+ */
+export const TRAINING_REMEDY_ORDER = Object.freeze(
+  ['base', 'retreat', 'lateral', 'aim', 'joint', 'fov']);
+
+/** 화면에 들어온 LED 넓이 비율(0~1). 네 모서리를 화면 좌표로 옮긴 결과를 받는다. */
+function ledAreaShare(view, tanH, tanV) {
+  if (!view || view.length < 4) return 0;
+  const u0 = Math.min(...view.map(t => t.u)), u1 = Math.max(...view.map(t => t.u));
+  const v0 = Math.min(...view.map(t => t.v)), v1 = Math.max(...view.map(t => t.v));
+  const full = Math.max(1e-9, (u1 - u0) * (v1 - v0));
+  const iw = Math.max(0, Math.min(u1, tanH) - Math.max(u0, -tanH));
+  const ih = Math.max(0, Math.min(v1, tanV) - Math.max(v0, -tanV));
+  return iw * ih / full;
+}
 
 /** 천장 띠 상한 — 이보다 크면 천장이 화면을 먹는다. */
 export const TRAINING_BAND_MAX = 0.18;
@@ -1082,24 +1111,32 @@ export function trainingCameraPlan(room, led, preset, aspect = 16 / 9, fields = 
   // ── 눈높이 ── 낮은 천장에서도 천장을 뚫지 않게 자른다.
   const eye = clamp(s.eye, EYE_RANGE.min, Math.min(EYE_RANGE.max, room.H - WALL_MARGIN - 0.2));
   const rearMost = clamp(room.D - clamp(room.D * 0.05, 0.35, 0.70), WALL_MARGIN, room.D - WALL_MARGIN);
+  // 물러설 수 있는 **끝자리**. 기본 자리(rearMost)보다 조금 더 뒤지만, 벽에서 `WALL_MARGIN`
+  //   만큼은 반드시 띄운다 — 벽을 뚫고 서지 않는다. 물러서기를 쓸 때만 여기까지 간다.
+  const rearLimit = Math.max(rearMost, clamp(room.D - WALL_MARGIN, WALL_MARGIN, room.D - WALL_MARGIN));
   const backZ = content.z1;
 
   const ledPts = [[led.x, led.y, led.depth], [led.x + led.w, led.y, led.depth],
     [led.x, led.y + led.h, led.depth], [led.x + led.w, led.y + led.h, led.depth]];
 
   // 화각·내려본 각·서는 깊이가 서로를 물고 있어 네 번 되풀이해 수렴시킨다(회의실과 같은 방법).
-  function solveAt(x) {
-    let fov = clamp(s.fov, TRAINING_FOV_RANGE.min, TRAINING_FOV_RANGE.max);
+  //   `retreat` 0~1 — 뒷줄 바로 뒤(0)에서 뒷벽 앞(1)까지 얼마나 물러설지.
+  //   `aimMix`      — 시선을 LED 가운데에서 책상 쪽으로 얼마나 당길지(0 이면 LED 정중앙).
+  //   `fovCap`      — 이번 시도에서 허용하는 화각 상한. **넓히기는 마지막 수단이라 따로 받는다.**
+  function solveAt(x, retreat, aimMix, fovCap) {
+    const cap = clamp(fovCap, TRAINING_FOV_RANGE.min, TRAINING_FOV_RANGE.max);
+    let fov = clamp(s.fov, TRAINING_FOV_RANGE.min, cap);
     let standOff = TRAINING_STANDOFF.min;
     let z = rearMost, pitch = 0, yaw = 0, dzWall = Math.max(0.5, z - led.depth);
 
     for (let it = 0; it < 4; it++) {
-      z = clamp(Math.min(rearMost, backZ + standOff), WALL_MARGIN, rearMost);
+      const zNatural = clamp(Math.min(rearMost, backZ + standOff), WALL_MARGIN, rearMost);
+      z = zNatural + (rearLimit - zNatural) * clamp(retreat, 0, 1);
       dzWall = Math.max(0.5, z - led.depth);
       const halfV = fov * DEG / 2;
 
-      const aimX = (led.x + led.w / 2) + (contentCx - (led.x + led.w / 2)) * s.aimMix;
-      const aimZ = led.depth + (contentCz - led.depth) * s.aimMix;
+      const aimX = (led.x + led.w / 2) + (contentCx - (led.x + led.w / 2)) * aimMix;
+      const aimZ = led.depth + (contentCz - led.depth) * aimMix;
       yaw = Math.atan2(aimX - x, aimZ - z);
 
       const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
@@ -1116,7 +1153,7 @@ export function trainingCameraPlan(room, led, preset, aspect = 16 / 9, fields = 
       }
       const m = Math.tan(LED_EDGE_MARGIN_DEG * DEG);
       const wantV = 2 * Math.atan(Math.max(needV + m, (needH + m) / a)) / DEG;
-      fov = clamp(Math.max(s.fov, wantV), TRAINING_FOV_RANGE.min, TRAINING_FOV_RANGE.max);
+      fov = clamp(Math.max(s.fov, wantV), TRAINING_FOV_RANGE.min, cap);
 
       // 바닥이 보이기 시작하는 거리보다 조금 더 뒤에 선다 — 앞줄 책상이 화면 아래로 빠지지 않게.
       const down = pitch + fov * DEG / 2;
@@ -1129,21 +1166,60 @@ export function trainingCameraPlan(room, led, preset, aspect = 16 / 9, fields = 
     const v = ledPts.map(q => toView(q, [x, eye, z], yaw, pitch)).filter(Boolean);
     const ledFullyVisible = v.length === 4
       && v.every(q => Math.abs(q.u) <= tanH + 1e-9 && Math.abs(q.v) <= tanV + 1e-9);
-    return { x, z, fov, pitch, yaw, dzWall, tanV, tanH, ledFullyVisible };
+    // 다 안 들어올 때 **덜 잘린 자리**를 고르기 위해 여기서도 점유를 잰다.
+    return { x, z, fov, pitch, yaw, dzWall, tanV, tanH, ledFullyVisible,
+      share: ledAreaShare(v, tanH, tanV), aimMix, retreat: clamp(retreat, 0, 1) };
   }
 
-  // LED 가 다 안 들어오면 화각부터 넓히지 않는다 — 코너를 조금씩 가운데로 되돌린다.
+  // ── LED 가 다 안 들어올 때의 **수단 순서** ─────────────────────────────────
+  //   ① 물러서기 → ② 좌우 이동 → ③ 시선 조정 → ④ 동시 탐색 → ⑤ 화각(최대 44°).
+  //   **화각은 언제나 마지막**이라, 앞의 네 수단은 기준 화각(`s.fov`)으로만 돌린다.
+  //   승인된 자리에서 LED 가 이미 들어오면 이 단계들은 **한 번도 돌지 않는다** —
+  //   즉 이 정책이 생겨도 승인된 대표 구도는 그대로다.
   const mid = room.W / 2;
   const x0 = clamp(room.W * s.xRatio, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN));
-  let sol = solveAt(x0);
   const side = Math.sign(x0 - mid);
   const limit = mid + side * room.W * MIN_CORNER_OFFSET;
-  if (!sol.ledFullyVisible && side !== 0 && Math.abs(limit - mid) < Math.abs(x0 - mid)) {
-    for (let k = 1; k <= LATERAL_RELAX_STEPS; k++) {
-      sol = solveAt(x0 + (limit - x0) * (k / LATERAL_RELAX_STEPS));
-      if (sol.ledFullyVisible) break;
+  const canMoveSide = side !== 0 && Math.abs(limit - mid) < Math.abs(x0 - mid);
+  const xAt = k => (canMoveSide ? x0 + (limit - x0) * (k / LATERAL_RELAX_STEPS) : x0);
+  const aimAt = k => s.aimMix * (1 - k / TRAINING_AIM_STEPS);
+
+  let sol = null, stage = 'base';
+  /** 후보를 받아 더 나으면 채택한다. LED 가 온전히 들어오면 true(= 더 볼 것 없다). */
+  const consider = (cand, name) => {
+    if (!sol || cand.share > sol.share + 1e-9) { sol = cand; stage = name; }
+    return cand.ledFullyVisible;
+  };
+
+  for (const fovCap of [s.fov, TRAINING_FOV_RANGE.max]) {
+    const fovStage = fovCap > s.fov;          // 마지막 판 — 여기서부터 화각을 연다.
+    let done = consider(solveAt(x0, 0, s.aimMix, fovCap), fovStage ? 'fov' : 'base');
+
+    // ① 물러서기 — 뒷벽 쪽으로 물러서면 LED 가 화면에서 작아진다. 가구 쪽으로 가지 않는다.
+    for (let r = 1; r <= TRAINING_RETREAT_STEPS && !done; r++) {
+      done = consider(solveAt(x0, r / TRAINING_RETREAT_STEPS, s.aimMix, fovCap),
+        fovStage ? 'fov' : 'retreat');
     }
+    // ② 좌우 이동 — 코너를 가운데로 조금씩 되돌린다.
+    for (let k = 1; k <= LATERAL_RELAX_STEPS && !done && canMoveSide; k++) {
+      done = consider(solveAt(xAt(k), 1, s.aimMix, fovCap), fovStage ? 'fov' : 'lateral');
+    }
+    // ③ 시선 조정 — 시선을 LED 한가운데로 되돌려 LED 를 화면 가운데에 놓는다.
+    for (let k = 1; k <= TRAINING_AIM_STEPS && !done; k++) {
+      done = consider(solveAt(x0, 1, aimAt(k), fovCap), fovStage ? 'fov' : 'aim');
+    }
+    // ④ 동시 탐색 — 물러서기·좌우·시선을 함께 움직여 찾는다.
+    for (let r = 0; r <= TRAINING_RETREAT_STEPS && !done; r++) {
+      for (let k = 0; k <= LATERAL_RELAX_STEPS && !done; k++) {
+        for (let q = 0; q <= TRAINING_AIM_STEPS && !done; q++) {
+          done = consider(solveAt(xAt(k), r / TRAINING_RETREAT_STEPS, aimAt(q), fovCap),
+            fovStage ? 'fov' : 'joint');
+        }
+      }
+    }
+    if (done) break;
   }
+
   const { x, z, fov, pitch, yaw, dzWall, tanV, tanH, ledFullyVisible } = sol;
 
   // ── 시선점 ── 방향은 그대로 두고 점만 앞으로 당겨 값이 방 안에 남게 한다.
@@ -1193,5 +1269,11 @@ export function trainingCameraPlan(room, led, preset, aspect = 16 / 9, fields = 
     ledVisibleShare: ledShare,
     deskShare,
     seatsShare,
+    // ── 정책 관측치 ── 어떤 수단까지 갔는지, 벽·뒷줄과 얼마나 떨어졌는지.
+    remedy: stage,
+    retreat: +sol.retreat.toFixed(4),
+    aimMix: +sol.aimMix.toFixed(4),
+    rearClearance: +(z - content.z1).toFixed(4),
+    wallClearance: +Math.min(x, room.W - x, room.D - z, z).toFixed(4),
   });
 }
