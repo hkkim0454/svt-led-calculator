@@ -19,7 +19,7 @@ import * as THREE from './vendor/three/three.module.min.js';
 // 곡선 콘솔 상판의 포물선은 **control-av.js 하나가 정한다** — AV 자리 계산(모니터·키보드가
 //   상판 위에 얹혀 있는가)이 같은 식을 읽어야 한다. 여기서 다시 적으면 언젠가 어긋나고,
 //   그때는 '화면에서는 상판 위인데 검사는 밖이라고 한다'가 된다.
-import { consoleCurve } from './control-av.js?v=441';
+import { consoleCurve } from './control-av.js?v=442';
 
 // 분할 수 — 'high'는 가까이서 보는 회의실 가구, 'low'는 수백 개가 깔리는 객석.
 const DETAIL = Object.freeze({

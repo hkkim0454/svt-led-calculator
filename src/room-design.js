@@ -228,7 +228,7 @@ export const ROOM_DESIGNS = Object.freeze({
     label: '교육장 · 트레이닝룸',
     roomType: 'classroom',
     layoutVariant: 'training-grid',
-    status: DESIGN_STATUS.PLANNED,
+    status: DESIGN_STATUS.READY,
     phase: 7,
     // **가구를 적지 않는다(INHERIT).** 배치(`layoutClassroom`)가 이미
     //   `asset: 'trainingChair'` 를 명시해 같은 가구가 서고, 여기에 이름을 적으면

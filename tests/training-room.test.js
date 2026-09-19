@@ -46,7 +46,8 @@ test('① `trainingRoom` 디자인이 있고, 용도·상태·단계가 맞다',
   assert.ok(d, '교육장 디자인이 없다');
   assert.equal(d.id, TR);
   assert.equal(d.roomType, 'classroom');
-  assert.equal(d.status, DESIGN_STATUS.PLANNED, '아직 릴리스 판정을 받지 않았다 — ready 로 올리면 안 된다');
+  // PHASE 7-c 릴리스 게이트를 통과해 ready 로 승급했다(DEC-131).
+  assert.equal(d.status, DESIGN_STATUS.READY, '릴리스 게이트를 통과했으므로 ready 여야 한다');
   assert.ok(Number.isInteger(d.phase) && d.phase >= 7);
   assert.ok(Object.isFrozen(d));
   assert.ok(layoutVariant(d.layoutVariant), `없는 배치 변형 ${d.layoutVariant}`);
