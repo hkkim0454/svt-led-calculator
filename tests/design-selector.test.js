@@ -86,9 +86,11 @@ test('⑥⑦⑧ 기본값은 대기업 회의실 — 없는 값·이상한 값�
   // 화면이 시작할 때도 같은 함수로 정한다(기본값을 두 곳에 적지 않는다).
   assert.match(appSrc, /let designId = normalizeDesign\(undefined, DEFAULT_ROOM_TYPE\);/);
   // 디자인이 없는 용도는 null 이다 — 회의실 디자인이 강당에 따라붙지 않는다.
-  for (const t of ['classroom', 'hall_s', 'hall_m', 'hall_l', 'ideation']) {
+  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation']) {
     assert.equal(normalizeDesign(LC, t), null, t);
   }
+  // 교육장은 PHASE 7-a 에서 제 디자인이 생겼다 — 회의실 값을 넣어도 **교육장 것**으로 떨어진다.
+  assert.equal(normalizeDesign(LC, 'classroom'), 'trainingRoom');
 });
 
 // ── C. 고른 값이 다섯 층에 도달하는가 (§17 ⑨⑩⑪ ⑰⑱⑲) ────────────────────
@@ -227,10 +229,13 @@ test('⑳㉑ 대기업·임원 디자인이 한 값도 바뀌지 않았다', () 
 
 test('㉙㉚ 다른 용도는 그대로 · 정식 재질 13종 유지', () => {
   // 디자인이 붙지 않은 용도는 전부 INHERIT 다(적용해도 화면이 바뀌지 않는다).
-  for (const t of ['classroom', 'hall_s', 'hall_m', 'hall_l', 'ideation']) {
+  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation']) {
     assert.deepEqual(designsFor(t).map(d => d.id), [], t);
     assert.equal(defaultDesignFor(t), null, t);
   }
+  // 교육장은 디자인이 하나뿐이라 선택칸이 뜨지 않는다(상황실과 같은 규칙).
+  assert.deepEqual(designsFor('classroom').map(d => d.id), ['trainingRoom']);
+  assert.equal(defaultDesignFor('classroom'), 'trainingRoom');
   assert.equal(Object.keys(MATERIAL_PRESETS).length, 13);
 });
 

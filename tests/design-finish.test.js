@@ -158,7 +158,7 @@ test('AV 수납장 형상 무변경 — 마감만 바뀌고 치수·부품은 �
 });
 
 // ⑫ 마감이 붙은 공간은 '마감을 선언한 공간'뿐이다 — 이 단계에서 가장 중요한 테스트
-const FINISHED = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom']);   // PHASE 2-c · 3-c · 4-d.1 · 5-d.1
+const FINISHED = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom', 'trainingRoom']);   // PHASE 2-c · 3-c · 4-d.1 · 5-d.1 · 7-a
 test('마감이 다른 공간으로 새지 않는다 — 마감을 선언한 공간 말고는 전부 null이다', () => {
   for (const id of DESIGN_IDS) {
     if (FINISHED.has(id)) continue;

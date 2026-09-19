@@ -67,9 +67,9 @@ test('② 정식 재질 13종 그대로 — 새 재질도, 새 질감도 만들�
   for (const v of Object.values(D.materials)) {
     assert.ok(MATERIAL_IDS.includes(resolveMaterialId(v)), `${v}: 정식 목록에 없다`);
   }
-  // 팔레트는 4벌이 됐지만(상황실 추가) 재질은 그대로다.
+  // 팔레트는 5벌이 됐지만(상황실 · 교육장 추가) 재질은 그대로다.
   assert.deepEqual(Object.keys(DESIGN_PALETTES),
-    ['corporateNeutral', 'executiveBright', 'conferenceBright', 'controlPalette']);
+    ['corporateNeutral', 'executiveBright', 'conferenceBright', 'trainingNeutral', 'controlPalette']);
 });
 
 // ── B. 떨어지는 자리가 없다 ─────────────────────────────────────────────────

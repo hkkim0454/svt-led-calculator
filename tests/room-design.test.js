@@ -36,9 +36,9 @@ function appliedIds(v, out = []) {
   return out;
 }
 
-test('디자인 4종 — 요청한 공간이 모두 선언되어 있고 항목이 빠짐없이 있다', () => {
+test('디자인 5종 — 요청한 공간이 모두 선언되어 있고 항목이 빠짐없이 있다', () => {
   assert.deepEqual([...DESIGN_IDS],
-    ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom']);
+    ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'trainingRoom', 'controlRoom']);
   for (const id of DESIGN_IDS) {
     const d = ROOM_DESIGNS[id];
     assert.equal(d.id, id, `${id}: id가 열쇠와 달라서는 안 된다`);
@@ -79,26 +79,30 @@ test('배치 변형(layoutVariant) — 디자인마다 다른 이름을 갖고 �
   assert.equal(ROOM_DESIGNS.corporateMeeting.layoutVariant, 'corporate-standard');
   assert.equal(ROOM_DESIGNS.executiveBoardroom.layoutVariant, 'executive-u');
   assert.equal(ROOM_DESIGNS.largeConference.layoutVariant, 'large-conference');
+  assert.equal(ROOM_DESIGNS.trainingRoom.layoutVariant, 'training-grid');
   assert.equal(ROOM_DESIGNS.controlRoom.layoutVariant, 'curved-console');
   assert.equal(layoutVariant('없는변형'), null);
-  // 선언한 변형 4종 말고 다른 것이 섞여 들어오지 않았는지.
+  // 선언한 변형 5종 말고 다른 것이 섞여 들어오지 않았는지.
   assert.deepEqual(Object.keys(LAYOUT_VARIANTS),
-    ['corporate-standard', 'executive-u', 'large-conference', 'curved-console']);
+    ['corporate-standard', 'executive-u', 'large-conference', 'training-grid', 'curved-console']);
   assert.equal(seen.size, Object.keys(LAYOUT_VARIANTS).length, '쓰이지 않는 변형이 남아 있다');
 });
 
 test('기본 디자인 — 되돌아가는 곳은 언제나 **그 용도의** 기본이다', () => {
   // 용도별 기본 디자인 표 — 지원하는 용도만 적혀 있어야 한다.
-  assert.deepEqual(DEFAULT_DESIGN_BY_ROOM_TYPE, { meeting: 'corporateMeeting', control: 'controlRoom' });
+  assert.deepEqual(DEFAULT_DESIGN_BY_ROOM_TYPE,
+    { meeting: 'corporateMeeting', classroom: 'trainingRoom', control: 'controlRoom' });
   for (const [t, id] of Object.entries(DEFAULT_DESIGN_BY_ROOM_TYPE)) {
     assert.ok(ROOM_TYPE_IDS.includes(t), `없는 공간 타입 ${t}`);
     assert.ok(ROOM_DESIGNS[id], `없는 디자인 ${id}`);
     assert.equal(ROOM_DESIGNS[id].roomType, t, `${id}: 기본으로 걸린 용도와 디자인의 용도가 다르다`);
   }
   assert.equal(defaultDesignFor('meeting'), 'corporateMeeting');
+  assert.equal(defaultDesignFor('classroom'), 'trainingRoom');
   assert.equal(defaultDesignFor('control'), 'controlRoom');
   // 아직 다루지 않는 공간에는 **억지로 회의실 디자인을 붙이지 않는다.**
-  for (const t of ['classroom', 'hall_s', 'hall_m', 'hall_l', 'ideation', undefined, '없는용도']) {
+  //   (교육장은 PHASE 7-a 에서 제 디자인이 생겼으므로 여기서 빠진다.)
+  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation', undefined, '없는용도']) {
     assert.equal(defaultDesignFor(t), null, `${String(t)}: 디자인 없음이어야 한다`);
   }
 
@@ -110,8 +114,9 @@ test('기본 디자인 — 되돌아가는 곳은 언제나 **그 용도의** �
 
   // **예전 세션에는 design 값이 아예 없다.** 용도에 맞는 기본으로 떨어져야 한다.
   assert.equal(normalizeDesign(undefined, 'meeting'), 'corporateMeeting');
+  assert.equal(normalizeDesign(undefined, 'classroom'), 'trainingRoom');
   assert.equal(normalizeDesign(undefined, 'control'), 'controlRoom');
-  for (const t of ['classroom', 'hall_s', 'hall_m', 'hall_l', 'ideation']) {
+  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation']) {
     assert.equal(normalizeDesign(undefined, t), null, `${t}: 디자인 없음으로 복원`);
   }
   assert.equal(normalizeDesign(undefined, undefined), null);
@@ -153,13 +158,15 @@ test('fallback 격리 — corporateMeeting은 "모든 공간의 기본"이 아�
   }
 });
 
-test('고를 수 있는 목록 — 회의실 3종·상황실 1종, 나머지 용도는 없음', () => {
+test('고를 수 있는 목록 — 회의실 3종·교육장 1종·상황실 1종, 나머지 용도는 없음', () => {
   assert.deepEqual(designsFor('meeting').map(d => d.id),
     ['corporateMeeting', 'executiveBoardroom', 'largeConference']);
   assert.deepEqual(designsFor('control').map(d => d.id), ['controlRoom']);
+  // 교육장은 디자인이 하나뿐이다 — 화면은 하나뿐일 때 선택칸을 그리지 않는다(상황실과 같다).
+  assert.deepEqual(designsFor('classroom').map(d => d.id), ['trainingRoom']);
   // 아직 디자인이 붙지 않은 용도 — **빈 목록**이다. 화면은 그때 선택칸을 그리지 않는다.
   //   여기에 회의실 디자인을 끼워 넣으면 강당 화면에 '대기업 회의실'이 뜬다.
-  for (const t of ['classroom', 'hall_s', 'hall_m', 'hall_l', 'ideation']) {
+  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation']) {
     assert.deepEqual(designsFor(t).map(d => d.id), [], t);
   }
   assert.deepEqual(designsFor(undefined).map(d => d.id), []);
@@ -170,7 +177,7 @@ test('고를 수 있는 목록 — 회의실 3종·상황실 1종, 나머지 용
 test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌지 않는다(전부 INHERIT)', () => {
   // PHASE 5-a 에서 상황실에도 **의자 하나**가 들어갔다(그 외 항목은 여전히 전부 planned).
   //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
-  const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom'];
+  const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'trainingRoom', 'controlRoom'];
   assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), []);
   // 상황실이 정한 것은 **가구 2종 + AV 2종 + 마감 + 벽 구성 + 조명 + 화각**이다. 소품만 planned 다.
   const ctrl = resolveDesign('controlRoom');
@@ -235,20 +242,26 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
     // **적용되는 값은 반드시 실재해야 한다.** 이것이 '가짜 스펙 금지'의 핵심이다.
     for (const x of ids) assert.ok(exists(x), `${id}: 없는 자산·재질 ${x}`);
   }
-  // 지금 실제로 적용되는 값 — 네 공간의 가구·AV·마감 한 벌씩(상황실은 PHASE 5-a~5-d.1).
-  //   대회의실의 벽 구성·소품은 아직 planned 다. 상황실은 가구·AV 말고 전부 planned 다.
+  // 지금 실제로 적용되는 값 — 다섯 공간의 가구·AV·마감 한 벌씩.
+  //   대회의실의 벽 구성·소품은 아직 planned 다. 교육장(PHASE 7-a)은 **마감만** 정했고
+  //   가구·벽 구성·소품은 INHERIT, 조명·화각은 planned 다(7-b 의 몫).
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
   assert.deepEqual(applied.slice().sort(), [
-    'acousticPanel', 'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable', 'carpetTileDark',
+    'acousticPanel', 'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable',
+    'carpetTile', 'carpetTileDark',
     'carpetTileLight', 'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
     'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'controlProposal', 'controlTechnical', 'controlWalls', 'corporateChair',
     'corporateNeutral', 'corporateProposal', 'corporateSoft', 'corporateTable', 'curvedConsole',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
     'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite', 'darkGraphite',
-    'executiveBright', 'executiveChair', 'executiveProposal', 'executiveSoft', 'keyboard',
+    'darkGraphite', 'darkGraphite',
+    'executiveBright', 'executiveChair', 'executiveProposal', 'executiveSoft',
+    'fabricChair', 'keyboard',
     'largeUTable', 'lightAsh', 'lightOak', 'neutralLaminate', 'neutralLaminate',
-    'neutralLaminate', 'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite',
-    'personalMonitor', 'prompter', 'taskChair',
+    'neutralLaminate', 'neutralLaminate', 'neutralLaminate',
+    'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite',
+    'paintedWallWhite', 'paintedWallWhite', 'paintedWallWhite',
+    'personalMonitor', 'prompter', 'taskChair', 'trainingNeutral',
   ], `적용값이 늘었다: ${applied.join(', ')}`);
   for (const id of applied) {
     assert.ok(FURNITURE_ASSETS[id] || resolveMaterialId(id) || designPalette(id)
@@ -281,14 +294,16 @@ test('배치 — 디자인은 배치를 가로채지 않는다(주인은 언제�
   assert.equal(layoutPlan('executiveBoardroom', 'meeting').variant, 'executive-u');
   assert.equal(layoutPlan('controlRoom', 'control').variant, 'curved-console');
   // 안 맞으면 변형 없음 = 기존 배치 그대로.
+  assert.equal(layoutPlan('trainingRoom', 'classroom').variant, 'training-grid');
   assert.equal(layoutPlan('controlRoom', 'classroom').variant, null);
   assert.equal(layoutPlan(undefined, 'hall_m').variant, null);
   // 호출하는 쪽은 normalizeDesign()을 거친 값을 넘긴다 — 그 경로에서 변형이 제대로 걸린다.
   assert.equal(DEFAULT_ROOM_TYPE, 'meeting');
   assert.equal(layoutPlan(normalizeDesign(undefined, 'meeting'), 'meeting').variant, 'corporate-standard');
+  assert.equal(layoutPlan(normalizeDesign(undefined, 'classroom'), 'classroom').variant, 'training-grid');
   assert.equal(layoutPlan(normalizeDesign(undefined, 'control'), 'control').variant, 'curved-console');
   // 디자인이 없는 공간은 변형도 없다 = 기존 배치 그대로.
-  for (const t of ['classroom', 'hall_s', 'hall_m', 'hall_l', 'ideation']) {
+  for (const t of ['hall_s', 'hall_m', 'hall_l', 'ideation']) {
     assert.equal(layoutPlan(normalizeDesign(undefined, t), t).variant, null, t);
   }
 });

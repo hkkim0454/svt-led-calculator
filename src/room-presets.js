@@ -54,9 +54,9 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=438';
-import { conferenceAVItems } from './conference-av.js?v=438';
-import { controlAVItems } from './control-av.js?v=438';
+import { isOccupied } from './viewangle.js?v=439';
+import { conferenceAVItems } from './conference-av.js?v=439';
+import { controlAVItems } from './control-av.js?v=439';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -578,8 +578,14 @@ function layoutClassroom(o, W, D) {
   if (o.podium) {
     items.push({ type: 'podium', x: clamp(W * 0.22, 900, W - 900), z: F.frontClear * 0.6, rotY: 180 });
     const ix = clamp(W * 0.74, 1600, W - 1600);
-    items.push({ type: 'desk', x: ix, z: F.frontClear * 0.55, rotY: 180, w: 1500, d: 700 });
-    items.push({ ...chairAt(ix, F.frontClear * 0.55 - 750, ix, F.frontClear * 0.55), asset: 'trainingChair' });
+    const iz = F.frontClear * 0.55;
+    // 강사 의자는 강사 책상과 LED 벽 **사이**에 앉는다. 학생 의자와 같은 750 을 그대로 빼면
+    //   중심이 z=240 이 되어 의자 뒤판이 LED 벽을 25mm 파고든다(PHASE 7-0 실측).
+    //   그래서 **벽에서 최소 `chairClear`의 절반만큼 띄운다** — 방 전체에 새 여유를 도입하지
+    //   않고, 좁아졌을 때만 걸리는 하한이다(LED 앞 여유가 넓어지면 750 규칙이 그대로 산다).
+    const icz = Math.max(F.chairClear / 2, iz - 750);
+    items.push({ type: 'desk', x: ix, z: iz, rotY: 180, w: 1500, d: 700 });
+    items.push({ ...chairAt(ix, icz, ix, iz), asset: 'trainingChair' });
   }
   if (o.plant) addPlant(items, W, D);
   return {

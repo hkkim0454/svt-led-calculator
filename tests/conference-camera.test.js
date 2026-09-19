@@ -481,12 +481,12 @@ test('㉟㊱ 조명(conferenceSoft)과 마감(conferenceBright)이 그대로다(
   assert.equal(p.conferenceTop, '#e2ddd1');
   assert.equal(p.conferenceBase, '#3a3f46');
   assert.equal(p.screen, '#181f2a');
-  // 대회의실 마감·조명은 그대로다. 팔레트는 PHASE 5-d.1 에서, 조명은 PHASE 5-d.3 에서
-  //   **상황실 것 하나씩**이 늘었을 뿐, 대회의실 값은 위에서 확인한 대로 한 값도 바뀌지 않았다.
+  // 대회의실 마감·조명은 그대로다. 팔레트는 PHASE 5-d.1(상황실)·7-a(교육장)에서, 조명은
+  //   PHASE 5-d.3 에서 늘었을 뿐, 대회의실 값은 위에서 확인한 대로 한 값도 바뀌지 않았다.
   assert.equal(Object.keys(LIGHTING_PRESETS).length, 4);
-  assert.equal(Object.keys(DESIGN_PALETTES).length, 4);
+  assert.equal(Object.keys(DESIGN_PALETTES).length, 5);   // + 교육장(PHASE 7-a)
   assert.deepEqual(Object.keys(DESIGN_PALETTES),
-    ['corporateNeutral', 'executiveBright', 'conferenceBright', 'controlPalette']);
+    ['corporateNeutral', 'executiveBright', 'conferenceBright', 'trainingNeutral', 'controlPalette']);
 });
 
 test('㊲ 형상·배치·좌석 수가 한 자리도 바뀌지 않았다(§32)', () => {
