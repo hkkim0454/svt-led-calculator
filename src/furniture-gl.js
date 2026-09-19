@@ -15,22 +15,26 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=438';
-import { createMaterialLibrary } from './materials-gl.js?v=438';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=438';
-import { GRADE_COLORS } from './viewangle.js?v=438';
-import { createGeometryCache } from './geometry-gl.js?v=438';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=438';
+import { u } from './gl-model.js?v=439';
+import { createMaterialLibrary } from './materials-gl.js?v=439';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=439';
+import { GRADE_COLORS } from './viewangle.js?v=439';
+import { createGeometryCache } from './geometry-gl.js?v=439';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=439';
 import {
-  credenzaFinishForDesign, avFinishForDesign, floorPartFinishForDesign, tablePartFinishForDesign,
+  credenzaFinishForDesign,
+  avFinishForDesign,
+  floorPartFinishForDesign,
+  tablePartFinishForDesign,
   consoleFinishForDesign,
-} from './design-finish.js?v=438';
+  trainingFinishForDesign,
+} from './design-finish.js?v=439';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=438';
+} from './furniture-assets.js?v=439';
 
 const DEG = Math.PI / 180;
 
@@ -429,7 +433,7 @@ export function buildFurnitureGroup(items, opts = {}) {
   //   디자인이 마감을 정하지 않았으면 null이므로 아무 일도 일어나지 않는다.
   for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId),
     tablePartFinishForDesign(designId), avFinishForDesign(designId),
-    consoleFinishForDesign(designId)]) {
+    consoleFinishForDesign(designId), trainingFinishForDesign(designId)]) {
     if (!fin) continue;
     for (const [part, f] of Object.entries(fin)) {
       // 거칠기·금속성은 **부품 마감표가 정한 값을 그대로 나른다**(design-finish가 실어 보낸다).

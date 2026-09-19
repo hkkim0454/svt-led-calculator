@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=438';
-import { resolveMaterialId, finishForPart } from './materials.js?v=438';
+import { roomDesign, isPlanned } from './room-design.js?v=439';
+import { resolveMaterialId, finishForPart } from './materials.js?v=439';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -203,6 +203,36 @@ export const DESIGN_PALETTES = Object.freeze({
    *   상판은 벽보다 **한 단 어둡게** 둔다 — 1.8m 상판이 8대 깔리므로 벽보다 밝으면 방이 뒤집힌다.
    *   하부는 짙은 그라파이트. 의자와 같은 계열이라 **콘솔과 의자가 한 덩어리로 읽힌다**(§6).
    */
+  // ⑤ 교육장 · 트레이닝룸 — PHASE 7-a. **색은 짐작이 아니라 실측에서 나왔다.**
+  //   고치기 전 강의실을 재면 바닥 229.1 · 벽 223.4 로 **바닥이 벽보다 밝았다**(차이 5.7).
+  //   대기업 회의실은 바닥 183.5 · 벽 194.7 로 바닥이 벽보다 어둡다 — 위계가 거꾸로였다.
+  //   책상 상판은 249.6 으로 날아가기 직전(250)이었고, 의자는 민트(#cbdad7) 196.4 라
+  //   '기업 교육장'이 아니라 '학교 교실'로 읽혔다.
+  //   목표는 **대기업 회의실과 같은 위계, 교육장다운 밝기**다 — 벽보다 바닥을 어둡게,
+  //   상판을 날아가는 선에서 확실히 떼어 놓고, 의자에서 색기를 뺀다.
+  trainingNeutral: Object.freeze({
+    id: 'trainingNeutral', label: '교육장 중성 마감',
+    floor: '#b0b2af',        // 중간 밝기 중성 카펫 — 벽보다 어둡다(위계를 바로잡는 자리)
+    wallFront: '#e0ddd8',    // LED가 붙는 정면 벽. 푸른 기를 빼고 중성 오프화이트로
+    wallSide: '#dedbd5',     // 옆벽은 한 단 낮춰 모서리가 읽히게
+    // 포인트 벽을 **쓰지 않는다**(7-a 범위). 옆벽과 같은 색을 줘서 예전 세이지 틴트를 지운다.
+    wallAccent: '#dedbd5',
+    baseboard: '#cfccc5',
+    // 교육용 책상 — 상판은 벽보다 조금 밝되(수평면이라 빛을 받는다) 날아가지 않는다.
+    deskTop: '#d7d3cc',
+    deskLeg: '#454a51',      // 짙은 그라파이트 다리 — 상판이 떠 보이게 하는 대비
+    deskRail: '#454a51',
+    deskPanel: '#c0c3c6',    // 가림판은 큰 세로면이라 다리보다 밝게 — 무거워 보이지 않게
+    // 교육용 의자 — **민트를 뺀다.** 대기업 의자(49)만큼 어둡게 가지 않는다:
+    //   교육장은 밝아야 하고, 의자가 바닥(188)에 묻히지 않을 만큼만 낮춘다.
+    chairSeat: '#8f9499',
+    chairBack: '#8f9499',
+    seatFrame: '#4a4f56',
+    // 교탁 — 상판은 책상과 **같은 색**이어야 같은 방의 가구로 읽힌다(§6).
+    podium: '#dedbd5',
+    podiumTop: '#d7d3cc',
+  }),
+
   controlPalette: Object.freeze({
     id: 'controlPalette', label: '상황실 테크니컬 그레이 마감',
     floor: '#8d9095',        // 짙은 테크니컬 카펫 타일. 검정이 아니다 — 의자 실루엣이 살아야 한다
@@ -396,6 +426,49 @@ export function tablePartFinishForDesign(designId) {
       const f = finish(byPart[from], src.pal[from], from);
       if (f) out[part] = f;
     }
+  }
+  return Object.keys(out).length ? Object.freeze(out) : null;
+}
+
+/**
+ * 교육장 가구 부품(책상·의자·교탁). (PHASE 7-a)
+ *   **부품 이름을 공유하는 자산이 있다** — `seatFrame` 은 강당 의자와, `chairSeat`·`chairBack` 은
+ *   기존 회의 의자와 같은 이름을 쓴다. 그래서 전역 색표를 고치면 강당과 회의실이 같이 바뀐다.
+ *   디자인 범위 해석기로만 갈아 끼우는 이유가 이것이다 — 교육장에서만 적용된다.
+ */
+export const TRAINING_PARTS = Object.freeze([
+  'deskTop', 'deskLeg', 'deskRail', 'deskPanel',
+  'chairSeat', 'chairBack', 'seatFrame',
+  'podium', 'podiumTop',
+]);
+
+/** 교육장 부품 이름 → 그 디자인이 정한 **재질 이름**. */
+function trainingMaterials(src) {
+  const top = materialName(src.m.deskTop);
+  const base = materialName(src.m.deskBase);
+  const panel = materialName(src.m.deskPanel);
+  return {
+    deskTop: top, deskLeg: base, deskRail: base, deskPanel: panel,
+    chairSeat: materialName(src.m.chair), chairBack: materialName(src.m.chair),
+    seatFrame: materialName(src.m.chairFrame),
+    podium: materialName(src.m.podiumBody), podiumTop: materialName(src.m.podiumTop),
+  };
+}
+
+/**
+ * 교육용 책상·의자·교탁의 마감 (PHASE 7-a).
+ *   **형상은 그대로 두고 마감만 갈아 끼운다.** 디자인이 재질이나 색을 정하지 않은 자리는
+ *   빠진다(= 지금 그리던 그대로).
+ * @returns {null|Object} 부품 이름 → `{ material, color, canonical }`.
+ */
+export function trainingFinishForDesign(designId) {
+  const src = sourcesOf(designId);
+  if (!src) return null;
+  const byPart = trainingMaterials(src);
+  const out = {};
+  for (const part of TRAINING_PARTS) {
+    const f = finish(byPart[part], src.pal[part], part);
+    if (f) out[part] = f;
   }
   return Object.keys(out).length ? Object.freeze(out) : null;
 }

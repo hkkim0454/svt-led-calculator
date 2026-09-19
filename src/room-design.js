@@ -72,6 +72,10 @@ export const LAYOUT_VARIANTS = Object.freeze({
     id: 'large-conference', label: '대회의실 다자회의', roomType: 'meeting', base: 'meeting',
     note: '대형 U + 좌석마다 개인 모니터 + 중앙 프롬프터 + 벽면 배석 — PHASE 4.',
   }),
+  'training-grid': Object.freeze({
+    id: 'training-grid', label: '교육장 격자 배치', roomType: 'classroom', base: 'classroom',
+    note: '교육용 책상을 줄·열로 놓고 가운데 통로 + 앞쪽 강사 영역 — PHASE 7. 배치는 이미 있던 것 그대로다.',
+  }),
   'curved-console': Object.freeze({
     id: 'curved-console', label: '곡선 콘솔 상황실', roomType: 'control', base: 'control',
     note: '직선 콘솔 대신 곡선 콘솔 데스크 2열 + 유리 파티션 — PHASE 5.',
@@ -215,6 +219,43 @@ export const ROOM_DESIGNS = Object.freeze({
   }),
 
   // ④ 상황실 / 관제실 / 운영실 — Reference A 기준.
+  // ④ 교육장 · 트레이닝룸 — PHASE 7-a.
+  //    **가구와 배치는 이미 전용이 있다**(`layoutClassroom` · `trainingDesk` · `trainingChair` ·
+  //    `podium`). 없던 것은 '디자인 층'뿐이라, 이 단계는 새 가구를 만들지 않고 마감만 붙인다.
+  //    조명·화각은 PHASE 7-b 의 몫이라 `planned(...)` 로 남긴다 — 적히기만 하고 적용되지 않는다.
+  trainingRoom: Object.freeze({
+    id: 'trainingRoom',
+    label: '교육장 · 트레이닝룸',
+    roomType: 'classroom',
+    layoutVariant: 'training-grid',
+    status: DESIGN_STATUS.PLANNED,
+    phase: 7,
+    // **가구를 적지 않는다(INHERIT).** 배치(`layoutClassroom`)가 이미
+    //   `asset: 'trainingChair'` 를 명시해 같은 가구가 서고, 여기에 이름을 적으면
+    //   가구 계약 등록부까지 이번 단계 범위로 끌려 들어온다(§10 가구 동결).
+    //   이 단계가 더하는 것은 **마감뿐**이다.
+    furniture: INHERIT,
+    palette: 'trainingNeutral',
+    // 이름은 **마감 해석기가 읽는 것**으로 맞춘다. `wall` 은 도장 벽이고,
+    //   포인트 벽은 7-a 에서 쓰지 않으므로 옆벽과 같은 색만 준다(재질은 도장 벽 그대로).
+    materials: Object.freeze({
+      floor: 'carpetTile',
+      wall: 'paintedWallWhite',
+      deskTop: 'neutralLaminate',
+      deskBase: 'darkGraphite',
+      deskPanel: 'paintedWallWhite',
+      chair: 'fabricChair',
+      chairFrame: 'darkGraphite',
+      podiumBody: 'paintedWallWhite',
+      podiumTop: 'neutralLaminate',
+    }),
+    wallTreatment: INHERIT,
+    // PHASE 7-b 의 몫이다. 지금은 기존 공용 조명·화각이 그대로 돈다.
+    lighting: planned('trainingLighting'),
+    camera: planned('trainingProposal'),
+    accessories: INHERIT,
+  }),
+
   //    회의실과 **완전히 다른 가구·배치 체계**를 쓴다(곡선 콘솔·다중 모니터·유리 파티션).
   controlRoom: Object.freeze({
     id: 'controlRoom',
@@ -295,6 +336,7 @@ export const NEUTRAL_DESIGN = Object.freeze({
  */
 export const DEFAULT_DESIGN_BY_ROOM_TYPE = Object.freeze({
   meeting: 'corporateMeeting',
+  classroom: 'trainingRoom',
   control: 'controlRoom',
 });
 
