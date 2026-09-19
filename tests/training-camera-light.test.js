@@ -485,3 +485,29 @@ test('⑱ 수단 네 가지가 **각각 실제로 쓰이는 칸**을 고정한�
   assert.ok(/cand\.share > sol\.share \+ 1e-9/.test(교육장),
     '후보를 고르는 기준이 **더 많이 보이는 쪽**이 아니다');
 });
+
+// ── ⑥ 조작기의 조작 감도 (필수 역검증 #17 · #18 이 드러낸 구멍) ────────────────
+// 역검증에서 '첫 회전이 튄다' · '첫 확대가 튄다'를 만드는 변형이 **둘 다 빠져나갔다.**
+//   원인은 간단했다. 조작기(OrbitControls)의 조작 감도와 거리 한계를 고정하는 검사가
+//   아예 없었다. 브라우저로 재 보면 차이는 분명하다(강의실 12×3.4×10, 실내 시점) —
+//   기본값에서는 4px 끌기에 카메라가 0.105m 움직이고 휠 한 칸에 0.27m 다가오는데,
+//   `rotateSpeed = 12` 이면 1.26m, `zoomSpeed = 12` 이면 2.47m 로 **튄다.**
+//   `npm test` 는 브라우저를 쓰지 않으므로(저장소 규칙: Node 내장만), 렌더러가 이 값들을
+//   건드리지 않았다는 것을 **소스 계약으로** 고정한다. 톤매핑·색공간을 고정한 방식과 같다.
+test('⑲ 조작기 조작 감도·거리 한계가 기본값 그대로다 — 첫 회전·첫 확대가 튀지 않는다', () => {
+  const gl = code('render3d-gl.js');
+  for (const knob of ['rotateSpeed', 'zoomSpeed', 'panSpeed', 'keyPanSpeed']) {
+    assert.equal(new RegExp(`\\b${knob}\\b`).test(gl), false, `조작 감도(${knob})를 건드렸다`);
+  }
+  assert.ok(/c\.minDistance = 0\.8;/.test(gl), '가까이 갈 수 있는 한계가 바뀌었다');
+  assert.ok(/c\.maxDistance = 400;/.test(gl), '멀리 갈 수 있는 한계가 바뀌었다');
+  assert.ok(/c\.enableDamping = true;/.test(gl), '관성이 꺼졌다');
+  assert.ok(/c\.dampingFactor = 0\.08;/.test(gl), '관성 세기가 바뀌었다');
+  // 프리셋을 적용한 뒤에는 조작기 상태를 반드시 맞춰 둔다.
+  assert.ok(/controls\.enabled = true;\s*controls\.update\(\);/.test(gl),
+    '프리셋 적용 뒤 조작기 상태를 맞추지 않는다');
+  // 회전은 왼쪽 끌기, 확대는 휠 — 배정이 바뀌면 조작 자체가 달라진다.
+  assert.ok(/LEFT: THREE\.MOUSE\.ROTATE/.test(gl), '왼쪽 끌기가 회전이 아니다');
+  assert.ok(/MIDDLE: THREE\.MOUSE\.PAN/.test(gl) && /RIGHT: THREE\.MOUSE\.PAN/.test(gl),
+    '가운데·오른쪽 끌기가 이동이 아니다');
+});
