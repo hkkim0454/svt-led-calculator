@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=443';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=443';
+import { floorFinishFor, moodFor } from './materials.js?v=444';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=444';
 
-import { cameraPlanForDesign } from './design-camera.js?v=443';
-import { controlWallPlan } from './control-walls.js?v=443';
+import { cameraPlanForDesign } from './design-camera.js?v=444';
+import { controlWallPlan } from './control-walls.js?v=444';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -152,6 +152,37 @@ function framingFields(items) {
         z0: u(Math.min(...c.map(i => i.z - i.d / 2))), z1: u(Math.max(...c.map(i => i.z + i.d / 2))),
         count: c.length,
       });
+    })(),
+    // 아이디에이션 구역의 범위(PHASE 8-2b). 이 방은 줄·열이 없고 **구역**으로 흩어져 있어서,
+    //   카메라가 '어디까지 담아야 하는지'를 구역 단위로 알아야 한다. 협업 구역(낮은 테이블 +
+    //   라운지 의자)과 하이 테이블 구역(테이블 + 스툴)을 따로 감싼다 — 둘을 한 상자로 묶으면
+    //   가운데 빈 바닥까지 내용물로 세어 카메라가 필요 이상으로 물러선다.
+    //   `highTable` 등은 아이디에이션 배치에만 있어 다른 공간은 null 그대로다.
+    ideationZones: (() => {
+      const 묶음 = types => {
+        const g = (items || []).filter(i => i && types.includes(i.type)
+          && Number.isFinite(i.x) && Number.isFinite(i.z));
+        if (!g.length) return null;
+        // 의자·스툴은 w·d 를 들고 다니지 않는다(자산이 크기를 안다) — 중심점으로 감싼다.
+        const half = i => (i.w > 0 && i.d > 0 ? [i.w / 2, i.d / 2] : [0, 0]);
+        return Object.freeze({
+          x0: u(Math.min(...g.map(i => i.x - half(i)[0]))), x1: u(Math.max(...g.map(i => i.x + half(i)[0]))),
+          z0: u(Math.min(...g.map(i => i.z - half(i)[1]))), z1: u(Math.max(...g.map(i => i.z + half(i)[1]))),
+          count: g.length,
+        });
+      };
+      // 구역이 **몇 덩이로 흩어져 있는지**도 알려 준다. 협업 테이블은 방마다 두 덩이로
+      //   떨어져 놓이는데, 둘을 한 상자로만 알면 카메라가 '가까운 쪽'을 고를 수 없다.
+      const 자리 = type => {
+        const g = (items || []).filter(i => i && i.type === type
+          && Number.isFinite(i.x) && Number.isFinite(i.z));
+        return g.length ? Object.freeze(g.map(i => Object.freeze({ x: u(i.x), z: u(i.z) }))) : null;
+      };
+      const collab = 묶음(['collabTable', 'lounge']);
+      const high = 묶음(['highTable', 'stool']);
+      if (!collab && !high) return null;
+      return Object.freeze({ collab, high,
+        collabSpots: 자리('collabTable'), highSpots: 자리('highTable') });
     })(),
     prompter: one ? Object.freeze({ x: u(one.x), z: u(one.z) }) : null,
   });

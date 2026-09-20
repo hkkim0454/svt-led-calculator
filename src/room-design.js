@@ -339,9 +339,10 @@ export const ROOM_DESIGNS = Object.freeze({
     // PHASE 8-2a 에서 실제로 만들었다 — 천장을 혼자 지배하던 환경광을 내리고,
     //   그만큼을 천장등·주광으로 돌려 작업면을 살린다. 조명 **개수와 종류는 그대로**다.
     lighting: 'ideationSoft',
-    // PHASE 8-2b 의 몫이다. 지금은 기존 공용 화각이 그대로 돈다 —
-    //   그래서 협업 구역이 제안서 시점에서 보이지 않는 문제는 이번 단계에 남아 있다.
-    camera: planned('ideationProposal'),
+    // PHASE 8-2b 에서 실제로 만들었다 — 협업 구역이 제안서 시점에 들어오는 구도.
+    //   배치·형상·마감·조명은 한 값도 건드리지 않고 **카메라만** 옮긴다.
+    //   실내·좌코너·우코너만 가로채고 정면·아이소·평면은 기술 시점이라 그대로 둔다.
+    camera: 'ideationProposal',
     accessories: INHERIT,
   }),
 });

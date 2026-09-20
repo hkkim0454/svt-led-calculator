@@ -79,13 +79,12 @@ test('⑤ 전용 조명 ideationSoft 가 걸린다 — 값까지 고정', () => 
   assert.equal(fillLightPlacementForDesign('ideationRoom', room), null);
 });
 
-test('⑥ 카메라는 아직 전용이 아니다 — planned 로만 적혀 있다(8-2b 의 몫)', () => {
-  const raw = ROOM_DESIGNS.ideationRoom.camera;
-  assert.ok(isPlanned(raw), '화각이 planned 가 아니다');
-  assert.equal(raw.planned, 'ideationProposal');
-  // planned 는 화면에 닿지 않는다 — 해석하면 INHERIT 다.
-  assert.equal(resolveDesign('ideationRoom').camera, INHERIT);
-  // 일반 카메라표가 그대로 돈다(이번 단계에서 화각을 건드리지 않았다).
+test('⑥ 카메라는 PHASE 8-2b 에서 전용으로 켜졌다 — 일반 카메라표 자체는 그대로다', () => {
+  // 8-2a 에서는 planned 였고, 8-2b 에서 전용 화각 'ideationProposal' 로 바뀌었다.
+  assert.equal(isPlanned(ROOM_DESIGNS.ideationRoom.camera), false, '화각이 아직 planned 로 남아 있다');
+  assert.equal(ROOM_DESIGNS.ideationRoom.camera, 'ideationProposal');
+  assert.equal(resolveDesign('ideationRoom').camera, 'ideationProposal');
+  // 전용 화각은 '가로채기'일 뿐이라, 모든 방이 함께 쓰는 일반 카메라표는 한 값도 바뀌지 않았다.
   assert.match(src('gl-model.js'), /interior: \{ eye: 1\.75, look: 1\.85, yaw: 12,\s+fov: 42,/);
   assert.match(src('gl-model.js'), /'corner-l': \{ eye: 2\.20, look: 1\.45, yaw: -28, fov: 40,/);
   assert.match(src('gl-model.js'), /export const FOV_DEG = 40;/);
