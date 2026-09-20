@@ -104,7 +104,18 @@ test('③ 다른 공간은 이 카메라로 풀리지 않는다', () => {
   }
 });
 
-test('④ 엉뚱한 디자인 이름에도 무너지지 않는다 — 모르면 null 이다', () => {
+test('④ 기준값 세 벌을 통째로 고정한다 — 한 값만 바뀌어도 여기서 걸린다', () => {
+  // PHASE 8-2b.1 역검증에서 드러난 구멍을 메운다. 천장 띠(band) 처럼 **결과를 바꾸지만
+  //   범위 검사는 통과하는** 값이 있었다. 세 벌을 통째로 비교해 두면 그런 값도 걸린다.
+  assert.deepEqual(JSON.parse(JSON.stringify(IDEATION_CAMERA_PLANS)), {
+    interior: { eye: 1.66, fov: 42, band: 0.11, xRatio: 0.30, turn: 1.00 },
+    'corner-l': { eye: 1.66, fov: 43, band: 0.11, xRatio: 0.21, turn: 1.00 },
+    'corner-r': { eye: 1.66, fov: 43, band: 0.11, xRatio: 0.79, turn: 1.00 },
+  });
+  assert.equal(IDEATION_STANDOFF, 1.10);
+});
+
+test('④-2 엉뚱한 디자인 이름에도 무너지지 않는다 — 모르면 null 이다', () => {
   for (const v of [null, undefined, '', '없는디자인', 0, {}, [], 123]) {
     assert.equal(ideationCameraPlanId(v, 'interior'), null, String(v));
     assert.deepEqual([...ideationCameraPresets(v)], [], String(v));
