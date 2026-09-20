@@ -54,9 +54,9 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=444';
-import { conferenceAVItems } from './conference-av.js?v=444';
-import { controlAVItems } from './control-av.js?v=444';
+import { isOccupied } from './viewangle.js?v=445';
+import { conferenceAVItems } from './conference-av.js?v=445';
+import { controlAVItems } from './control-av.js?v=445';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -746,9 +746,14 @@ function layoutHall(o, W, D) {
 //   라운지 의자 640 × 720 사각형. 등받이가 18° 기울어 **뒤로 50mm 치우쳐** 있다
 //   이동식 스탠드 화면 폭 1,150 × 받침 깊이 560 사각형
 //   하이 테이블 상판 폭 × 900 사각형(돌아가지 않는다)
+// 협업 테이블의 **판정용** 원은 실제 반지름(550)보다 70mm 크게 잡는다.
+//   PHASE 8-2b.1 에서 두 협업 덩이가 나란히 서게 되자, 이 표로는 '빈자리'인데 실제 자산
+//   껍질로 재면 3~11mm 파고드는 자리가 6.5~8m 방에서 나왔다. 라운지 의자 상자는 제 방향으로
+//   돌아 있어 모서리가 테이블 쪽을 향할 때 대각선(482mm)만큼 튀어나온다 — 원을 그만큼
+//   키워야 판정이 **안전한 쪽으로** 틀린다. (자산 치수는 그대로다. 자리 판정에만 쓰는 값이다.)
 const IDEATION_SHAPE = Object.freeze({
   stool: { disc: 190 },
-  collabTable: { disc: 550 },
+  collabTable: { disc: 620 },
   plant: { disc: 225 },
   lounge: { hw: 320, hd: 360, dz: 50 },
   mobileStand: { hw: 575, hd: 280 },
@@ -894,28 +899,85 @@ function layoutIdeation(o, W, D) {
     stools += nStool; putHT++;
   }
 
-  // ② 협업 구역 — 낮은 원형 테이블 + 라운지 체어 3개. 서로 마주 본다.
+  // ② 협업 구역 — 낮은 원형 테이블 + 라운지 체어 3개.
+  //
+  // **왜 하이 테이블보다 앞(LED 쪽)에 두는가.** PHASE 8-2c 릴리스 게이트가 잡은 P1 두 건이
+  //   여기서 나왔다. 협업 구역이 방 뒤쪽(깊이 비율 0.70·0.74)에 있으면, 제안 카메라가
+  //   '맨 뒤 내용물 뒤 1.10m'에 서는 규칙(PHASE 8-2b) 때문에 언제나 협업 테이블 **2m 앞**에
+  //   서게 된다. 그 거리에서 상판(바닥에서 0.70m)은 내려본 각 25°가 넘어 화면 맨 아래로
+  //   밀리고, 제안 9컷 전부에서 협업 화소의 98.6~100%가 아래 1/4 띠에 갇혔다.
+  //   하이 테이블은 상판이 1.05m 라 같은 거리에서도 잘리지 않는다. 그래서 **맨 뒤는 하이
+  //   테이블이 맡고, 협업 구역은 그 앞으로 내려온다.** 카메라는 하이 테이블을 기준으로 서므로
+  //   협업 테이블까지의 거리가 2m → 3m 대로 늘고, LED 까지의 거리도 줄어 LED 가 커진다.
+  //
+  // 자리는 비율로 박지 않고 **하이 테이블 구역이 실제로 차지한 범위에서 계산**한다.
+  //   방 크기와 하이 테이블 개수가 달라져도 규칙이 그대로 성립해야 하기 때문이다.
   const nCT = clamp(o.collabTables, 0, 4);
-  const ctSpots = [[0.74, 0.70], [0.28, 0.74], [0.74, 0.30], [0.28, 0.30]];
   const dia = 1100;
-  const ctHalf = dia / 2 + 700;
+  // 라운지 의자가 도는 반지름 — **그대로 둔다(520).** 기본 9m 방에서 두 협업 덩이를
+  //   같은 줄에 세우려고 480 으로 40mm 좁혀 봤더니, 실제 자산 발자국으로 재는 검사에서
+  //   6.5~8m 방에 협업 테이블↔라운지 18~25mm 겹침이 생겼다. PHASE 8-2a 가 맞춰 놓은
+  //   겹침 판정 도형이 이 값에 맞춰져 있다 — 40mm 를 아끼려다 안전 규칙을 깨뜨린다.
+  const ring = dia / 2 + 520;
+  const ctHalf = dia / 2 + 700;                     // 벽 여유를 볼 때 쓰는 반지름(그대로)
+  const 의자반 = 320;                                // 라운지 의자 발자국 반폭
+  const ctHalfX = ring + 의자반, ctHalfZ = ring * 0.866 + 360;
+  // 하이 테이블 구역이 실제로 차지한 범위. 없으면(하이 테이블 0개) 방 뒤쪽을 그대로 쓴다.
+  const htItems = items.filter(i => i.type === 'highTable' || i.type === 'stool');
+  const htX0 = htItems.length ? Math.min(...htItems.map(i => i.x - (i.w > 0 ? i.w / 2 : 250))) : null;
+  const htX1 = htItems.length ? Math.max(...htItems.map(i => i.x + (i.w > 0 ? i.w / 2 : 250))) : null;
+  const htZ1 = htItems.length ? Math.max(...htItems.map(i => i.z + (i.d > 0 ? i.d / 2 : 250))) : null;
+  // 협업 구역의 **라운지 뒤끝이 하이 테이블 구역 뒤끝보다 앞**이어야 카메라가 하이 테이블을
+  //   기준으로 선다. 그 조건과 벽 여유를 함께 만족하는 깊이 구간의 가운데를 고른다.
+  const czLo = pad + ctHalfZ;
+  const czHi = htItems.length ? Math.min(D - pad - ctHalfZ, htZ1 - ring * 0.866 - 1)
+    : D - pad - ctHalfZ;
+  // 구간 안에서 **가장 LED 쪽**에 붙인다. 카메라에서 멀어질수록 협업 테이블이 화면
+  //   위쪽으로 올라오기 때문이다(거리 2.0m → 올림각 25.6°, 4.0m → 13.5°).
+  const cz = clamp(czLo, czLo, Math.max(czLo, czHi));
+  // 좌우로는 하이 테이블 구역을 비켜 간다. 넓은 쪽 띠에 필요한 만큼 고르게 편다.
+  const 띠 = htItems.length
+    ? [[pad + ctHalfX, Math.min(htX0 - 의자반, W - pad - ctHalfX)],
+       [Math.max(htX1 + ctHalfX, pad + ctHalfX), W - pad - ctHalfX]]
+      .sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]))[0]
+    : [pad + ctHalfX, W - pad - ctHalfX];
+  const 폭 = Math.max(0, 띠[1] - 띠[0]);
+  const ctSpots = [];
+  for (let i = 0; i < nCT; i++) {
+    const t = nCT === 1 ? 0.5 : i / (nCT - 1);
+    ctSpots.push([띠[0] + 폭 * t, cz]);
+  }
+  // **이동식 디스플레이 자리를 미리 비워 두지는 않는다.** 그렇게 해 봤더니 기본 방에서
+  //   둘째 협업 덩이가 하이 테이블보다 뒤(z 3.45)로 밀려, 카메라가 다시 그 덩이를 기준으로
+  //   서면서 이 단계가 고치려던 문제가 그대로 돌아왔다. 협업 구역이 먼저이고, 이동식
+  //   디스플레이는 기존 안전 규칙대로 0.9m 뒤로 비켜선다(같은 모서리에 그대로 남는다).
   let lounge = 0, putCT = 0;
   for (let i = 0; i < nCT; i++) {
-    const [tx, tz] = ctSpots[i];
-    const x0 = px(tx, ctHalf), z0 = pz(tz, ctHalf);
+    const [x0raw, z0] = ctSpots[i];
+    const x0 = clamp(x0raw, pad + ctHalf, Math.max(pad + ctHalf, W - pad - ctHalf));
+    // 라운지 의자 셋 중 **혼자 있는 쪽을 띠 바깥으로** 돌린다. 두 구역이 마주 보는 면에는
+    //   의자가 하나씩만 오므로, 같은 띠 안에서 필요한 간격이 2.25m → 1.71m 로 줄어든다.
+    //   (의자 개수·모양은 그대로다 — 어느 방향으로 도느냐만 바뀐다.)
+    const 바깥 = nCT > 1 && i >= nCT / 2 ? -1 : 1;
     const build = (x, z) => {
       const mem = [{ type: 'collabTable', x, z, rotY: 0, w: dia, d: dia }];
       if (o.lounge) {
-        const ring = dia / 2 + 520;
         for (let k = 0; k < 3; k++) {
           const a = (k / 3) * Math.PI * 2 + Math.PI / 6;
-          mem.push(chairAt(x + Math.sin(a) * ring, z + Math.cos(a) * ring, x, z, 'lounge'));
+          mem.push(chairAt(x + 바깥 * Math.sin(a) * ring, z + Math.cos(a) * ring, x, z, 'lounge'));
         }
       }
       return mem;
     };
+    // 앞뒤 허용 범위도 'LED 앞 여유'가 아니라 **벽 여유**로 잡는다 — 협업 구역은 앉아서 쓰는
+    //   낮은 자리라 LED 앞 첫 줄 규칙(frontClear)의 대상이 아니고, 그 규칙을 그대로 쓰면
+    //   이 방 깊이에서는 하이 테이블 앞에 들어갈 자리가 아예 없다.
+    //   **먼저 앞쪽 띠 안에서만 찾는다.** 거기서 못 찾을 때만 방 전체로 넓힌다 — 그래야
+    //   좁은 방에서도 협업 구역이 카메라 뒤쪽으로 되돌아가지 않는다.
     const mem = placeIdeationZone(placed, build, x0, z0,
-      [pad + ctHalf, W - pad - ctHalf], [front + ctHalf, D - pad - ctHalf]);
+        [pad + ctHalf, W - pad - ctHalf], [pad + ctHalf, Math.max(pad + ctHalf, czHi)])
+      || placeIdeationZone(placed, build, x0, z0,
+        [pad + ctHalf, W - pad - ctHalf], [pad + ctHalf, D - pad - ctHalf]);
     if (!mem) { 뺌++; continue; }
     if (mem[0].x !== x0 || mem[0].z !== z0) 옮김++;
     자리잡음(mem);

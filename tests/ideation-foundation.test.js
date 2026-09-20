@@ -251,33 +251,44 @@ test('⑮ 경계에서 규칙이 실제로 일한다 — 좁으면 줄이고, �
   assert.ok(중간.notes.some(n => n.includes('자리를 옮겼습니다')), '옮겼다는 안내가 없다');
 });
 
-test('⑯ 기본 9m 배치가 한 값도 움직이지 않았다', () => {
+test('⑯ 기본 9m 배치 — PHASE 8-2b.1 에서 협업·라운지·러그만 다시 열었다', () => {
+  // 하이 테이블·스툴·화분은 8-2a 그대로다. 협업 두 덩이가 LED 쪽으로 내려왔고, 이동식
+  //   디스플레이는 기존 안전 규칙대로 0.9m 뒤로 비켜섰다(같은 모서리에 그대로 있다).
   const r = layoutRoom('ideation', 옵션(), { W: 9000, D: 8000 });
   assert.deepEqual(r.items.map(i => [i.type, Math.round(i.x), Math.round(i.z), Math.round(i.rotY || 0)]), [
     ['highTable', 2700, 3360, 0],
-    ['stool', 2390, 2480, 161], ['stool', 2390, 4240, 19],
-    ['stool', 3010, 2480, 199], ['stool', 3010, 4240, 341],
-    ['collabTable', 6660, 5600, 0],
-    ['lounge', 7195, 6527, 330], ['lounge', 7195, 4673, 210], ['lounge', 5590, 5600, 90],
-    ['rug', 6660, 5600, 0],
-    ['collabTable', 2520, 5920, 0],
-    ['lounge', 3055, 6847, 330], ['lounge', 3055, 4993, 210], ['lounge', 1450, 5920, 90],
-    ['mobileStand', 7500, 2500, -35],
+    ['stool', 2390, 2480, 161],
+    ['stool', 2390, 4240, 19],
+    ['stool', 3010, 2480, 199],
+    ['stool', 3010, 4240, 341],
+    ['collabTable', 5080, 2087, 0],
+    ['lounge', 5615, 3013, 330],
+    ['lounge', 5615, 1160, 210],
+    ['lounge', 4010, 2087, 90],
+    ['rug', 5080, 2087, 0],
+    ['collabTable', 6950, 2250, 0],
+    ['lounge', 6415, 3177, 30],
+    ['lounge', 6415, 1323, 150],
+    ['lounge', 8020, 2250, 270],
+    ['mobileStand', 7500, 3400, -35],
     ['plant', 8500, 7500, 0],
   ]);
   assert.deepEqual(r.placed, { highTables: 1, stools: 4, collabTables: 2, lounge: 6, chairs: 10 });
   assert.equal(r.capacity, 10);
-  assert.deepEqual(r.notes, [], '기본 방에서는 옮기거나 빼는 일이 없어야 한다');
+  // 개수·정원은 그대로이고, 자리를 옮겼다는 사실은 안내로 드러난다(숨기지 않는다).
+  assert.deepEqual(r.notes, ['가구가 겹치지 않도록 2개 구역의 자리를 옮겼습니다.']);
 });
 
-test('⑰ 가로 8.5m 이상에서는 배치가 흔들리지 않는다', () => {
-  // 규칙은 **막혔을 때만** 움직인다. 넉넉한 방에서는 첫 시도가 바로 통과하므로
-  //   자리를 옮겼다는 안내조차 나오지 않아야 한다.
+test('⑰ 가로 8.5m 이상에서 개수·정원이 흔들리지 않는다 — 옮긴 사실은 안내로 드러난다', () => {
   for (const [W, D] of [[8500, 8070], [10000, 9500], [12000, 11400], [14000, 13300], [16000, 15200]]) {
     const r = layoutRoom('ideation', 옵션(), { W, D });
-    assert.deepEqual(r.notes, [], `${W}×${D} 에서 배치가 움직였다`);
-    assert.deepEqual(r.placed, { highTables: 1, stools: 4, collabTables: 2, lounge: 6, chairs: 10 });
+    assert.deepEqual(r.placed, { highTables: 1, stools: 4, collabTables: 2, lounge: 6, chairs: 10 },
+      `${W}×${D} 에서 놓인 개수가 달라졌다`);
+    // 빠진 구역은 없어야 한다 — 옮기기만 한다.
+    assert.equal(r.notes.some(n => /놓지 못했습니다/.test(n)), false, `${W}×${D} 에서 구역이 빠졌다`);
   }
+  // 아주 넓은 방에서는 아무것도 옮길 필요가 없다.
+  assert.deepEqual(layoutRoom('ideation', 옵션(), { W: 16000, D: 15200 }).notes, []);
 });
 
 // ── ⑥ 건드리지 않은 것 ──────────────────────────────────────────────────────
