@@ -15,7 +15,7 @@ import {
   ROOM_DESIGNS, DESIGN_IDS, DESIGN_STATUS, INHERIT, DEFAULT_DESIGN_BY_ROOM_TYPE,
   defaultDesignFor, designsFor, normalizeDesign, resolveDesign, isPlanned, roomDesign, NEUTRAL_DESIGN,
 } from '../src/room-design.js';
-import { layoutRoom, defaultOptions, roomType, ROOM_TYPES } from '../src/room-presets.js';
+import { layoutRoom, defaultOptions, roomType, ROOM_TYPES, FURNITURE } from '../src/room-presets.js';
 import { MATERIAL_IDS, moodFor, floorFinishFor, MOODS } from '../src/materials.js';
 import { LIGHTING_PRESETS, lightingForDesign, shadowSettingsForDesign,
   keyLightPlacementForDesign, fillLightPlacementForDesign, LIGHT_ROLES } from '../src/design-lighting.js';
@@ -164,21 +164,24 @@ test('⑬ 바닥 마감과 분위기는 그대로다 — 조명만 바꿨다', (
 
 // ── ⑤ 배치 안전 규칙 ────────────────────────────────────────────────────────
 
-// 실제 자산 발자국으로 겹침을 본다. 회전한 물건은 축 정렬 상자가 겹침을 부풀리므로
-//   **돌아간 사각형**과 **원**을 구분해서 잰다(배치 코드가 쓰는 판정과 같은 모양).
+// 배치 코드가 쓰는 판정과 **같은 모양**으로 겹침을 본다. 회전한 물건은 축 정렬 상자가
+//   겹침을 부풀리므로 **돌아간 사각형**과 **원**을 구분한다.
+//   돌리는 방향은 렌더러와 같다 — 물건 기준 (lx, lz) → 세계 (lx·cos − lz·sin, lx·sin + lz·cos).
 const 도형 = it => {
-  if (it.type === 'highTable') return { x: it.x, z: it.z, hw: it.w / 2, hd: it.d / 2, rot: 0 };
+  if (it.type === 'highTable') {
+    return { x: it.x, z: it.z, hw: it.w / 2 + 8.8, hd: it.d / 2 + 8.8, rot: 0 };
+  }
   const S = { stool: { disc: 190 }, collabTable: { disc: 550 }, plant: { disc: 225 },
-    lounge: { hw: 320, hd: 360, dz: 50 }, mobileStand: { hw: 575, hd: 280 } }[it.type];
+    lounge: { hw: 415, hd: 395, dz: 54 }, mobileStand: { hw: 575, hd: 280 } }[it.type];
   if (!S) return null;
   if (S.disc) return { x: it.x, z: it.z, disc: S.disc };
   const a = (it.rotY || 0) * Math.PI / 180;
-  return { x: it.x + (S.dz || 0) * Math.sin(a), z: it.z + (S.dz || 0) * Math.cos(a),
+  return { x: it.x - (S.dz || 0) * Math.sin(a), z: it.z + (S.dz || 0) * Math.cos(a),
     hw: S.hw, hd: S.hd, rot: a };
 };
 const 모서리 = S => {
   const c = Math.cos(S.rot), s = Math.sin(S.rot), out = [];
-  for (const sx of [-S.hw, S.hw]) for (const sz of [-S.hd, S.hd]) out.push([S.x + sx * c + sz * s, S.z - sx * s + sz * c]);
+  for (const sx of [-S.hw, S.hw]) for (const sz of [-S.hd, S.hd]) out.push([S.x + sx * c - sz * s, S.z + sx * s + sz * c]);
   return out;
 };
 function 겹치나(A, B) {
@@ -186,14 +189,14 @@ function 겹치나(A, B) {
   if (A.disc || B.disc) {
     const [box, cir] = A.disc ? [B, A] : [A, B];
     const dx = cir.x - box.x, dz = cir.z - box.z, c = Math.cos(box.rot), s = Math.sin(box.rot);
-    const lx = dx * c - dz * s, lz = dx * s + dz * c;
+    const lx = dx * c + dz * s, lz = -dx * s + dz * c;   // 세계 → 물건 기준(위 규칙의 역)
     const qx = Math.max(-box.hw, Math.min(box.hw, lx)), qz = Math.max(-box.hd, Math.min(box.hd, lz));
     return Math.hypot(lx - qx, lz - qz) < cir.disc;
   }
   const pa = 모서리(A), pb = 모서리(B);
   for (const S of [A, B]) {
     const c = Math.cos(S.rot), s = Math.sin(S.rot);
-    for (const [ux, uz] of [[c, -s], [s, c]]) {
+    for (const [ux, uz] of [[c, s], [-s, c]]) {
       const 폭 = p => p.reduce((r, q) => { const v = q[0] * ux + q[1] * uz;
         return [Math.min(r[0], v), Math.max(r[1], v)]; }, [Infinity, -Infinity]);
       const [a0, a1] = 폭(pa), [b0, b1] = 폭(pb);
@@ -239,23 +242,33 @@ test('⑭ 도달 가능한 모든 방 크기에서 가구가 서로 파고들지
 });
 
 // 위의 ⑭ 는 배치 코드가 쓰는 **판정용 도형**과 같은 모양으로 잰다. 그것만으로는
-//   판정용 도형 자체가 실제 가구보다 작게 잡혀 있어도 알 수 없다(PHASE 8-2b.1 에서 실제로
-//   그런 일이 있었다 — 협업 테이블의 판정용 원이 실제 자산보다 작아 3~11mm 파고들었다).
-//   그래서 아래 ⑭-2 는 **자산 빌더가 돌려주는 실제 부품**을 평면에 눕혀 껍질을 만들고
-//   분리축 정리로 다시 잰다. 두 검사는 서로를 대신하지 못하므로 둘 다 둔다.
+//   판정용 도형 자체가 실제 가구보다 작게 잡혀 있어도 알 수 없다. 그래서 아래 ⑭-2 는
+//   **자산 빌더가 돌려주는 실제 부품**을 평면에 눕혀 껍질을 만들고 분리축 정리로 다시 잰다.
+//   두 검사는 서로를 대신하지 못하므로 둘 다 둔다.
+//
+// **둥근 부품을 어떻게 재는가 — PHASE 8-2b.1 HOLD-2 에서 바로잡은 부분.**
+//   렌더러가 만드는 것은 `THREE.CylinderGeometry(r, r, h, seg)` 이고 꼭짓점이 반지름 r 인
+//   원 **위에** 놓인다. 즉 실제로 그려지는 다각형은 그 원 **안쪽**에 들어간다. 따라서
+//   **반지름 r 인 원이 정확한 바깥 경계**다. 예전에는 이 자리에 원보다 8.24% 큰 외접
+//   팔각형(r ÷ cos(π/8))을 썼는데, 그러면 스툴(r 190)이 205.7 로, 화분(r 195.5)이 318.2 로
+//   부풀어 **있지도 않은 겹침**이 최대 16.9mm 까지 만들어졌다. 여기서는 64각형으로 원을
+//   감싼다 — 바깥으로 0.12%(r=190 에서 0.23mm)만 넉넉하다.
 
-/** 부품 하나가 평면에서 차지하는 점들. 원기둥은 **바깥으로 넉넉한** 정팔각형으로 본다. */
-function 부품점(p) {
-  if (p.shape === 'cyl' || p.shape === 'star') {
-    const r = p.shape === 'cyl' ? p.r : p.w / 2;
-    const k = r / Math.cos(Math.PI / 8);            // 외접 팔각형
-    const out = [];
-    for (let i = 0; i < 8; i++) {
-      const a = (i + 0.5) / 8 * Math.PI * 2;
-      out.push([p.dx + Math.sin(a) * k, p.dz + Math.cos(a) * k]);
-    }
-    return out;
+/** 원을 감싸는 64각형. 바깥 오차 0.12%. */
+function 원점(cx, cz, r, n = 64) {
+  const k = r / Math.cos(Math.PI / n), out = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i + 0.5) / n * Math.PI * 2;
+    out.push([cx + Math.sin(a) * k, cz + Math.cos(a) * k]);
   }
+  return out;
+}
+
+/** 부품 하나가 평면에서 차지하는 점들. */
+function 부품점(p) {
+  if (p.shape === 'cyl') return 원점(p.dx, p.dz, p.r);
+  if (p.shape === 'star') return 원점(p.dx, p.dz, p.w / 2);
+  if (p.shape === 'sph') return 원점(p.dx, p.dz, p.r ?? (p.w ?? 0) / 2);
   // 상자·휜 판·테이퍼 — 기울기(tiltX)와 휨(sag)은 깊이를 늘린다.
   const w = p.w ?? 0;
   const d = (p.d ?? 0) + (p.sag ?? 0)
@@ -264,6 +277,10 @@ function 부품점(p) {
   for (const sx of [-w / 2, w / 2]) for (const sz of [-d / 2, d / 2]) out.push([p.dx + sx, p.dz + sz]);
   return out;
 }
+
+/** 화분은 자산 등록표에 없고 렌더러가 직접 만든다(furniture-gl.js `plantMesh`).
+ *  기둥 반지름 `potR` 170 · 잎은 프로필 최대 1.15 배 → 실제 최대 반지름 195.5. */
+const 화분반지름 = DIMS.plant.potR * 1.15;
 
 /** 점들의 볼록 껍질(모노톤 체인). */
 function 껍질(점들) {
@@ -285,12 +302,14 @@ function 껍질(점들) {
 function 발자국(it) {
   const parts = assetParts(it);
   let pts = parts && parts.length ? parts.flatMap(부품점) : null;
+  if ((!pts || !pts.length) && it.type === 'plant') pts = 원점(0, 0, 화분반지름);
   if (!pts || !pts.length) {
     const w = it.w || 450, d = it.d || 450;
     pts = [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]];
   }
+  // 렌더러와 같은 방향으로 돌린다(furniture-gl.js 는 `rotation.y = -rotY` 를 쓴다).
   const a = (it.rotY || 0) * Math.PI / 180, c = Math.cos(a), sn = Math.sin(a);
-  return 껍질(pts.map(([x, z]) => [it.x + x * c + z * sn, it.z - x * sn + z * c]));
+  return 껍질(pts.map(([x, z]) => [it.x + x * c - z * sn, it.z + x * sn + z * c]));
 }
 
 /** 두 볼록 다각형이 파고든 깊이(mm). 0 이면 떨어져 있다. */
@@ -368,21 +387,37 @@ function 넓은방목록() {
 const 최대옵션 = { highTables: 3, stools: 8, collabTables: 4, lounge: true,
   mobileStand: true, rug: true, plant: true };
 
-test('⑭-2 실제 자산 껍질로 다시 재도 파고들지 않는다 — 기본 구성', () => {
-  // **범위를 일부러 좁혀 두었다.** 실제 자산 껍질로 재면 아래 두 가지가 아직 남아 있다.
-  //   ㉮ 최대 구성(하이 테이블 3 · 스툴 8)에서는 스툴 고리끼리, 또는 스툴과 라운지·이동식
-  //      디스플레이가 0.6~16.9mm 파고드는 방이 있다(PHASE 8-2b.1 기준 350개 방 중 55개).
-  //   ㉯ 기본 구성에서도 깊이 비율이 0.70~0.80 으로 얕은 5~6m 방 두 곳이 남는다
-  //      (5000×6500 스툴↔라운지 5.3mm · 6000×6000 스툴↔이동식 11.7mm).
-  //   둘 다 **하이 테이블 구역의 스툴 고리**에서 비롯한 PHASE 8-2a 부터의 문제이고,
-  //   PHASE 8-2b.1 은 하이 테이블·스툴을 건드리지 않기로 한 단계라 여기서 고칠 수 없다.
-  //   (8-2b 기준선에서는 같은 자리에서 59개 방이 겹쳤고 지금은 57개다 — 늘지 않았다.)
-  //   그래서 **이 단계가 책임지는 범위**, 곧 기본 구성 · 검사 ⑭ 와 같은 방 목록만 고정한다.
-  //   협업 테이블의 판정용 원을 550 으로 되돌리면 여기서 0.5~11.4mm 겹침으로 바로 걸린다.
-  for (const [W, D] of 방목록()) {
-    const 최악 = 실제겹침(layoutRoom('ideation', 옵션(), { W, D }));
-    assert.equal(최악.깊이, 0,
-      `${W}×${D} 에서 ${최악.이름} 이 ${최악.깊이.toFixed(1)}mm 파고든다`);
+test('⑭-2 실제 자산 껍질로 다시 재도 파고들지 않는다 — 350개 방 · 기본과 최대 구성', () => {
+  // PHASE 8-2b.1 HOLD-2 의 권위 판정이다. 배치 코드가 쓰는 근사 도형이 아니라
+  //   **렌더러가 실제로 그리는 부품**을 평면에 눕혀 잰다. 사용자가 고를 수 있는 최대 구성
+  //   (하이 테이블 3 · 스툴 8 · 협업 4)까지 포함하고, 깊이 비율도 0.70~1.30 으로 넓힌다.
+  for (const [W, D] of 넓은방목록()) {
+    for (const [무엇, o] of [['기본', 옵션()], ['최대', 최대옵션]]) {
+      const 최악 = 실제겹침(layoutRoom('ideation', o, { W, D }));
+      assert.equal(최악.깊이, 0,
+        `${무엇} 구성 ${W}×${D} 에서 ${최악.이름} 이 ${최악.깊이.toFixed(1)}mm 파고든다`);
+    }
+  }
+});
+
+test('⑭-4 가구가 LED 를 침범하지 않는다 — 낮은 자리도 캐비닛 깊이를 크게 넘어선다', () => {
+  // LED 캐비닛은 앞벽에서 최대 200mm 남짓 튀어나온다(모델 기본값 60mm). 가구는 그보다
+  //   훨씬 앞(=LED 에서 먼 쪽)에 있어야 한다. 키 큰 가구는 LED 앞 여유 규칙까지 지킨다.
+  const 큰것 = new Set(['highTable', 'stool', 'mobileStand', 'plant']);
+  for (const [W, D] of 넓은방목록()) {
+    for (const [무엇, o] of [['기본', 옵션()], ['최대', 최대옵션]]) {
+      const 앞여유 = Math.max(FURNITURE.frontClear, D * 0.18);
+      for (const it of layoutRoom('ideation', o, { W, D }).items) {
+        if (it.type === 'rug') continue;
+        const z = Math.min(...발자국(it).map(pt => pt[1]));
+        assert.ok(z >= 500,
+          `${무엇} ${W}×${D}: ${it.type} 앞면이 z ${z.toFixed(1)} 로 LED 에 너무 가깝다`);
+        if (큰것.has(it.type)) {
+          assert.ok(z >= 앞여유 - 1e-6,
+            `${무엇} ${W}×${D}: ${it.type} 이 LED 앞 여유 ${Math.round(앞여유)} 를 침범한다(z ${z.toFixed(1)})`);
+        }
+      }
+    }
   }
 });
 
@@ -402,18 +437,20 @@ test('⑭-3 가구가 방 밖으로 나가지 않는다 — 실제 자산 껍질
   }
 });
 
-test('⑮-2 가로 8.5m 이상 기본 구성에서 협업 구역이 하이 테이블 구역보다 앞(LED 쪽)에 선다', () => {
+test('⑮-2 가로 9m 이상 기본 구성에서 협업 구역이 하이 테이블 구역보다 앞(LED 쪽)에 선다', () => {
   // PHASE 8-2b.1 의 핵심 규칙이다. 이 순서가 뒤집히면 제안 카메라가 다시 협업 테이블
   //   2m 앞에 서게 되고, PHASE 8-2c 가 HOLD 로 잡은 '전경 장애물' 문제가 그대로 돌아온다.
   //
   // **범위를 8.5m 이상 기본 구성으로 잡은 까닭.** 그보다 좁은 방과 최대 구성(하이 테이블 3 ·
   //   스툴 8)에서는 하이 테이블 구역이 앞자리를 다 써 버려 협업 구역이 들어갈 자리가 없고,
   //   그때는 기존 안전 규칙대로 뒤로 물러선다(측정: 350개 방 중 기본 구성 24개 · 최대 구성
-  //   53개가 그렇게 물러선다. 기본 구성 위반은 전부 가로 8m 이하다).
-  //   8.5m 는 검사 ⑰ 이 '개수·정원이 흔들리지 않는다'고 고정한 경계와 같은 값이다.
+  //   88개가 그렇게 물러선다. 기본 구성 위반은 전부 가로 8.5m 이하다).
+  //   PHASE 8-2b.1 HOLD-2 에서 라운지 판정 도형이 실측대로 커지면서(가로 640 → 830)
+  //   8.5m 방에서는 두 덩이가 하이 테이블 앞에 나란히 설 자리가 없어졌다. 그래서 경계가
+  //   8.5m 에서 9m 로 한 칸 올라갔다.
   let 잰방 = 0;
   for (const [W, D] of 넓은방목록()) {
-    if (W < 8500) continue;
+    if (W < 9000) continue;
     const r = layoutRoom('ideation', 옵션(), { W, D });
     const 뒤끝 = types => {
       const g = r.items.filter(i => types.includes(i.type));
@@ -445,9 +482,9 @@ test('⑮-2 가로 8.5m 이상 기본 구성에서 협업 구역이 하이 테�
       if (협업 < 하이) 앞선방++;
     }
   }
-  assert.equal(전체, 275, `견준 방이 ${전체}개다 — 방 목록이 바뀌었다`);
-  assert.equal(앞선방, 198,
-    `협업이 앞에 선 방이 ${앞선방}개다(기대 198 · PHASE 8-2b 는 0개였다)`);
+  assert.equal(전체, 265, `견준 방이 ${전체}개다 — 방 목록이 바뀌었다`);
+  assert.equal(앞선방, 177,
+    `협업이 앞에 선 방이 ${앞선방}개다(기대 177 · PHASE 8-2b 는 0개였다)`);
 });
 
 test('⑮ 경계에서 규칙이 실제로 일한다 — 좁으면 줄이고, 그 사실을 알린다', () => {
@@ -463,9 +500,52 @@ test('⑮ 경계에서 규칙이 실제로 일한다 — 좁으면 줄이고, �
   assert.ok(중간.notes.some(n => n.includes('자리를 옮겼습니다')), '옮겼다는 안내가 없다');
 });
 
-test('⑯ 기본 9m 배치 — PHASE 8-2b.1 에서 협업·라운지·러그만 다시 열었다', () => {
+test('⑮-3 놓았다고 센 수와 실제로 놓인 물건 수가 같다 — 숨은 가구가 없다', () => {
+  // 화면에 그릴 목록(`items`)과 사용자에게 보고하는 수(`placed`)가 어긋나면, 상태에는
+  //   있는데 화면에는 없는 가구가 생긴다. 350개 방 × 두 구성에서 둘이 같은지 본다.
+  for (const [W, D] of 넓은방목록()) {
+    for (const [무엇, o] of [['기본', 옵션()], ['최대', 최대옵션]]) {
+      const r = layoutRoom('ideation', o, { W, D });
+      const 센다 = t => r.items.filter(i => i.type === t).length;
+      assert.equal(r.placed.highTables, 센다('highTable'), `${무엇} ${W}×${D} 하이 테이블 수`);
+      assert.equal(r.placed.stools, 센다('stool'), `${무엇} ${W}×${D} 스툴 수`);
+      assert.equal(r.placed.collabTables, 센다('collabTable'), `${무엇} ${W}×${D} 협업 테이블 수`);
+      assert.equal(r.placed.lounge, 센다('lounge'), `${무엇} ${W}×${D} 라운지 수`);
+      assert.equal(r.placed.chairs, 센다('stool') + 센다('lounge'), `${무엇} ${W}×${D} 의자 합계`);
+      assert.equal(r.capacity, r.placed.stools + r.placed.lounge, `${무엇} ${W}×${D} 정원`);
+    }
+  }
+});
+
+test('⑮-4 최대 구성을 넣을 수 없는 방은 수량을 줄이고 그 사실을 안내한다', () => {
+  // 사용자가 최대 구성을 골라도, 물리적으로 안 들어가면 **겹쳐 놓지 않고 줄인다.**
+  //   줄인 사실은 반드시 안내로 남아야 한다(조용히 숨기지 않는다).
+  for (const [W, D] of 넓은방목록()) {
+    const r = layoutRoom('ideation', 최대옵션, { W, D });
+    const 줄었나 = r.placed.highTables < 최대옵션.highTables
+      || r.placed.collabTables < 최대옵션.collabTables;
+    if (줄었나) {
+      assert.ok(r.notes.some(n => n.includes('놓지 못했습니다')),
+        `${W}×${D}: 수량이 줄었는데 안내가 없다 — ${JSON.stringify(r.placed)}`);
+    }
+  }
+  // 작은 방에서는 실제로 줄어든다(검사가 헛돌지 않는다는 확인).
+  const 작은 = layoutRoom('ideation', 최대옵션, { W: 5000, D: 5000 });
+  assert.ok(작은.placed.collabTables < 4 && 작은.placed.highTables < 3, '작은 방인데 다 들어갔다');
+  assert.ok(작은.notes.some(n => n.includes('놓지 못했습니다')), '줄었다는 안내가 없다');
+  // 아주 넓은 방에서는 요청대로 다 들어간다.
+  const 넓은 = layoutRoom('ideation', 최대옵션, { W: 16000, D: 15200 });
+  assert.deepEqual(넓은.placed,
+    { highTables: 3, stools: 24, collabTables: 4, lounge: 12, chairs: 36 });
+  assert.equal(넓은.notes.some(n => n.includes('놓지 못했습니다')), false);
+});
+
+test('⑯ 기본 9m 배치 — 협업 구도 교정 + 판정 규칙 보정을 함께 고정한다', () => {
   // 하이 테이블·스툴·화분은 8-2a 그대로다. 협업 두 덩이가 LED 쪽으로 내려왔고, 이동식
-  //   디스플레이는 기존 안전 규칙대로 0.9m 뒤로 비켜섰다(같은 모서리에 그대로 있다).
+  //   디스플레이는 기존 안전 규칙대로 뒤로 비켜섰다(같은 모서리에 그대로 있다).
+  // PHASE 8-2b.1 HOLD-2 에서 둘째 협업 덩이가 z 2250 → 2750, 이동식이 3400 → 3800 으로
+  //   옮겨졌다. 판정 도형을 화면 실측으로 키우고 **회전 방향을 렌더러와 맞추면서** 생긴
+  //   변화다. 개수·정원·안내는 그대로다.
   const r = layoutRoom('ideation', 옵션(), { W: 9000, D: 8000 });
   assert.deepEqual(r.items.map(i => [i.type, Math.round(i.x), Math.round(i.z), Math.round(i.rotY || 0)]), [
     ['highTable', 2700, 3360, 0],
@@ -478,11 +558,11 @@ test('⑯ 기본 9m 배치 — PHASE 8-2b.1 에서 협업·라운지·러그만 
     ['lounge', 5615, 1160, 210],
     ['lounge', 4010, 2087, 90],
     ['rug', 5080, 2087, 0],
-    ['collabTable', 6950, 2250, 0],
-    ['lounge', 6415, 3177, 30],
-    ['lounge', 6415, 1323, 150],
-    ['lounge', 8020, 2250, 270],
-    ['mobileStand', 7500, 3400, -35],
+    ['collabTable', 6950, 2750, 0],
+    ['lounge', 6415, 3677, 30],
+    ['lounge', 6415, 1823, 150],
+    ['lounge', 8020, 2750, 270],
+    ['mobileStand', 7500, 3800, -35],
     ['plant', 8500, 7500, 0],
   ]);
   assert.deepEqual(r.placed, { highTables: 1, stools: 4, collabTables: 2, lounge: 6, chairs: 10 });

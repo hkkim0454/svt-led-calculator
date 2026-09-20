@@ -741,40 +741,50 @@ function layoutHall(o, W, D) {
 //   놓친다. 둘 다 PHASE 8-2a 에서 실제로 겪은 일이라 부품을 재서 모양까지 맞춘다.
 //
 //   스툴      좌석 반지름 190 의 원
-//   협업 테이블 지름 1,100 의 원
-//   화분      반지름 225 의 원
-//   라운지 의자 640 × 720 사각형. 등받이가 18° 기울어 **뒤로 50mm 치우쳐** 있다
-//   이동식 스탠드 화면 폭 1,150 × 받침 깊이 560 사각형
-//   하이 테이블 상판 폭 × 900 사각형(돌아가지 않는다)
-// 협업 테이블의 **판정용** 원은 실제 반지름(550)보다 70mm 크게 잡는다.
-//   PHASE 8-2b.1 에서 두 협업 덩이가 나란히 서게 되자, 이 표로는 '빈자리'인데 실제 자산
-//   껍질로 재면 3~11mm 파고드는 자리가 6.5~8m 방에서 나왔다. 라운지 의자 상자는 제 방향으로
-//   돌아 있어 모서리가 테이블 쪽을 향할 때 대각선(482mm)만큼 튀어나온다 — 원을 그만큼
-//   키워야 판정이 **안전한 쪽으로** 틀린다. (자산 치수는 그대로다. 자리 판정에만 쓰는 값이다.)
+// **PHASE 8-2b.1 HOLD-2 — 이 표를 화면에서 직접 재서 다시 썼다.**
+//   예전 값은 자산 부품표의 '이름값'(w × d)을 그대로 옮긴 것이었는데, 렌더러는 둥근 모서리를
+//   `ExtrudeGeometry` 의 경사(bevel)로 만들고 **그 경사가 윤곽을 사방으로 넓힌다.** 그래서
+//   화면에 그려지는 물건이 부품표보다 조금 크다. 아래 값은 실제로 그려진 꼭짓점을 바닥에
+//   눕혀 잰 것이다(부품표 값이 아니라 화면 실측이다).
+//
+//   스툴         좌판 기둥 반지름 190 의 원 — 부품표와 같다
+//   협업 테이블   상판 기둥 반지름 550 의 원 — 부품표와 같다
+//   화분         잎 최대 반지름 224.8 의 원(기둥 반지름 170 × 1.15 × 1.15)
+//   라운지 의자   실측 830 × 789(x ±415 · z −340.8~448). 등받이 둥글림이 95mm 씩 넓힌다.
+//                뒤쪽으로 치우친 양은 54mm 다.
+//   이동식 스탠드 1,150 × 560 — 부품표와 같다
+//   하이 테이블   상판 폭 + 17.6 × 917.6. 상판 둥글림이 8.8mm 씩 넓힌다.
 const IDEATION_SHAPE = Object.freeze({
   stool: { disc: 190 },
-  collabTable: { disc: 620 },
+  collabTable: { disc: 550 },
   plant: { disc: 225 },
-  lounge: { hw: 320, hd: 360, dz: 50 },
+  lounge: { hw: 415, hd: 395, dz: 54 },
   mobileStand: { hw: 575, hd: 280 },
 });
+/** 하이 테이블 상판 둥글림이 사방으로 넓히는 양(mm). 화면 실측. */
+const IDEATION_HIGH_BEVEL = 8.8;
 
 /** 배치 항목 → 자리 판정용 도형(세계 좌표). */
 function ideationShape(it) {
   if (it.type === 'highTable') {
-    return { x: it.x, z: it.z, hw: it.w / 2, hd: it.d / 2, rot: 0 };
+    return { x: it.x, z: it.z, hw: it.w / 2 + IDEATION_HIGH_BEVEL,
+      hd: it.d / 2 + IDEATION_HIGH_BEVEL, rot: 0 };
   }
   const s = IDEATION_SHAPE[it.type];
   if (!s) return { x: it.x, z: it.z, disc: 250 };
   if (s.disc) return { x: it.x, z: it.z, disc: s.disc };
+  // **돌리는 방향은 렌더러와 같아야 한다.** furniture-gl.js 는 `rotation.y = -rotY` 를 쓰므로
+  //   물건 기준 (lx, lz) 는 세계에서 (lx·cos − lz·sin, lx·sin + lz·cos) 자리에 놓인다.
+  //   PHASE 8-2b.1 HOLD-2 이전에는 여기서 **반대로** 돌려, 화면에 그려진 것과 좌우가 뒤집힌
+  //   도형으로 자리를 판정했다. 등받이처럼 한쪽으로 치우친 물건에서는 판정이 통째로 어긋난다.
   const a = (it.rotY || 0) * Math.PI / 180, dz = s.dz || 0;
-  return { x: it.x + dz * Math.sin(a), z: it.z + dz * Math.cos(a), hw: s.hw, hd: s.hd, rot: a };
+  return { x: it.x - dz * Math.sin(a), z: it.z + dz * Math.cos(a), hw: s.hw, hd: s.hd, rot: a };
 }
 
-/** 사각형을 제 방향으로 돌려세운 좌표계에서 본 점. */
+/** 사각형을 제 방향으로 돌려세운 좌표계에서 본 점(위 규칙의 역변환). */
 function toLocal(shape, x, z) {
   const dx = x - shape.x, dz = z - shape.z, c = Math.cos(shape.rot), sn = Math.sin(shape.rot);
-  return [dx * c - dz * sn, dx * sn + dz * c];
+  return [dx * c + dz * sn, -dx * sn + dz * c];
 }
 
 /** 두 도형이 실제로 겹치는가. 원·원, 원·사각형, 사각형·사각형을 각각 맞게 본다. */
@@ -790,14 +800,15 @@ function ideationHits(A, B) {
   const corners = S => {
     const c = Math.cos(S.rot), sn = Math.sin(S.rot), out = [];
     for (const sx of [-S.hw, S.hw]) for (const sz of [-S.hd, S.hd]) {
-      out.push([S.x + sx * c + sz * sn, S.z - sx * sn + sz * c]);
+      out.push([S.x + sx * c - sz * sn, S.z + sx * sn + sz * c]);
     }
     return out;
   };
   const pa = corners(A), pb = corners(B);
   for (const S of [A, B]) {
     const c = Math.cos(S.rot), sn = Math.sin(S.rot);
-    for (const [ux, uz] of [[c, -sn], [sn, c]]) {
+    // 분리축 = 사각형의 두 변에 수직한 방향. 위 corners 와 같은 회전 규칙을 써야 한다.
+    for (const [ux, uz] of [[c, sn], [-sn, c]]) {
       const span = pts => pts.reduce((r, p) => {
         const v = p[0] * ux + p[1] * uz;
         return [Math.min(r[0], v), Math.max(r[1], v)];

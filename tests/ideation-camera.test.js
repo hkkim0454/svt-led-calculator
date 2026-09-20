@@ -460,15 +460,16 @@ test('㉙ 조명·상판·재질은 8-2a 그대로다 — 카메라 단계가 �
   assert.equal(MATERIAL_IDS.length, 13);
 });
 
-test('㉚ 배치가 8-2a 그대로다 — 카메라가 가구를 밀지 않았다', () => {
-  // 기본 방(9 × 8m)의 배치 지문. **PHASE 8-2b.1 에서 협업·라운지·러그만 다시 열었다** —
-  //   하이 테이블·스툴·이동식 디스플레이·화분은 제자리이고, 협업 두 덩이가 LED 쪽으로 내려왔다.
+test('㉚ 카메라가 가구를 밀지 않았다 — 배치 지문은 배치 단계만 정한다', () => {
+  // 기본 방(9 × 8m)의 배치 지문. 하이 테이블·스툴·화분은 PHASE 8-2a 그대로이고, 협업 두
+  //   덩이가 LED 쪽으로 내려왔다(8-2b.1). 둘째 덩이와 이동식 디스플레이의 앞뒤 자리는
+  //   HOLD-2 에서 판정 도형을 화면 실측으로 고치면서 조금 뒤로 물러섰다.
   const 지문 = layoutRoom('ideation', defaultOptions('ideation'), { W: 9000, D: 8000, design: ID })
     .items.map(i => `${i.type}@${Math.round(i.x)},${Math.round(i.z)}`).join(' ');
   assert.equal(지문, 'highTable@2700,3360 stool@2390,2480 stool@2390,4240 stool@3010,2480 '
     + 'stool@3010,4240 collabTable@5080,2087 lounge@5615,3013 lounge@5615,1160 lounge@4010,2087 '
-    + 'rug@5080,2087 collabTable@6950,2250 lounge@6415,3177 lounge@6415,1323 lounge@8020,2250 '
-    + 'mobileStand@7500,3400 plant@8500,7500');
+    + 'rug@5080,2087 collabTable@6950,2750 lounge@6415,3677 lounge@6415,1823 lounge@8020,2750 '
+    + 'mobileStand@7500,3800 plant@8500,7500');
   // 디자인을 떼어도 같은 배치다 — 카메라는 배치의 주인이 아니다.
   const 민짜 = layoutRoom('ideation', defaultOptions('ideation'), { W: 9000, D: 8000 })
     .items.map(i => `${i.type}@${Math.round(i.x)},${Math.round(i.z)}`).join(' ');
