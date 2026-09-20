@@ -476,6 +476,99 @@ test('㉚ 카메라가 가구를 밀지 않았다 — 배치 지문은 배치 �
   assert.equal(민짜, 지문);
 });
 
+// ── ⑦ 구도 지배력 — LED 가 협업 테이블보다 크게 보이는가 ────────────────────
+
+/** 계획이 준 자세로 바닥 위 사각형을 화면에 투영해, 그것이 차지하는 화면 넓이 비율을 낸다.
+ *  (design-camera.js 는 이 값을 밖으로 내보내지 않으므로 검사 쪽에서 다시 잰다.) */
+function 화면점유(plan, 점들, aspect = 574 / 563) {
+  const [cx, cy, cz] = plan.position, [tx, ty, tz] = plan.target;
+  const fx = tx - cx, fy = ty - cy, fz = tz - cz, fl = Math.hypot(fx, fy, fz);
+  const f = [fx / fl, fy / fl, fz / fl];
+  // 오른쪽 = 앞 × 위(0,1,0). 카메라는 기울지 않는다.
+  const rx = f[2], rz = -f[0], rl = Math.hypot(rx, rz) || 1;
+  const r = [rx / rl, 0, rz / rl];
+  const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const tV = Math.tan(plan.fov * Math.PI / 360), tH = tV * aspect;
+  let poly = [];
+  for (const [px, py, pz] of 점들) {
+    const dx = px - cx, dy = py - cy, dz = pz - cz;
+    const fwd = dx * f[0] + dy * f[1] + dz * f[2];
+    if (fwd <= 1e-6) return 0;                       // 뒤에 있으면 화면에 없다
+    poly.push([(dx * r[0] + dy * r[1] + dz * r[2]) / fwd, (dx * u[0] + dy * u[1] + dz * u[2]) / fwd]);
+  }
+  // 화면 사각형으로 잘라 낸다(서덜랜드·호지먼).
+  for (const [nx, nz, d] of [[1, 0, tH], [-1, 0, tH], [0, 1, tV], [0, -1, tV]]) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const da = d - (a[0] * nx + a[1] * nz), db = d - (b[0] * nx + b[1] * nz);
+      if (da >= 0) out.push(a);
+      if ((da >= 0) !== (db >= 0)) {
+        const t = da / (da - db);
+        out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      }
+    }
+    poly = out;
+    if (!poly.length) return 0;
+  }
+  let A = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    A += a[0] * b[1] - b[0] * a[1];
+  }
+  return Math.abs(A / 2) / (4 * tH * tV);
+}
+const LED점 = W => { const w = 4.0, h = 2.3, base = 1.0, x0 = (W / 1000 - w) / 2, z = 0.06;
+  return [[x0, base, z], [x0 + w, base, z], [x0 + w, base + h, z], [x0, base + h, z]]; };
+/** 카메라에서 가장 가까운 협업 테이블의 상판(1.1 × 1.1m, 바닥에서 0.70m) 네 모서리. */
+function 가까운협업(plan, W, H, D) {
+  const 자리 = layoutRoom('ideation', defaultOptions('ideation'), { W, D })
+    .items.filter(i => i.type === 'collabTable')
+    .map(i => ({ x: i.x / 1000, z: i.z / 1000 }));
+  if (!자리.length) return null;
+  let best = 자리[0], bd = Infinity;
+  for (const p of 자리) {
+    const d = Math.hypot(p.x - plan.position[0], p.z - plan.position[2]);
+    if (d < bd) { bd = d; best = p; }
+  }
+  const r = 0.55, y = 0.70;
+  return { 거리: bd, 점: [[best.x - r, y, best.z - r], [best.x + r, y, best.z - r],
+    [best.x + r, y, best.z + r], [best.x - r, y, best.z + r]] };
+}
+
+test('㉜ 대형 방에서 LED 가 가장 가까운 협업 테이블보다 크게 보인다', () => {
+  // PHASE 8-2c 가 HOLD 로 잡은 P1-② 다. 대형 방에서 잘린 협업 테이블이 LED 보다 크게
+  //   보이면 '무엇을 파는 그림인지' 뒤집힌다. 권장은 1.15배이고, 실측은 훨씬 크다.
+  for (const v of IDEATION_CAMERA_PRESETS) {
+    const p = planOf(14000, 4000, 13300, v);
+    const led = 화면점유(p, LED점(14000));
+    const 협업 = 가까운협업(p, 14000, 4000, 13300);
+    const 덩이 = 화면점유(p, 협업.점);
+    assert.ok(led > 0, `${v}: LED 가 화면에 없다`);
+    assert.ok(led >= 덩이 * 1.15,
+      `${v}: LED ${(led * 100).toFixed(2)}% 가 가까운 협업 테이블 ${(덩이 * 100).toFixed(2)}% 의 1.15배에 못 미친다`);
+    assert.ok(led >= 0.10, `${v}: LED 화면 점유 ${(led * 100).toFixed(2)}% 가 너무 작다`);
+  }
+});
+
+test('㉝ 협업 덩이가 화면 아래 띠에만 갇히지 않는다 — 8-2c 가 잡은 P1-① 의 회귀 검사', () => {
+  // 협업 테이블 상판(0.70m)이 화면에서 얼마나 아래에 오는지는 **카메라까지의 거리**가
+  //   정한다. 가까울수록 내려본 각이 커져 상판이 프레임 바닥으로 밀린다.
+  //   PHASE 8-2c 때는 아홉 컷 모두 2.0~2.3m 였고, 협업 화소의 98.6~100% 가 아래 1/4 띠에
+  //   갇혔다. 지금은 그보다 멀리 서고, 협업 테이블이 화면을 덜 먹는다.
+  for (const { plan, 이름, view, W, H, D } of 제안컷()) {
+    const 협업 = 가까운협업(plan, W, H, D);
+    assert.ok(협업, `${이름}/${view}: 협업 테이블이 배치에 없다`);
+    assert.ok(협업.거리 >= 2.25,
+      `${이름}/${view}: 가장 가까운 협업 테이블이 ${협업.거리.toFixed(2)}m — 8-2c 와 같은 앞물체 거리다`);
+    const 덩이 = 화면점유(plan, 협업.점);
+    assert.ok(덩이 > 0, `${이름}/${view}: 협업 테이블이 화면에서 사라졌다`);
+    assert.ok(덩이 < 0.14,
+      `${이름}/${view}: 협업 테이블이 화면의 ${(덩이 * 100).toFixed(1)}% 를 먹는다 — 앞물체로 읽힌다`);
+    assert.ok(plan.collabShare > 0, `${이름}/${view}: 협업 구역이 화면에 없다`);
+  }
+});
+
 test('㉛ 순수 유지 — 계획기는 Three.js·DOM·조작기를 부르지 않는다', () => {
   const s = src('design-camera.js');
   assert.ok(!/THREE\.|three\.module|from '\.\/vendor/.test(s), '화각 층이 Three.js를 읽는다');
