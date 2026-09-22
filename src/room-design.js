@@ -84,6 +84,21 @@ export const LAYOUT_VARIANTS = Object.freeze({
     id: 'ideation-zones', label: '아이디에이션 구역 배치', roomType: 'ideation', base: 'ideation',
     note: '줄·열 대신 하이 테이블 구역 · 협업 구역 · 이동식 디스플레이를 흩어 놓는다 — PHASE 8. 배치는 이미 있던 것 그대로다.',
   }),
+  // PHASE 9-a — 강당 세 크기. 배치 함수는 `layoutHall` **하나**를 셋이 같이 쓴다.
+  //   변형을 셋으로 나눈 것은 스키마가 '변형 하나 = 용도 하나'를 요구하기 때문이고,
+  //   실제 배치 전략은 지금도 앞으로도 같다(크기별로 기본값만 다르다).
+  'auditorium-rows-s': Object.freeze({
+    id: 'auditorium-rows-s', label: '소강당 객석 배치', roomType: 'hall_s', base: 'hall_s',
+    note: '무대 앞 객석을 줄·열로 놓고 통로로 나눈다 — PHASE 9. 배치는 이미 있던 것 그대로다.',
+  }),
+  'auditorium-rows-m': Object.freeze({
+    id: 'auditorium-rows-m', label: '중강당 객석 배치', roomType: 'hall_m', base: 'hall_m',
+    note: '소강당과 같은 배치 전략이고 줄 수·줄당 좌석·통로 수의 기본값만 다르다 — PHASE 9.',
+  }),
+  'auditorium-rows-l': Object.freeze({
+    id: 'auditorium-rows-l', label: '대강당 객석 배치', roomType: 'hall_l', base: 'hall_l',
+    note: '소·중강당과 같은 배치 전략이고 기본값만 다르다 — PHASE 9.',
+  }),
 });
 
 /** 변형 id → 정의. 모르는 값이면 null(=기존 배치 그대로). */
@@ -346,7 +361,63 @@ export const ROOM_DESIGNS = Object.freeze({
     camera: 'ideationProposal',
     accessories: INHERIT,
   }),
+
+  // ⑦ 강당 — 소·중·대. **PHASE 9-a 는 자리만 만드는 단계다.**
+  //
+  //    지금까지 강당 세 종류에는 디자인이 아예 붙어 있지 않았다(NEUTRAL_DESIGN). 그래서
+  //    전용 마감·조명·화각을 붙일 자리가 없었고, 계약 검사도 걸 곳이 없었다. PHASE 7 직전의
+  //    교육장과 똑같은 상태다. 여기서는 **자리만 만들고 값은 하나도 넣지 않는다** —
+  //    모든 항목이 INHERIT 이거나 `planned(...)` 라서 이 디자인을 붙여도 화면이 바뀌지 않는다.
+  //    (등록 전후 정규 19컷과 강당 18컷의 픽셀이 같다는 것을 PHASE 9-a 에서 측정했다.)
+  //
+  //    **왜 항목이 셋인가.** 스키마는 '디자인 하나 = 용도 하나'다(`normalizeDesign`·
+  //    `designsFor`·`layoutPlan` 이 전부 `d.roomType === 용도` 로 고른다). 강당은 용도가
+  //    `hall_s`·`hall_m`·`hall_l` 셋이라, 공용 함수를 고쳐 배열을 받게 만드는 대신
+  //    **아래 factory 하나로 셋을 찍어 낸다.** 앞으로 마감·조명·화각을 넣을 때도 고칠 곳은
+  //    factory 한 곳이고, 크기마다 달라야 하는 값은 인자로 받으면 된다. 공용 함수를 건드리지
+  //    않으므로 동결된 여섯 공간의 해석 경로에는 한 줄도 영향이 없다.
+  ...auditoriumDesigns(),
 });
+
+/**
+ * 강당 디자인 세 벌을 한 자리에서 찍어 낸다(소·중·대).
+ *   PHASE 9-a 에서는 **전부 INHERIT / planned** 다. 앞 단계가 값을 채울 자리만 만든다.
+ *     furniture   INHERIT — 배치가 이미 `auditoriumChair` 를 세운다
+ *     materials   INHERIT — PHASE 9-c 에서 무대 상판(지금 렌더러 상수 `#eef1f5`)을 여기로 옮긴다
+ *     lighting    planned('auditoriumStage')    — PHASE 9-d.1
+ *     camera      planned('auditoriumProposal') — PHASE 9-d.2
+ */
+function auditoriumDesigns() {
+  const 크기 = [
+    ['auditoriumSmall', '소강당', 'hall_s', 'auditorium-rows-s'],
+    ['auditoriumMedium', '중강당', 'hall_m', 'auditorium-rows-m'],
+    ['auditoriumLarge', '대강당', 'hall_l', 'auditorium-rows-l'],
+  ];
+  const out = {};
+  for (const [id, label, roomType, layoutVariant] of 크기) {
+    out[id] = Object.freeze({
+      id, label, roomType, layoutVariant,
+      // PHASE 9-f 릴리스 게이트를 통과하기 전에는 `ready` 로 올리지 않는다.
+      status: DESIGN_STATUS.PLANNED,
+      phase: 9,
+      furniture: INHERIT,
+      palette: INHERIT,
+      // **재질 칸은 비워 둔다(INHERIT).** 이 저장소는 '디자인이 적어 둔 재질 이름은
+      //   `planned(...)` 라도 실재해야 한다'는 계약을 갖고 있다(가짜 스펙 금지).
+      //   아직 만들지 않은 이름을 적으면 그 계약이 깨지므로, 무대·음향 벽 마감은
+      //   PHASE 9-c 에서 **실제로 만들면서** 여기에 적는다.
+      materials: INHERIT,
+      wallTreatment: INHERIT,
+      // 조명·화각은 재질과 달리 '실재하는 이름' 계약이 없어 `planned(...)` 로 예약해 둔다 —
+      //   어느 단계가 무엇을 채울지 코드에 남겨 두는 편이 낫다. 해석기가 INHERIT 로
+      //   떨어뜨리므로 화면에는 도달하지 않는다.
+      lighting: planned('auditoriumStage'),
+      camera: planned('auditoriumProposal'),
+      accessories: INHERIT,
+    });
+  }
+  return out;
+}
 
 export const DESIGN_IDS = Object.freeze(Object.keys(ROOM_DESIGNS));
 
@@ -382,6 +453,10 @@ export const DEFAULT_DESIGN_BY_ROOM_TYPE = Object.freeze({
   classroom: 'trainingRoom',
   control: 'controlRoom',
   ideation: 'ideationRoom',
+  // PHASE 9-a — 강당 세 크기. 값은 아직 전부 INHERIT/planned 라 붙여도 화면이 바뀌지 않는다.
+  hall_s: 'auditoriumSmall',
+  hall_m: 'auditoriumMedium',
+  hall_l: 'auditoriumLarge',
 });
 
 /** 그 용도의 기본 디자인 id. 지원하지 않는 용도면 null(= 디자인 없음). */
