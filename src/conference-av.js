@@ -9,8 +9,8 @@
 //   rotY = 0 이면 LED 벽(-Z)을 바라본다. 의자도 가구도 같은 규칙이다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=445';
-import { panelSize } from './monitors.js?v=445';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=446';
+import { panelSize } from './monitors.js?v=446';
 
 const DEG = Math.PI / 180;
 
