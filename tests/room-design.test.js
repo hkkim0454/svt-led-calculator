@@ -36,10 +36,11 @@ function appliedIds(v, out = []) {
   return out;
 }
 
-test('디자인 6종 — 요청한 공간이 모두 선언되어 있고 항목이 빠짐없이 있다', () => {
+test('디자인 9종 — 요청한 공간이 모두 선언되어 있고 항목이 빠짐없이 있다', () => {
+  // 강당 셋은 PHASE 9-a 에서 자리만 만들었다(값은 전부 INHERIT/planned).
   assert.deepEqual([...DESIGN_IDS],
     ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'trainingRoom', 'controlRoom',
-      'ideationRoom']);
+      'ideationRoom', 'auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge']);
   for (const id of DESIGN_IDS) {
     const d = ROOM_DESIGNS[id];
     assert.equal(d.id, id, `${id}: id가 열쇠와 달라서는 안 된다`);
@@ -85,9 +86,12 @@ test('배치 변형(layoutVariant) — 디자인마다 다른 이름을 갖고 �
   assert.equal(ROOM_DESIGNS.ideationRoom.layoutVariant, 'ideation-zones');
   assert.equal(layoutVariant('없는변형'), null);
   // 선언한 변형 6종 말고 다른 것이 섞여 들어오지 않았는지.
+  assert.equal(ROOM_DESIGNS.auditoriumSmall.layoutVariant, 'auditorium-rows-s');
+  assert.equal(ROOM_DESIGNS.auditoriumMedium.layoutVariant, 'auditorium-rows-m');
+  assert.equal(ROOM_DESIGNS.auditoriumLarge.layoutVariant, 'auditorium-rows-l');
   assert.deepEqual(Object.keys(LAYOUT_VARIANTS),
     ['corporate-standard', 'executive-u', 'large-conference', 'training-grid', 'curved-console',
-      'ideation-zones']);
+      'ideation-zones', 'auditorium-rows-s', 'auditorium-rows-m', 'auditorium-rows-l']);
   assert.equal(seen.size, Object.keys(LAYOUT_VARIANTS).length, '쓰이지 않는 변형이 남아 있다');
 });
 
@@ -95,7 +99,8 @@ test('기본 디자인 — 되돌아가는 곳은 언제나 **그 용도의** �
   // 용도별 기본 디자인 표 — 지원하는 용도만 적혀 있어야 한다.
   assert.deepEqual(DEFAULT_DESIGN_BY_ROOM_TYPE,
     { meeting: 'corporateMeeting', classroom: 'trainingRoom', control: 'controlRoom',
-      ideation: 'ideationRoom' });
+      ideation: 'ideationRoom',
+      hall_s: 'auditoriumSmall', hall_m: 'auditoriumMedium', hall_l: 'auditoriumLarge' });
   for (const [t, id] of Object.entries(DEFAULT_DESIGN_BY_ROOM_TYPE)) {
     assert.ok(ROOM_TYPE_IDS.includes(t), `없는 공간 타입 ${t}`);
     assert.ok(ROOM_DESIGNS[id], `없는 디자인 ${id}`);
@@ -105,9 +110,12 @@ test('기본 디자인 — 되돌아가는 곳은 언제나 **그 용도의** �
   assert.equal(defaultDesignFor('classroom'), 'trainingRoom');
   assert.equal(defaultDesignFor('control'), 'controlRoom');
   assert.equal(defaultDesignFor('ideation'), 'ideationRoom');
-  // 아직 다루지 않는 공간에는 **억지로 회의실 디자인을 붙이지 않는다.**
-  //   (교육장은 PHASE 7-a, 아이디에이션은 PHASE 8-2a 에서 제 디자인이 생겨 여기서 빠진다.)
-  for (const t of ['hall_s', 'hall_m', 'hall_l', undefined, '없는용도']) {
+  // 강당 셋도 PHASE 9-a 에서 제 디자인이 생겼다(값은 아직 전부 INHERIT/planned).
+  assert.equal(defaultDesignFor('hall_s'), 'auditoriumSmall');
+  assert.equal(defaultDesignFor('hall_m'), 'auditoriumMedium');
+  assert.equal(defaultDesignFor('hall_l'), 'auditoriumLarge');
+  // 용도가 아닌 값에는 **억지로 회의실 디자인을 붙이지 않는다.**
+  for (const t of [undefined, '없는용도']) {
     assert.equal(defaultDesignFor(t), null, `${String(t)}: 디자인 없음이어야 한다`);
   }
 
@@ -122,14 +130,14 @@ test('기본 디자인 — 되돌아가는 곳은 언제나 **그 용도의** �
   assert.equal(normalizeDesign(undefined, 'classroom'), 'trainingRoom');
   assert.equal(normalizeDesign(undefined, 'control'), 'controlRoom');
   assert.equal(normalizeDesign(undefined, 'ideation'), 'ideationRoom');
-  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
-    assert.equal(normalizeDesign(undefined, t), null, `${t}: 디자인 없음으로 복원`);
-  }
+  assert.equal(normalizeDesign(undefined, 'hall_s'), 'auditoriumSmall');
+  assert.equal(normalizeDesign(undefined, 'hall_m'), 'auditoriumMedium');
+  assert.equal(normalizeDesign(undefined, 'hall_l'), 'auditoriumLarge');
   assert.equal(normalizeDesign(undefined, undefined), null);
   // 용도와 안 맞는 디자인도 **그 용도의** 기본으로 되돌린다(회의실 디자인으로 새지 않는다).
   assert.equal(normalizeDesign('controlRoom', 'meeting'), 'corporateMeeting');
   assert.equal(normalizeDesign('executiveBoardroom', 'control'), 'controlRoom');
-  assert.equal(normalizeDesign('executiveBoardroom', 'hall_l'), null);
+  assert.equal(normalizeDesign('executiveBoardroom', 'hall_l'), 'auditoriumLarge');
   assert.equal(normalizeDesign('executiveBoardroom', 'meeting'), 'executiveBoardroom');
   assert.equal(normalizeDesign('controlRoom', 'control'), 'controlRoom');
 });
@@ -172,11 +180,11 @@ test('고를 수 있는 목록 — 회의실 3종·교육장 1종·상황실 1�
   assert.deepEqual(designsFor('classroom').map(d => d.id), ['trainingRoom']);
   // 아이디에이션도 하나뿐이다(PHASE 8-2a) — 역시 선택칸을 그리지 않는다.
   assert.deepEqual(designsFor('ideation').map(d => d.id), ['ideationRoom']);
-  // 아직 디자인이 붙지 않은 용도 — **빈 목록**이다. 화면은 그때 선택칸을 그리지 않는다.
-  //   여기에 회의실 디자인을 끼워 넣으면 강당 화면에 '대기업 회의실'이 뜬다.
-  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
-    assert.deepEqual(designsFor(t).map(d => d.id), [], t);
-  }
+  // 강당 셋도 PHASE 9-a 에서 하나씩 생겼다 — 역시 하나뿐이라 선택칸을 그리지 않는다.
+  //   여기에 회의실 디자인이 섞이면 강당 화면에 '대기업 회의실'이 뜬다.
+  assert.deepEqual(designsFor('hall_s').map(d => d.id), ['auditoriumSmall']);
+  assert.deepEqual(designsFor('hall_m').map(d => d.id), ['auditoriumMedium']);
+  assert.deepEqual(designsFor('hall_l').map(d => d.id), ['auditoriumLarge']);
   assert.deepEqual(designsFor(undefined).map(d => d.id), []);
 });
 
@@ -187,7 +195,13 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
   const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'trainingRoom',
     'controlRoom', 'ideationRoom'];
-  assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), []);
+  // 강당 셋(PHASE 9-a)은 **아직 아무것도 정하지 않은 공간**이다 — 자리만 만들었다.
+  const 강당 = ['auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge'];
+  assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), 강당);
+  for (const id of 강당) {
+    assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])), [],
+      `${id}: 아직 화면에 값을 보내면 안 된다`);
+  }
   // 아이디에이션은 PHASE 8-2a 에서 **조명**을, PHASE 8-2b 에서 **화각**을 정했다.
   //   나머지 항목은 여전히 전부 INHERIT 이다.
   const idea = resolveDesign('ideationRoom');
@@ -324,9 +338,12 @@ test('배치 — 디자인은 배치를 가로채지 않는다(주인은 언제�
   assert.equal(layoutPlan(normalizeDesign(undefined, 'classroom'), 'classroom').variant, 'training-grid');
   assert.equal(layoutPlan(normalizeDesign(undefined, 'control'), 'control').variant, 'curved-console');
   assert.equal(layoutPlan(normalizeDesign(undefined, 'ideation'), 'ideation').variant, 'ideation-zones');
-  // 디자인이 없는 공간은 변형도 없다 = 기존 배치 그대로.
-  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
-    assert.equal(layoutPlan(normalizeDesign(undefined, t), t).variant, null, t);
+  // 강당 셋도 변형 이름이 붙지만 **이름표일 뿐**이다 — `useBaseLayout` 이 true 라
+  //   배치는 여전히 `layoutHall` 결과 그대로다(위 반복문이 전 용도에서 확인한다).
+  for (const [t, v] of [['hall_s', 'auditorium-rows-s'], ['hall_m', 'auditorium-rows-m'],
+    ['hall_l', 'auditorium-rows-l']]) {
+    assert.equal(layoutPlan(normalizeDesign(undefined, t), t).variant, v, t);
+    assert.equal(layoutPlan(normalizeDesign(undefined, t), t).base, t, t);
   }
 });
 

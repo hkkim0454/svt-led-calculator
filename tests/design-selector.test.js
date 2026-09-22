@@ -85,9 +85,11 @@ test('⑥⑦⑧ 기본값은 대기업 회의실 — 없는 값·이상한 값�
   assert.equal(CONFIG_DEFAULTS.roomDesign, null);
   // 화면이 시작할 때도 같은 함수로 정한다(기본값을 두 곳에 적지 않는다).
   assert.match(appSrc, /let designId = normalizeDesign\(undefined, DEFAULT_ROOM_TYPE\);/);
-  // 디자인이 없는 용도는 null 이다 — 회의실 디자인이 강당에 따라붙지 않는다.
-  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
-    assert.equal(normalizeDesign(LC, t), null, t);
+  // 강당은 PHASE 9-a 에서 제 디자인이 생겼다 — 회의실 값을 넣어도 **그 용도의 것**으로
+  //   떨어지고, 회의실 디자인이 강당에 따라붙지 않는다.
+  for (const [t, id] of [['hall_s', 'auditoriumSmall'], ['hall_m', 'auditoriumMedium'],
+    ['hall_l', 'auditoriumLarge']]) {
+    assert.equal(normalizeDesign(LC, t), id, t);
   }
   // 교육장은 PHASE 7-a, 아이디에이션은 PHASE 8-2a 에서 제 디자인이 생겼다 —
   //   회의실 값을 넣어도 **그 용도의 것**으로 떨어진다.
@@ -230,10 +232,12 @@ test('⑳㉑ 대기업·임원 디자인이 한 값도 바뀌지 않았다', () 
 });
 
 test('㉙㉚ 다른 용도는 그대로 · 정식 재질 13종 유지', () => {
-  // 디자인이 붙지 않은 용도는 전부 INHERIT 다(적용해도 화면이 바뀌지 않는다).
-  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
-    assert.deepEqual(designsFor(t).map(d => d.id), [], t);
-    assert.equal(defaultDesignFor(t), null, t);
+  // 강당 셋은 PHASE 9-a 에서 자리만 만든 디자인이 하나씩 붙었다. 값은 전부 INHERIT 이거나
+  //   planned 라 적용해도 화면이 바뀌지 않는다(등록 전후 픽셀 차이 0 으로 확인).
+  for (const [t, id] of [['hall_s', 'auditoriumSmall'], ['hall_m', 'auditoriumMedium'],
+    ['hall_l', 'auditoriumLarge']]) {
+    assert.deepEqual(designsFor(t).map(d => d.id), [id], t);
+    assert.equal(defaultDesignFor(t), id, t);
   }
   // 아이디에이션도 하나뿐이라 선택칸이 뜨지 않는다(PHASE 8-2a).
   assert.deepEqual(designsFor('ideation').map(d => d.id), ['ideationRoom']);

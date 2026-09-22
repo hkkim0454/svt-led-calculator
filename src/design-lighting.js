@@ -24,7 +24,7 @@
 // 디자인이 조명을 정하지 않았으면 **null**을 돌려준다. 렌더러는 그러면 지금 하던 그대로다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=446';
+import { roomDesign, isPlanned } from './room-design.js?v=447';
 
 /** 세기 배수가 붙는 조명 자리. 조명 **개수는 바꾸지 않는다** — 자리마다 역할이 정해져 있다. */
 export const LIGHT_ROLES = Object.freeze(['hemi', 'ceiling', 'key', 'fill', 'ledSpill']);

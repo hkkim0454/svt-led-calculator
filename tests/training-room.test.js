@@ -63,8 +63,11 @@ test('② 강의실이 교육장 디자인으로 떨어진다 — 잘못된 값�
   // 다른 용도는 건드리지 않았다.
   assert.equal(normalizeDesign(undefined, 'meeting'), 'corporateMeeting');
   assert.equal(normalizeDesign(undefined, 'control'), 'controlRoom');
-  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
-    assert.equal(normalizeDesign(undefined, t), null, `${t}: 디자인이 붙으면 안 된다`);
+  // 강당은 PHASE 9-a 에서 제 디자인이 생겼다 — 교육장 디자인이 새어 가지 않는지가 핵심이다.
+  for (const [t, id] of [['hall_s', 'auditoriumSmall'], ['hall_m', 'auditoriumMedium'],
+    ['hall_l', 'auditoriumLarge']]) {
+    assert.equal(normalizeDesign(undefined, t), id, `${t}: 제 디자인이 아니다`);
+    assert.equal(normalizeDesign(TR, t), id, `${t}: 교육장 디자인이 새어 갔다`);
   }
 });
 
@@ -314,14 +317,16 @@ test('⑯ 릴리스된 네 공간과 나머지 레거시가 그대로다', () =>
   assert.equal(DESIGN_PALETTES.conferenceBright.floor, '#c0c1c0');
   assert.equal(DESIGN_PALETTES.controlPalette.floor, '#8d9095');
   assert.equal(DESIGN_PALETTES.controlPalette.wallAccent, '#5a6068');
-  // 강당에는 여전히 디자인이 없다(아이디에이션은 PHASE 8-2a 에서 생겼다).
-  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
-    assert.deepEqual(designsFor(t).map(d => d.id), [], `${t}: 디자인이 생겼다`);
+  // 강당에는 PHASE 9-a 에서 자리만 만든 디자인이 하나씩 붙었다 — 교육장 것이 섞이지 않는다.
+  for (const [t, id] of [['hall_s', 'auditoriumSmall'], ['hall_m', 'auditoriumMedium'],
+    ['hall_l', 'auditoriumLarge']]) {
+    assert.deepEqual(designsFor(t).map(d => d.id), [id], `${t}: 디자인 목록이 다르다`);
   }
-  // 디자인 목록은 여섯이고, 교육장 말고는 이름이 그대로다.
+  // 디자인 목록은 아홉이고(PHASE 8-2a 아이디에이션 · PHASE 9-a 강당 셋), 교육장 말고는
+  //   이름이 그대로다.
   assert.deepEqual([...DESIGN_IDS],
     ['corporateMeeting', 'executiveBoardroom', 'largeConference', TR, 'controlRoom',
-      'ideationRoom']);
+      'ideationRoom', 'auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge']);
 });
 
 test('⑰ 강당·아이디에이션 배치가 한 값도 바뀌지 않았다', () => {
