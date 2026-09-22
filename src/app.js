@@ -281,7 +281,7 @@ let view3dOpts = { fov: FOV_RANGE.default, topPerspective: true };
 // 표현 방식 — '심플'(평평한 다이어그램)과 '실사'(그림자·재질) 중 하나. 형상·치수는 같다.
 let render3dMode = DEFAULT_RENDER_MODE;
 const pv3dShow = {
-  person: true, dims: true, grid: true, accentWall: true, ceiling: true, viewAngle: false,
+  person: true, dims: true, grid: true, accentWall: true, ceiling: false, viewAngle: false,
   // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 2면 —
   //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
   walls: { front: true, back: false, left: true, right: false },
