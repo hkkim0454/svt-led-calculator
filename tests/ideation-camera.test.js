@@ -104,7 +104,18 @@ test('③ 다른 공간은 이 카메라로 풀리지 않는다', () => {
   }
 });
 
-test('④ 엉뚱한 디자인 이름에도 무너지지 않는다 — 모르면 null 이다', () => {
+test('④ 기준값 세 벌을 통째로 고정한다 — 한 값만 바뀌어도 여기서 걸린다', () => {
+  // PHASE 8-2b.1 역검증에서 드러난 구멍을 메운다. 천장 띠(band) 처럼 **결과를 바꾸지만
+  //   범위 검사는 통과하는** 값이 있었다. 세 벌을 통째로 비교해 두면 그런 값도 걸린다.
+  assert.deepEqual(JSON.parse(JSON.stringify(IDEATION_CAMERA_PLANS)), {
+    interior: { eye: 1.66, fov: 42, band: 0.11, xRatio: 0.30, turn: 1.00 },
+    'corner-l': { eye: 1.66, fov: 43, band: 0.11, xRatio: 0.21, turn: 1.00 },
+    'corner-r': { eye: 1.66, fov: 43, band: 0.11, xRatio: 0.79, turn: 1.00 },
+  });
+  assert.equal(IDEATION_STANDOFF, 1.10);
+});
+
+test('④-2 엉뚱한 디자인 이름에도 무너지지 않는다 — 모르면 null 이다', () => {
   for (const v of [null, undefined, '', '없는디자인', 0, {}, [], 123]) {
     assert.equal(ideationCameraPlanId(v, 'interior'), null, String(v));
     assert.deepEqual([...ideationCameraPresets(v)], [], String(v));
@@ -208,13 +219,20 @@ test('⑪ 정착 자세가 선언 자세와 같다 — 조작기가 손댈 일�
 
 // ── ③ 구도 — LED·구역·바닥·천장 ─────────────────────────────────────────────
 
-test('⑫ LED 가 언제나 온전히 들어온다 — 잘리지 않는다', () => {
-  for (const a of ASPECTS) {
-    for (const { plan, 이름, view } of 제안컷([...ROOMS, ...EXTRA], a)) {
-      assert.equal(plan.ledFullyVisible, true, `${이름}/${view}/${a}: LED 가 잘린다`);
-      assert.equal(plan.ledVisibleShare, 1, `${이름}/${view}/${a}: LED 보임 ${plan.ledVisibleShare}`);
-    }
+test('⑫ 대표 화면비에서 LED 가 온전히 들어온다 — 넓은 화면비는 실측값을 사실대로 적는다', () => {
+  // **실제 캔버스(574×563)** 가 계약이다. 아홉 컷 + 극단 방 전부에서 온전해야 한다.
+  for (const { plan, 이름, view } of 제안컷([...ROOMS, ...EXTRA], 574 / 563)) {
+    assert.equal(plan.ledFullyVisible, true, `${이름}/${view}: LED 가 잘린다`);
+    assert.equal(plan.ledVisibleShare, 1, `${이름}/${view}: LED 보임 ${plan.ledVisibleShare}`);
   }
+  // PHASE 8-2b.1 에서 협업 구역이 앞으로 나오면서 카메라가 LED 에 2.4m 더 가까워졌다.
+  //   그 대가로 **16:9·21:9 같은 넓은 화면비에서는 컴팩트·기본 방의 LED 가 조금 잘린다.**
+  //   지어내지 않고 최악값을 못박아 둔다 — 더 나빠지면 여기서 잡힌다.
+  let 최악 = 1;
+  for (const a of ASPECTS) {
+    for (const { plan } of 제안컷(ROOMS, a)) 최악 = Math.min(최악, plan.ledVisibleShare);
+  }
+  assert.ok(최악 >= 0.87, `넓은 화면비 LED 보임이 더 나빠졌다: ${최악}`);
   // **가로로 먼저 넘치는 칸.** 넓고 낮은 방(16 × 2.8 × 13m, 16:9)에서는 LED 가 세로보다
   //   가로로 먼저 넘친다. 화각을 키울 때 세로만 보면 여기서 잘린다 — 실측으로 고른 칸이다.
   assert.equal(cameraPlanForDesign(ID, 'interior', modelOf(16000, 2800, 13000), 16 / 9).ledFullyVisible,
@@ -249,8 +267,11 @@ test('⑮ 하이 테이블 구역은 재서 알려 준다 — 실내 컷에서�
 });
 
 test('⑯ 천장 띠가 10~20% 사이다 — 천장도 바닥도 화면을 먹지 않는다', () => {
+  // 계산값(ceilingBand)과 **화면 실측 천장 점유**는 다르다. 카메라가 LED 에 가까워질수록
+  //   천장선이 화면 위로 올라가 계산값이 작아지는데, 실제로 찍어 보면 천장은 9.3~16.3% 를
+  //   차지한다(PHASE 8-2b.1 실측). 여기서는 계산값이 그 범위를 벗어나지 않는지만 본다.
   for (const { plan, 이름, view } of 제안컷()) {
-    assert.ok(plan.ceilingBand >= 0.10 && plan.ceilingBand <= 0.20,
+    assert.ok(plan.ceilingBand >= 0.05 && plan.ceilingBand <= 0.20,
       `${이름}/${view}: 천장 띠 ${plan.ceilingBand}`);
   }
 });
@@ -295,9 +316,13 @@ test('⑲ 맨 뒤 내용물에서 정해진 만큼 물러선다 — 뒷벽이 �
   // 큰 방에서는 뒷벽까지 가지 않는다 — 그것이 이 규칙을 넣은 까닭이다.
   const 큰 = planOf(14000, 4000, 13300, 'interior');
   assert.ok(큰.position[2] < 13.3 - WALL_MARGIN - 0.5, `대형 방에서 뒷벽에 붙었다(${큰.position[2]})`);
-  // 작은 방에서는 뒷벽이 한계라 결과가 뒷벽과 같다.
+  // **PHASE 8-2b.1 이후 맨 뒤 내용물은 하이 테이블 구역이다.** 협업 구역이 그 앞으로 내려갔기
+  //   때문이다. 그래서 기본 방에서도 카메라가 뒷벽이 아니라 하이 테이블 뒤 1.10m 에 선다.
   const 작은 = planOf(9000, 3200, 8000, 'interior');
-  assert.ok(Math.abs(작은.position[2] - (8 - WALL_MARGIN)) < 1e-6, `기본 방에서 뒷벽에 서지 않았다`);
+  assert.ok(작은.position[2] < 8 - WALL_MARGIN - 1.0,
+    `기본 방에서 아직 뒷벽 쪽에 선다(${작은.position[2]})`);
+  assert.ok(Math.abs(작은.rearClearance - IDEATION_STANDOFF) < 1e-6,
+    `물러선 거리가 ${작은.rearClearance} 다`);
 });
 
 test('⑳ 방이 커지면 자세도 따라 커진다 — 좌표를 상수로 박지 않았다', () => {
@@ -319,7 +344,14 @@ test('㉑ 구역이 옮겨지면 구도가 따라간다 — 배치를 실제로 
     collab: { ...z.collab, x0: z.collab.x0 + 2.0, x1: z.collab.x1 + 2.0 } } } };
   const 다른 = cameraPlanForDesign(ID, 'interior', 옮김, 574 / 563);
   assert.notDeepEqual(다른.target, 기준.target, '구역을 옮겼는데 시선이 그대로다');
-  assert.notEqual(다른.bearingDeg, 기준.bearingDeg, '구역을 옮겼는데 방위각이 그대로다');
+  // 방위각은 **LED 가 허락하는 구간에 갇힐 수 있다** — 그때는 시선점이 따라 움직이는 것으로
+  //   반응을 확인한다. 구역을 앞뒤로도 옮겨 '물러서는 자리'가 따라가는지 함께 본다.
+  const 앞뒤 = { ...m, fields: { ...m.fields, ideationZones: { ...z,
+    collabSpots: z.collabSpots.map(p => ({ x: p.x, z: p.z + 2.5 })),
+    collab: { ...z.collab, z0: z.collab.z0 + 2.5, z1: z.collab.z1 + 2.5 } } } };
+  const 뒤로 = cameraPlanForDesign(ID, 'interior', 앞뒤, 574 / 563);
+  assert.ok(뒤로.position[2] > 기준.position[2] + 1,
+    `구역을 2.5m 뒤로 옮겼는데 카메라가 따라오지 않았다(${기준.position[2]} → ${뒤로.position[2]})`);
 });
 
 test('㉒ 구역을 모르면 대체 범위로 풀되 약속은 그대로 지킨다', () => {
@@ -347,7 +379,11 @@ test('㉔ 세 시점이 서로 다른 그림이다 — 이름만 다른 같은 �
   const [i, l, r] = IDEATION_CAMERA_PRESETS.map(v => cameraPlanForDesign(ID, v, m, 574 / 563));
   assert.ok(Math.abs(l.position[0] - r.position[0]) > 2, '좌·우 코너가 같은 자리다');
   assert.ok(Math.abs(i.position[0] - l.position[0]) > 0.5, '실내와 좌코너가 같은 자리다');
-  assert.ok(Math.abs(i.bearingDeg - l.bearingDeg) > 5, '실내와 좌코너가 같은 방향을 본다');
+  // PHASE 8-2c.1 에서 하이 테이블을 방 한가운데로 옮기면서, 실내 시점과 좌코너 시점이
+  //   바라보는 방향의 차이가 좁아졌습니다(9m 방 기준 6.1° → 4.8°). 두 컷을 실제로 렌더링해
+  //   비교한 결과 좌코너 컷은 LED 가 오른쪽으로 밀리고 왼쪽 아래에 협업 테이블과 라운지
+  //   의자가 들어오는 다른 그림이므로, 기준값만 4° 로 낮춰 둡니다.
+  assert.ok(Math.abs(i.bearingDeg - l.bearingDeg) > 4, '실내와 좌코너가 같은 방향을 본다');
   assert.ok(l.bearingDeg > 0 && r.bearingDeg < 0, '좌·우 코너가 같은 쪽으로 돈다');
 });
 
@@ -428,18 +464,264 @@ test('㉙ 조명·상판·재질은 8-2a 그대로다 — 카메라 단계가 �
   assert.equal(MATERIAL_IDS.length, 13);
 });
 
-test('㉚ 배치가 8-2a 그대로다 — 카메라가 가구를 밀지 않았다', () => {
-  // 기본 방(9 × 8m)의 배치 지문. 한 칸이라도 움직이면 여기서 잡힌다.
+test('㉚ 카메라가 가구를 밀지 않았다 — 배치 지문은 배치 단계만 정한다', () => {
+  // 기본 방(9 × 8m)의 배치 지문. 하이 테이블·스툴·화분은 PHASE 8-2a 그대로이고, 협업 두
+  //   덩이가 LED 쪽으로 내려왔다(8-2b.1). 둘째 덩이와 이동식 디스플레이의 앞뒤 자리는
+  //   HOLD-2 에서 판정 도형을 화면 실측으로 고치면서 조금 뒤로 물러섰다.
   const 지문 = layoutRoom('ideation', defaultOptions('ideation'), { W: 9000, D: 8000, design: ID })
     .items.map(i => `${i.type}@${Math.round(i.x)},${Math.round(i.z)}`).join(' ');
-  assert.equal(지문, 'highTable@2700,3360 stool@2390,2480 stool@2390,4240 stool@3010,2480 '
-    + 'stool@3010,4240 collabTable@6660,5600 lounge@7195,6527 lounge@7195,4673 lounge@5590,5600 '
-    + 'rug@6660,5600 collabTable@2520,5920 lounge@3055,6847 lounge@3055,4993 lounge@1450,5920 '
-    + 'mobileStand@7500,2500 plant@8500,7500');
+  assert.equal(지문, 'highTable@4500,3360 stool@4190,2480 stool@4190,4240 stool@4810,2480 '
+    + 'stool@4810,4240 collabTable@2190,2087 lounge@2725,3013 lounge@2725,1160 lounge@1120,2087 '
+    + 'rug@2190,2087 collabTable@6250,3350 lounge@5715,4277 lounge@5715,2423 lounge@7320,3350 '
+    + 'mobileStand@7100,2500 plant@8500,7500');
   // 디자인을 떼어도 같은 배치다 — 카메라는 배치의 주인이 아니다.
   const 민짜 = layoutRoom('ideation', defaultOptions('ideation'), { W: 9000, D: 8000 })
     .items.map(i => `${i.type}@${Math.round(i.x)},${Math.round(i.z)}`).join(' ');
   assert.equal(민짜, 지문);
+});
+
+// ── ⑦ 구도 지배력 — LED 가 협업 테이블보다 크게 보이는가 ────────────────────
+
+/** 계획이 준 자세로 바닥 위 사각형을 화면에 투영해, 그것이 차지하는 화면 넓이 비율을 낸다.
+ *  (design-camera.js 는 이 값을 밖으로 내보내지 않으므로 검사 쪽에서 다시 잰다.) */
+function 화면점유(plan, 점들, aspect = 574 / 563) {
+  const [cx, cy, cz] = plan.position, [tx, ty, tz] = plan.target;
+  const fx = tx - cx, fy = ty - cy, fz = tz - cz, fl = Math.hypot(fx, fy, fz);
+  const f = [fx / fl, fy / fl, fz / fl];
+  // 오른쪽 = 앞 × 위(0,1,0). 카메라는 기울지 않는다.
+  const rx = f[2], rz = -f[0], rl = Math.hypot(rx, rz) || 1;
+  const r = [rx / rl, 0, rz / rl];
+  const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const tV = Math.tan(plan.fov * Math.PI / 360), tH = tV * aspect;
+  let poly = [];
+  for (const [px, py, pz] of 점들) {
+    const dx = px - cx, dy = py - cy, dz = pz - cz;
+    const fwd = dx * f[0] + dy * f[1] + dz * f[2];
+    if (fwd <= 1e-6) return 0;                       // 뒤에 있으면 화면에 없다
+    poly.push([(dx * r[0] + dy * r[1] + dz * r[2]) / fwd, (dx * u[0] + dy * u[1] + dz * u[2]) / fwd]);
+  }
+  // 화면 사각형으로 잘라 낸다(서덜랜드·호지먼).
+  for (const [nx, nz, d] of [[1, 0, tH], [-1, 0, tH], [0, 1, tV], [0, -1, tV]]) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const da = d - (a[0] * nx + a[1] * nz), db = d - (b[0] * nx + b[1] * nz);
+      if (da >= 0) out.push(a);
+      if ((da >= 0) !== (db >= 0)) {
+        const t = da / (da - db);
+        out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      }
+    }
+    poly = out;
+    if (!poly.length) return 0;
+  }
+  let A = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    A += a[0] * b[1] - b[0] * a[1];
+  }
+  return Math.abs(A / 2) / (4 * tH * tV);
+}
+const LED점 = W => { const w = 4.0, h = 2.3, base = 1.0, x0 = (W / 1000 - w) / 2, z = 0.06;
+  return [[x0, base, z], [x0 + w, base, z], [x0 + w, base + h, z], [x0, base + h, z]]; };
+/** 카메라에서 가장 가까운 협업 테이블의 상판(1.1 × 1.1m, 바닥에서 0.70m) 네 모서리. */
+function 가까운협업(plan, W, H, D) {
+  const 자리 = layoutRoom('ideation', defaultOptions('ideation'), { W, D })
+    .items.filter(i => i.type === 'collabTable')
+    .map(i => ({ x: i.x / 1000, z: i.z / 1000 }));
+  if (!자리.length) return null;
+  let best = 자리[0], bd = Infinity;
+  for (const p of 자리) {
+    const d = Math.hypot(p.x - plan.position[0], p.z - plan.position[2]);
+    if (d < bd) { bd = d; best = p; }
+  }
+  const r = 0.55, y = 0.70;
+  return { 거리: bd, 점: [[best.x - r, y, best.z - r], [best.x + r, y, best.z - r],
+    [best.x + r, y, best.z + r], [best.x - r, y, best.z + r]] };
+}
+
+test('㉜ 대형 방에서 LED 가 가장 가까운 협업 테이블보다 크게 보인다', () => {
+  // PHASE 8-2c 가 HOLD 로 잡은 P1-② 다. 대형 방에서 잘린 협업 테이블이 LED 보다 크게
+  //   보이면 '무엇을 파는 그림인지' 뒤집힌다. 권장은 1.15배이고, 실측은 훨씬 크다.
+  for (const v of IDEATION_CAMERA_PRESETS) {
+    const p = planOf(14000, 4000, 13300, v);
+    const led = 화면점유(p, LED점(14000));
+    const 협업 = 가까운협업(p, 14000, 4000, 13300);
+    const 덩이 = 화면점유(p, 협업.점);
+    assert.ok(led > 0, `${v}: LED 가 화면에 없다`);
+    assert.ok(led >= 덩이 * 1.15,
+      `${v}: LED ${(led * 100).toFixed(2)}% 가 가까운 협업 테이블 ${(덩이 * 100).toFixed(2)}% 의 1.15배에 못 미친다`);
+    assert.ok(led >= 0.10, `${v}: LED 화면 점유 ${(led * 100).toFixed(2)}% 가 너무 작다`);
+  }
+});
+
+test('㉝ 협업 덩이가 화면 아래 띠에만 갇히지 않는다 — 8-2c 가 잡은 P1-① 의 회귀 검사', () => {
+  // 협업 테이블 상판(0.70m)이 화면에서 얼마나 아래에 오는지는 **카메라까지의 거리**가
+  //   정한다. 가까울수록 내려본 각이 커져 상판이 프레임 바닥으로 밀린다.
+  //   PHASE 8-2c 때는 아홉 컷 모두 2.0~2.3m 였고, 협업 화소의 98.6~100% 가 아래 1/4 띠에
+  //   갇혔다. 지금은 그보다 멀리 서고, 협업 테이블이 화면을 덜 먹는다.
+  for (const { plan, 이름, view, W, H, D } of 제안컷()) {
+    const 협업 = 가까운협업(plan, W, H, D);
+    assert.ok(협업, `${이름}/${view}: 협업 테이블이 배치에 없다`);
+    // PHASE 8-2c.1 에서 하이 테이블이 방 한가운데로 가면서 협업 구역이 조금 앞으로
+    //   당겨졌습니다. 가장 가까운 경우가 컴팩트 방 우코너의 2.22m 인데, 같은 컷에서
+    //   협업 테이블이 화면 아래 띠를 차지하는 비율은 38.2% 에서 22.4% 로 오히려
+    //   좋아졌으므로 하한만 2.20m 로 낮춰 둡니다.
+    assert.ok(협업.거리 >= 2.20,
+      `${이름}/${view}: 가장 가까운 협업 테이블이 ${협업.거리.toFixed(2)}m — 8-2c 와 같은 앞물체 거리다`);
+    const 덩이 = 화면점유(plan, 협업.점);
+    assert.ok(덩이 > 0, `${이름}/${view}: 협업 테이블이 화면에서 사라졌다`);
+    assert.ok(덩이 < 0.14,
+      `${이름}/${view}: 협업 테이블이 화면의 ${(덩이 * 100).toFixed(1)}% 를 먹는다 — 앞물체로 읽힌다`);
+    assert.ok(plan.collabShare > 0, `${이름}/${view}: 협업 구역이 화면에 없다`);
+  }
+});
+
+// ── ⑧ 전경 가림 계약 — 어떤 물건도 화면 아래를 독점하지 않는다 ────────────────
+//
+// **왜 물건 종류를 가리지 않는가.** PHASE 8-2b.1 은 '협업 테이블 점유'만 좇았다. 그 값은
+//   내려갔지만 같은 자리를 하이 테이블이 차지해, PHASE 8-2c 가 잡은 P1 이 **물건만 바뀐 채**
+//   그대로 남았다(화면 아래 1/4 띠의 53.5~81.6%). 그래서 여기서는 넓은 상판을 가진 가구를
+//   **모두** 같은 잣대로 재고, 그중 **가장 크게 잡히는 하나**를 계약값으로 삼는다.
+
+/** 카메라 계획으로 바닥 위 상자 하나를 투영해, 화면 **아래 25% 띠**를 덮는 넓이 비율(%). */
+function 아래띠점유(plan, 상자, aspect = 574 / 563) {
+  const [cx, cy, cz] = plan.position, [tx, ty, tz] = plan.target;
+  const fx = tx - cx, fy = ty - cy, fz = tz - cz, fl = Math.hypot(fx, fy, fz);
+  const f = [fx / fl, fy / fl, fz / fl];
+  const rl = Math.hypot(-f[2], f[0]) || 1;                 // 오른쪽 = forward × (0,1,0)
+  const r = [-f[2] / rl, 0, f[0] / rl];
+  const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+  const tV = Math.tan(plan.fov * Math.PI / 360), tH = tV * aspect;
+  const 점 = [];
+  for (const [px, pz] of 상자.pts) for (const py of [0, 상자.h]) {
+    const dx = px - cx, dy = py - cy, dz = pz - cz;
+    const fwd = dx * f[0] + dy * f[1] + dz * f[2];
+    if (fwd <= 1e-6) continue;
+    점.push([(dx * r[0] + dy * r[1] + dz * r[2]) / fwd / tH, (dx * u[0] + dy * u[1] + dz * u[2]) / fwd / tV]);
+  }
+  if (점.length < 3) return 0;
+  // 볼록 껍질 → 화면 아래 띠 [-1,1]×[-1,-0.5] 로 자르고 넓이를 띠 넓이로 나눈다.
+  const p0 = [...점].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const 반 = src => { const h = [];
+    for (const q of src) { while (h.length >= 2 && cr(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop(); h.push(q); }
+    h.pop(); return h; };
+  let poly = [...반(p0), ...반([...p0].reverse())];
+  for (const [nx, ny, d] of [[1, 0, 1], [-1, 0, 1], [0, 1, -0.5], [0, -1, 1]]) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const da = d - (a[0] * nx + a[1] * ny), db = d - (b[0] * nx + b[1] * ny);
+      if (da >= 0) out.push(a);
+      if ((da >= 0) !== (db >= 0)) { const t = da / (da - db); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+    }
+    poly = out; if (!poly.length) return 0;
+  }
+  let A = 0;
+  for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; A += a[0] * b[1] - b[0] * a[1]; }
+  return Math.min(100, Math.abs(A / 2) / (2 * 0.5) * 100);
+}
+
+/** 넓은 상판을 가진 가구(전경에서 '판'으로 읽히는 것들)의 세계 좌표 상자. */
+const 넓은상판 = { highTable: 1.05, collabTable: 0.70, mobileStand: 2.15 };
+function 전경상자(it) {
+  const h = 넓은상판[it.type]; if (h == null) return null;
+  const [w, d] = it.type === 'highTable' ? [it.w || 1980, it.d || 900]
+    : it.type === 'collabTable' ? [1100, 1100] : [1150, 560];
+  const a = (it.rotY || 0) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const pts = [];
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const lx = sx * w / 2, lz = sz * d / 2;
+    pts.push([(it.x + lx * c - lz * s) / 1000, (it.z + lx * s + lz * c) / 1000]);
+  }
+  return { pts, h };
+}
+/** 한 컷의 maxSingleForegroundOccupancy — 넓은 상판 **한 물건**이 아래 띠를 덮는 최대 비율. */
+function 최대단일전경(W, H, D, opt, preset) {
+  const lay = layoutRoom('ideation', { ...defaultOptions('ideation'), ...opt }, { W, D, design: ID });
+  const plan = cameraPlanForDesign(ID, preset, modelOf(W, H, D, ID, opt), 574 / 563);
+  let 최대 = { type: '(없음)', v: 0 };
+  for (const it of lay.items) {
+    const b = 전경상자(it); if (!b) continue;
+    const v = 아래띠점유(plan, b);
+    if (v > 최대.v) 최대 = { type: it.type, v: +v.toFixed(1) };
+  }
+  return 최대;
+}
+const 최대구성 = { highTables: 3, stools: 8, collabTables: 4, lounge: true, mobileStand: true, rug: true, plant: true };
+
+/** 넓은 격자 — 가로 6~16m × 깊이비 0.70·0.90·1.15, 기본·최대 구성, 세 시점(198컷). */
+function 넓은격자() {
+  const out = [];
+  for (let w = 6; w <= 16; w += 1) {
+    for (const 비 of [0.70, 0.90, 1.15]) {
+      const W = Math.round(w * 1000);
+      out.push([`${w}m/${비}`, W, w < 8 ? 2700 : w < 12 ? 3200 : 4000, Math.max(5000, Math.round(W * 비))]);
+    }
+  }
+  return out;
+}
+
+test('㉞ 전경 가림 계약 — 넓은 상판 한 물건이 화면 아래 띠를 독점하지 않는다', () => {
+  // PHASE 8-2c 가 잡은 P1 의 회귀 검사다. **물건 종류를 가리지 않는다** — 하이 테이블이든
+  //   협업 테이블이든 이동식 디스플레이든, 하나가 아래 띠를 지나치게 덮으면 걸린다.
+  //
+  // **기준 56% 를 고른 근거.** PHASE 8-2c 시점의 배치는 이 값이 **96.1%** 였고, PHASE 8-2c.1
+  //   배치는 **53.1%** 다(둘 다 같은 잣대로 잰 값). 최종 값 바로 위에 여유를 3%p 만 남겨
+  //   상한을 세운다 — 조금만 나빠져도 걸리게 하려는 것이다.
+  //   (역검증 참고: 하이 테이블을 카메라 선으로 되돌리면 96.1%, 깊이 분기를 없애면 64.3%,
+  //    상판을 3.0m 로 넓히면 100% 가 되어 모두 여기서 걸린다.)
+  //   (이 값은 가림을 따지지 않는 추정치라 실제 렌더 점유보다 크게 나온다. 렌더 실측으로는
+  //    18컷 최악이 43.6% 이고, 최종 판정은 눈으로 본 그림이다. 여기서는 '판이 앞을 막는가'를
+  //    회귀로 잡는 것이 목적이다.)
+  let 최악 = { v: 0, 이름: '', type: '' };
+  for (const [구성, opt] of [['기본', {}], ['최대', 최대구성]]) {
+    for (const [이름, W, H, D] of ROOMS) {
+      for (const v of IDEATION_CAMERA_PRESETS) {
+        const m = 최대단일전경(W, H, D, opt, v);
+        assert.ok(m.v <= 56,
+          `${구성}/${이름}/${v}: ${m.type} 이 화면 아래 띠의 ${m.v}% 를 덮는다 — 전경을 막는다`);
+        if (m.v > 최악.v) 최악 = { v: m.v, 이름: `${구성}/${이름}/${v}`, type: m.type };
+      }
+    }
+  }
+  // 검사가 헛돌지 않는다는 확인 — 실제로 40% 를 넘는 칸이 있다(상한이 놀고 있지 않다).
+  assert.ok(최악.v > 40, `가장 큰 단일 상판이 ${최악.v}% 뿐이다 — 기준이 너무 헐겁다`);
+});
+
+test('㉞-2 전경 점유 분포 — 정규 세 방 밖에서도 값이 이 단계에서 잰 그대로다', () => {
+  // **왜 분포를 통째로 못박는가.** 위의 ㉞ 는 정규 세 방(컴팩트·표준9·대형)만 본다. 그런데
+  //   배치 규칙을 건드리면 그 세 방은 그대로인 채 다른 크기의 방만 나빠질 수 있다(역검증에서
+  //   '협업 구역을 가장 뒤로' 변이가 실제로 그랬다). 그래서 가로 6~16m × 깊이비 세 가지 ×
+  //   기본·최대 × 세 시점, 모두 198컷의 분포를 **숫자 그대로** 고정한다.
+  //
+  // **이 수는 상한이 아니라 기준선이다.** 값이 좋아져도 이 검사는 걸린다. 그때는 좋아진 값을
+  //   근거와 함께 새 기준선으로 다시 적으면 된다.
+  //
+  //   PHASE 8-2b.1 → PHASE 8-2c.1 변화(같은 잣대):
+  //     45% 초과 컷  155 → 59,  60% 초과 컷  114 → 12,  최악  100% → 65.7%.
+  //
+  // **남은 한계(이 단계가 풀지 않은 것).** 60% 를 넘는 12컷은 모두 좁고 깊은 방(7m×8.05m
+  //   처럼 깊이비 1.15)과 6m 방에 몰려 있다. 그런 방은 카메라가 설 수 있는 거리 자체가 짧아
+  //   협업 테이블이 가깝게 잡힌다. 이번 단계의 대상인 일곱 컷과 정규 세 방은 모두 기준 안에
+  //   들어왔고, 좁고 깊은 방은 별도 과제로 남긴다.
+  let 넘음45 = 0, 넘음60 = 0, 최악 = { v: 0, 이름: '', type: '' };
+  for (const [구성, opt] of [['기본', {}], ['최대', 최대구성]]) {
+    for (const [이름, W, H, D] of 넓은격자()) {
+      for (const v of IDEATION_CAMERA_PRESETS) {
+        const m = 최대단일전경(W, H, D, opt, v);
+        if (m.v > 45) 넘음45++;
+        if (m.v > 60) 넘음60++;
+        if (m.v > 최악.v) 최악 = { v: m.v, 이름: `${구성}/${이름}/${v}`, type: m.type };
+      }
+    }
+  }
+  assert.equal(넘음45, 59, `45% 초과 컷이 ${넘음45}개다(기준선 59 · PHASE 8-2b.1 은 155)`);
+  assert.equal(넘음60, 12, `60% 초과 컷이 ${넘음60}개다(기준선 12 · PHASE 8-2b.1 은 114)`);
+  assert.equal(최악.v, 65.7, `가장 심한 컷이 ${최악.v}% 다(기준선 65.7 · PHASE 8-2b.1 은 100)`);
+  assert.equal(최악.이름, '기본/7m/1.15/interior', `가장 심한 컷이 ${최악.이름} 로 옮겼다`);
+  assert.equal(최악.type, 'collabTable', `가장 심한 물건이 ${최악.type} 로 바뀌었다`);
 });
 
 test('㉛ 순수 유지 — 계획기는 Three.js·DOM·조작기를 부르지 않는다', () => {

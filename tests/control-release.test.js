@@ -22,7 +22,8 @@ import { layoutRoom } from '../src/room-presets.js';
 
 const CR = 'controlRoom';
 // PHASE 7-c 에서 교육장이 다섯 번째로 릴리스되었다(DEC-131).
-const RELEASED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', CR, 'trainingRoom'];
+const RELEASED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', CR, 'trainingRoom',
+  'ideationRoom'];
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
 /** 주석을 지운 소스 — 설명 글에 적힌 낱말이 검사에 걸리지 않게 한다. */
 const code = f => src(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

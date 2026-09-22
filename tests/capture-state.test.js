@@ -42,6 +42,21 @@ test('① 정규화가 촬영에 영향을 주는 값을 하나도 빼놓지 않
   assert.equal(s.dpr, CANONICAL_DEFAULTS.dpr);
   assert.deepEqual({ ...s.viewport }, { ...CANONICAL_DEFAULTS.viewport });
   assert.ok(Object.isFrozen(s), '명세가 얼어 있지 않다');
+  // **정규화는 값을 옮기기만 한다 — 숫자를 만들어 내지 않는다.** 여기서 1mm 라도 더하거나
+  //   기본값을 바꾸면 같은 명세가 다른 화면을 찍게 되고, 결정적 촬영이 무너진다.
+  //   (PHASE 8-2b.1 HOLD-2 역검증에서 `ledHmm + 1` 변형이 아무 검사에도 걸리지 않아 넣었다.)
+  for (const [키, 준값] of [['ledHmm', 2345], ['ledWmm', 3210], ['ledBaseMm', 987],
+                            ['widthMm', 8765], ['heightMm', 3456], ['depthMm', 7654]]) {
+    const t = normalizeCaseSpec({ id: 'x', roomType: 'meeting', widthMm: 10000,
+      heightMm: 3500, depthMm: 10000, [키]: 준값 });
+    assert.equal(t[키], 준값, `${키} 가 준 값 그대로 오지 않는다`);
+  }
+  // 값을 주지 않으면 기준점 값이 **그대로** 온다.
+  assert.equal(s.ledWmm, CANONICAL_DEFAULTS.ledWmm);
+  assert.equal(s.ledHmm, CANONICAL_DEFAULTS.ledHmm);
+  assert.equal(CANONICAL_DEFAULTS.ledHmm, 2300);
+  assert.equal(CANONICAL_DEFAULTS.ledWmm, 4000);
+  assert.equal(CANONICAL_DEFAULTS.ledBaseMm, 1000);
 });
 
 test('② 빠진 값이 있으면 조용히 넘어가지 않고 멈춘다', () => {

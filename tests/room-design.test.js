@@ -289,7 +289,8 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   }
   // 릴리스 게이트를 통과한 다섯 공간이 ready 다.
   //   임원은 PHASE 3-e, 대회의실은 PHASE 4-e, 상황실은 PHASE 5-e, 교육장은 PHASE 7-c 에서 판정을 받았다.
-  const 릴리스 = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom', 'trainingRoom'];
+  const 릴리스 = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom',
+    'trainingRoom', 'ideationRoom'];
   for (const id of 릴리스) {
     assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.READY, id);
   }

@@ -327,8 +327,9 @@ export const ROOM_DESIGNS = Object.freeze({
     label: '아이디에이션 · 협업 공간',
     roomType: 'ideation',
     layoutVariant: 'ideation-zones',
-    // **아직 ready 가 아니다.** 화각(8-2b)과 릴리스 게이트(8-2c)가 남아 있다.
-    status: DESIGN_STATUS.PLANNED,
+    // PHASE 8-2c 릴리스 게이트(RERUN #2, 2026-09-22)를 통과해 **ready** 가 되었다.
+    //   (status 는 표시용 한 줄이고 그리는 코드는 이 값을 읽지 않는다 — 승급 전후 픽셀 차이 0.)
+    status: DESIGN_STATUS.READY,
     phase: 8,
     // 가구를 적지 않는다(INHERIT) — 배치가 이미 전용 자산을 세운다(교육장과 같은 이유).
     furniture: INHERIT,
