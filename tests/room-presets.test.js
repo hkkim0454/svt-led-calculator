@@ -592,10 +592,19 @@ test('아이디에이션 — 줄·열이 아니라 구역 배치이고, 가운�
   const maxSameRow = Math.max(...zs.map(z => zs.filter(v => v === z).length));
   assert.ok(maxSameRow <= 2, `한 줄에 ${maxSameRow}석이 늘어섰다 — 줄 배치처럼 보인다`);
 
-  // 방 한가운데는 비워 둔다(개방감). 중앙 2.4m 사각 안에 가구가 없어야 한다.
-  const near = res.items.filter(i => Math.abs(i.x - W / 2) < 1200 && Math.abs(i.z - D / 2) < 1200
+  // **가운데를 비우는 규칙은 PHASE 8-2c.1 에서 바뀌었다.**
+  //   예전에는 개방감을 위해 중앙 2.4m 사각을 통째로 비웠다. 그런데 제안 카메라는 '맨 뒤
+  //   내용물 뒤 1.10m' 에 서므로, 가운데가 비면 그 자리를 대신 차지한 하이 테이블이 카메라
+  //   바로 앞에 오면서 화면 아래 1/4 띠의 53.5~81.6% 를 덮었다(PHASE 8-2c 가 잡은 P1).
+  //   그래서 이제는 **서서 쓰는 하이 테이블 구역만** 가운데에 서고, 앉는 가구(협업 테이블·
+  //   라운지 의자)와 이동식 디스플레이는 그대로 가운데를 비운다. 하이 테이블은 상판이
+  //   1.05m 로 높고 다리 사이가 뚫려 있어서 시야를 막지 않는다.
+  const 가운데 = res.items.filter(i => Math.abs(i.x - W / 2) < 1200 && Math.abs(i.z - D / 2) < 1200
     && i.type !== 'rug');
-  assert.equal(near.length, 0, `가운데에 ${near.map(i => i.type).join(',')}`);
+  const 앉는것 = 가운데.filter(i => !['highTable', 'stool'].includes(i.type));
+  assert.equal(앉는것.length, 0, `가운데에 ${앉는것.map(i => i.type).join(',')}`);
+  assert.deepEqual([...new Set(가운데.map(i => i.type))].sort(), ['highTable', 'stool'],
+    '하이 테이블 구역이 가운데에서 사라졌다 — 전경 가림 교정이 되돌아갔다');
 });
 
 test('아이디에이션 — 가구 수를 바꿔도 방 안에 들어가고, 모두 끄면 빈 공간이 된다', () => {

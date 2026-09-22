@@ -883,10 +883,28 @@ function layoutIdeation(o, W, D) {
   // ① 하이 테이블 구역 — 서서 쓰는 협업 테이블. 스툴을 둘레에 고르게 돌린다.
   const htW = clamp(W * 0.22, 1200, 2200), htD = 900;
   const nHT = clamp(o.highTables, 0, 3);
-  const htSpots = [[0.30, 0.42], [0.72, 0.42], [0.50, 0.30]];
+  // **하이 테이블 자리 — PHASE 8-2c.1 에서 다시 잡았다(전경 가림 교정).**
+  //
+  //   제안 카메라는 '맨 뒤 내용물 뒤 1.10m' 에 선다(PHASE 8-2b). 그리고 실내 시점이 서는
+  //   가로 비율이 **0.30**, 왼쪽 코너가 **0.21** 이다. 예전 첫 하이 테이블 자리가 바로 그
+  //   0.30 이어서, 카메라가 하이 테이블 **바로 뒤·같은 좌우 선상**에 섰다. 그 결과 폭 2m
+  //   짜리 상판이 1.7m 앞에서 화면 아래 1/4 띠의 **53.5~81.6%** 를 덮었다(PHASE 8-2c 실측).
+  //   무늬 없는 판이 전경을 가려 제안서로 쓸 수 없는 그림이 됐다.
+  //
+  //   그래서 두 가지를 바꾼다.
+  //     ① 첫 자리를 **방 가운데(0.50)** 로 옮겨 카메라 정면을 비운다.
+  //     ② 깊이가 넉넉하면 둘째·셋째를 **LED 쪽 앞줄(0.30)** 로 내린다. 카메라는 맨 뒤를
+  //        따라가므로 앞줄로 내려간 테이블은 그만큼 멀어진다.
+  //   깊이가 모자라면 예전처럼 한 줄에 세우되 **양 끝부터** 놓는다. 가운데를 먼저 놓으면
+  //   좁은 방에서 양옆이 가운데 것과 부딪혀 둘 다 빠지고 정원이 준다(6m 방 16 → 8).
+  const htHalfZ0 = htD / 2 + 700;
+  const 두줄 = (D - pad - front) >= htHalfZ0 * 4;
+  const htSpots = 두줄
+    ? [[0.50, 0.42], [0.20, 0.30], [0.80, 0.30]]
+    : [[0.20, 0.42], [0.80, 0.42], [0.50, 0.42]];
   const nStool = clamp(o.stools, 0, 8);
   let stools = 0, putHT = 0;
-  const htHalfX = htW / 2, htHalfZ = htD / 2 + 700;
+  const htHalfX = htW / 2, htHalfZ = htHalfZ0;
   for (let i = 0; i < nHT; i++) {
     const [tx, tz] = htSpots[i];
     const x0 = px(tx, htHalfX), z0 = pz(tz, htHalfZ);
@@ -1004,7 +1022,12 @@ function layoutIdeation(o, W, D) {
   if (o.mobileStand) {
     const mem = placeIdeationZone(placed,
       (x, z) => [{ type: 'mobileStand', x, z, rotY: -35 }],
-      px(0.90, 700), pz(0.16, 700), [pad + 700, W - pad - 700], [front + 700, D - pad - 700]);
+      px(0.90, 700), pz(0.16, 700), [pad + 700, W - pad - 700],
+      // **이동식 디스플레이는 방 앞쪽 절반 안에만 선다.** 화면을 보여 주는 물건이라 LED 벽
+      //   가까이 두는 것이 실제 쓰임이고, 뒤로 밀리면 제안 카메라 바로 앞에서 2.15m 짜리
+      //   검은 판이 되어 LED 를 가린다(PHASE 8-2c.1 시험에서 컴팩트 우코너가 그랬다).
+      //   앞쪽에 자리가 없으면 놓지 않고 안내에 남긴다.
+      [front + 700, Math.max(front + 700, D * 0.45)]);
     if (mem) { if (mem[0].x !== px(0.90, 700) || mem[0].z !== pz(0.16, 700)) 옮김++; 자리잡음(mem); }
     else 뺌++;
   }
