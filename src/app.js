@@ -13,7 +13,7 @@ import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=447';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign,
 } from './room-presets.js?v=447';
 import { createViewerGL } from './render3d-gl.js?v=447';
-import { buildGLModel, CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset } from './gl-model.js?v=447';
+import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=447';
 import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=447';
 import { normalizeDesign, designsFor } from './room-design.js?v=447';
 import { FOV_RANGE, clampFov } from './gl-model.js?v=447';
@@ -273,7 +273,11 @@ let roomOpts = defaultOptions(DEFAULT_ROOM_TYPE);
 //   값이 없거나 그 용도에 없는 디자인이면 normalizeDesign()이 **그 용도의 기본 디자인**으로 떨어뜨린다.
 let designId = normalizeDesign(undefined, DEFAULT_ROOM_TYPE);
 let cubeViewId = DEFAULT_CUBE_VIEW;   // (구 Canvas 뷰의 시점 id — 구성 저장 호환용으로만 남긴다)
-let presetId = DEFAULT_PRESET;        // 3D 카메라 시점 프리셋
+// 3D 미리보기를 열 때의 기본 시점. 눈높이 '실내'는 위아래 회전 한계에 붙어 있어
+//   위로 기울이기가 막힌다(오너 요청 2026-09-22). '정면'은 위·아래 양방향으로 조작되므로
+//   미리보기 시작 시점만 정면으로 연다. 공용 기본값(DEFAULT_PRESET)·리셋·다른 공간은 그대로 둔다.
+const PREVIEW_DEFAULT_PRESET = 'front';
+let presetId = PREVIEW_DEFAULT_PRESET;   // 3D 카메라 시점 프리셋
 let customViews = [];                 // 사용자가 저장한 시점(구성과 함께 저장된다)
 let viewEditMode = false;             // 시점 편집 모드 — 켜면 '+'(저장)와 '×'(삭제)가 보인다
 // 시점 옵션 — 화각(도)과 평면도 원근 여부. 3D 뷰 전용이라 구성 저장에는 넣지 않는다.
@@ -842,6 +846,9 @@ function renderPreview3D() {
     if (!viewer3d) gl3dFailed = true;
     // 시점 옵션(화각·평면도 원근)을 뷰어에 알려 준다 — 첫 배치 전에 걸어 둬야 첫 화면부터 반영된다.
     viewer3d?.setViewOptions(view3dOpts, { animate: false });
+    // 첫 화면을 '정면'으로 연다(오너 요청 2026-09-22). 아직 모델이 없으면 뷰어는 이 값을
+    //   기억만 하고, 첫 setModel 때 이 시점으로 그린다. 사용자가 시점을 고르면 그 값이 우선한다.
+    viewer3d?.setPreset(PREVIEW_DEFAULT_PRESET, { animate: false });
     // 자동 검증(헤드리스 브라우저)에서 카메라 상태를 읽기 위한 손잡이.
     //   읽기 전용 정보만 노출한다 — 화면 동작에는 영향이 없다.
     if (viewer3d) window.__svtViewer3d = viewer3d;
@@ -1153,7 +1160,7 @@ function buildInspector() {
       const del = e.target.closest('[data-viewdel]');
       if (del) {
         customViews = customViews.filter(v => v.id !== del.dataset.viewdel);
-        if (presetId === del.dataset.viewdel) presetId = DEFAULT_PRESET;
+        if (presetId === del.dataset.viewdel) presetId = PREVIEW_DEFAULT_PRESET;
         renderPresetBar(); saveLastSession();
         return;
       }
