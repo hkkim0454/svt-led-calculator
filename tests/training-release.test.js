@@ -26,7 +26,8 @@ import { MODELS } from '../src/models.js';
 import { computeConfig } from '../src/engine.js';
 
 const TR = 'trainingRoom';
-const 릴리스 = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom', TR];
+const 릴리스 = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom', TR,
+  'ideationRoom'];
 const ASP = 574 / 563;   // 실제 캔버스 비율
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
 const code = f => src(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

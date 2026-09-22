@@ -56,8 +56,8 @@ test('③ 다른 방의 디자인이 아이디에이션으로 새어 들지 않�
   assert.equal(normalizeDesign('ideationRoom', 'hall_m'), null);
 });
 
-test('④ 아직 ready 가 아니다 — 화각(8-2b)과 릴리스 게이트(8-2c)가 남아 있다', () => {
-  assert.equal(ROOM_DESIGNS.ideationRoom.status, DESIGN_STATUS.PLANNED);
+test('④ 릴리스 게이트를 통과해 ready 다 — 화각(8-2b) · 전경 교정(8-2c.1) · 게이트(8-2c RERUN #2)', () => {
+  assert.equal(ROOM_DESIGNS.ideationRoom.status, DESIGN_STATUS.READY);
   assert.equal(ROOM_DESIGNS.ideationRoom.phase, 8);
 });
 
