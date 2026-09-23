@@ -21,8 +21,11 @@ const 대회의실옵션 = Object.freeze({ ...회의실옵션, tableDir: 'across
 const 강의실옵션 = Object.freeze({ deskType: 'single', rows: 4, cols: 4, aisle: true, podium: true, plant: false });
 const 상황실옵션 = Object.freeze({ consoleRows: 2, perRow: 4, tiers: 1, riserH: 200, tierStartRow: 0,
   backTable: true, plant: false });
-const 강당옵션 = (rows, seatsPerRow, aisles) => Object.freeze({ rows, seatsPerRow, aisles,
-  stage: true, stageStep: true, tiers: 1, riserH: 200, tierStartRow: 0, occupancy: 0, plant: false });
+// 강당은 줄 수·줄당 좌석 수·단 수가 **0 = 자동**이다(PHASE 9-b). 컷에도 제품 기본값
+//   그대로 0 을 적어 둔다 — 자동으로 정해지는 구성이 곧 오너가 보는 화면이기 때문이다.
+//   한 단 높이(riserH)만 크기별 기본값이 달라 인자로 받는다.
+const 강당옵션 = (aisles, riserH) => Object.freeze({ rows: 0, seatsPerRow: 0, aisles,
+  stage: true, stageStep: true, tiers: 0, riserH, tierStartRow: 0, occupancy: 0, plant: false });
 const 아이디에이션옵션 = Object.freeze({ highTables: 1, stools: 4, collabTables: 2, lounge: true,
   mobileStand: true, rug: true, plant: true });
 
@@ -59,16 +62,16 @@ export const CAPTURE_CASES = Object.freeze([
   { id: 'training-top', roomType: 'classroom', design: 'trainingRoom',
     widthMm: 12000, heightMm: 3400, depthMm: 10000, view: 'top', options: 강의실옵션, ...기본 },
 
-  // ── 레거시(범위 밖이지만 회귀 감시 대상) ──────────────────────────────────
+  // ── 강당(PHASE 9-b 에서 좌석·통로·단차 재설계) · 아이디에이션 ────────────
   { id: 'hall-s-interior', roomType: 'hall_s', design: null,
-    widthMm: 10000, heightMm: 4000, depthMm: 12000, view: 'interior', options: 강당옵션(6, 10, '1'), ...기본 },
+    widthMm: 10000, heightMm: 4000, depthMm: 12000, view: 'interior', options: 강당옵션('1', 200), ...기본 },
   { id: 'hall-m-interior', roomType: 'hall_m', design: null,
-    widthMm: 18000, heightMm: 6000, depthMm: 20000, view: 'interior', options: 강당옵션(10, 16, '2'), ...기본 },
+    widthMm: 18000, heightMm: 6000, depthMm: 20000, view: 'interior', options: 강당옵션('2', 220), ...기본 },
   // 좌석이 많은 시점 — 인스턴싱·그림자가 가장 많이 걸리는 칸이다.
   { id: 'hall-l-interior', roomType: 'hall_l', design: null,
-    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'interior', options: 강당옵션(16, 24, '2'), ...기본 },
+    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'interior', options: 강당옵션('2', 250), ...기본 },
   { id: 'hall-l-iso', roomType: 'hall_l', design: null,
-    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'iso', options: 강당옵션(16, 24, '2'), ...기본 },
+    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'iso', options: 강당옵션('2', 250), ...기본 },
   { id: 'ideation-interior', roomType: 'ideation', design: null,
     widthMm: 9000, heightMm: 3200, depthMm: 8000, view: 'interior', options: 아이디에이션옵션, ...기본 },
   { id: 'ideation-corner-l', roomType: 'ideation', design: null,

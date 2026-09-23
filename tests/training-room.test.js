@@ -24,7 +24,7 @@ import {
   consoleFinishForDesign, credenzaFinishForDesign, tablePartFinishForDesign,
 } from '../src/design-finish.js';
 import { MATERIAL_IDS, resolveMaterialId, PART_MATERIAL, moodFor, floorFinishFor } from '../src/materials.js';
-import { layoutRoom, defaultOptions, FURNITURE } from '../src/room-presets.js';
+import { layoutRoom, defaultOptions, FURNITURE, AUDITORIUM_SEATING } from '../src/room-presets.js';
 import { DIMS, FURNITURE_ASSETS } from '../src/furniture-assets.js';
 import { lightingPreset } from '../src/design-lighting.js';
 import { cameraPlanForDesign, controlCameraPlanId, conferenceCameraPlanId,
@@ -345,12 +345,15 @@ test('⑰ 강당·아이디에이션 배치가 한 값도 바뀌지 않았다', 
   // 강당·아이디에이션이 여전히 계산되고 좌석 수가 유지되는지.
   assert.ok(지문('hall_m', 18000, 20000).length > 100);
   const hall = layoutRoom('hall_m', defaultOptions('hall_m'), { W: 18000, D: 20000 });
-  assert.equal(hall.placed.seats, 160);
+  // PHASE 9-b 에서 중강당 기본 구성이 14줄 × 20석 = 280석으로 바뀌었다(레거시 160석).
+  assert.equal(hall.placed.seats, 280);
   // 좌석 **간격**도 고정한다 — 좌석 수만 보면 간격이 바뀌어도 잡히지 않는다(역검증에서 드러났다).
-  assert.equal(FURNITURE.seatPitchX, 550, '강당 좌석 열 간격이 바뀌었다');
-  assert.equal(FURNITURE.seatPitchZ, 950, '강당 좌석 줄 간격이 바뀌었다');
+  //   강당은 이제 크기별 표를 쓰고, 공용 상수는 **움직이지 않는다**(교육장이 함께 쓴다).
+  assert.equal(FURNITURE.seatPitchX, 550, '공용 좌석 열 간격이 바뀌었다');
+  assert.equal(FURNITURE.seatPitchZ, 950, '공용 좌석 줄 간격이 바뀌었다');
+  assert.equal(AUDITORIUM_SEATING.hall_m.pitchZ, 1000, '중강당 줄 간격 표가 바뀌었다');
   const 좌석z = [...new Set(hall.items.filter(i => i.type === 'seat').map(i => Math.round(i.z)))].sort((a, b) => a - b);
-  assert.equal(좌석z[1] - 좌석z[0], 950, '강당 줄 간격 실측이 바뀌었다');
+  assert.equal(좌석z[1] - 좌석z[0], 1000, '강당 줄 간격 실측이 바뀌었다');
   // 교육장 책상 간격도 함께 못박는다.
   assert.equal(FURNITURE.deskPitchX, 1700);
   assert.equal(FURNITURE.deskPitchZ, 1550);
