@@ -39,9 +39,11 @@ const 강당 = Object.freeze([
   ['hall_m', 'auditoriumMedium', 'auditorium-rows-m', '중강당'],
   ['hall_l', 'auditoriumLarge', 'auditorium-rows-l', '대강당'],
 ]);
-/** 릴리스를 마친 여섯 공간 — 이 단계가 한 값도 건드리면 안 되는 곳이다. */
+/** 강당보다 먼저 릴리스한 여섯 공간 — 강당 작업이 한 값도 건드리면 안 되는 곳이다. */
 const 동결 = Object.freeze(['corporateMeeting', 'executiveBoardroom', 'largeConference',
   'controlRoom', 'trainingRoom', 'ideationRoom']);
+/** PHASE 9-f 이후 릴리스를 마친 **아홉 공간** — 강당 셋이 더해졌다(DEC-146). */
+const 릴리스 = Object.freeze([...동결, 'auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge']);
 
 // ── ① 디자인 층 등록 ────────────────────────────────────────────────────────
 
@@ -79,13 +81,19 @@ test('② 저장값이 엉뚱해도 그 크기의 강당 디자인으로 떨어�
   }
 });
 
-test('③ 상태는 planned 다 — 릴리스 게이트(PHASE 9-f) 전에는 ready 로 올리지 않는다', () => {
+test('③ 상태는 ready 다 — PHASE 9-e 릴리스 게이트를 통과해 PHASE 9-f 에서 승격했다', () => {
+  // **이 검사가 뜻하는 것.** 강당 셋이 이제 동결 대상이다. 아래 ㊽~㋀ 가 그 내용을 지킨다.
+  //   중간 상태는 만들지 않는다 — 모든 디자인은 ready 아니면 planned 다.
   for (const [, id] of 강당) {
-    assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.PLANNED, `${id}: 상태가 planned 가 아니다`);
+    assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.READY, `${id}: 상태가 ready 가 아니다`);
   }
-  // 릴리스를 마친 여섯 공간만 ready 다.
   const ready = DESIGN_IDS.filter(id => ROOM_DESIGNS[id].status === DESIGN_STATUS.READY);
-  assert.deepEqual(ready.sort(), [...동결].sort(), 'ready 인 공간 목록이 달라졌다');
+  assert.deepEqual(ready.sort(), [...릴리스].sort(), 'ready 인 공간 목록이 달라졌다');
+  assert.equal(ready.length, 9, '릴리스한 공간이 아홉 벌이 아니다');
+  for (const id of DESIGN_IDS) {
+    if (릴리스.includes(id)) continue;
+    assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.PLANNED, `${id}: 중간 상태가 생겼다`);
+  }
 });
 
 // ── ② 이 단계의 핵심 안전장치 — 붙였지만 화면에는 아무 값도 도달하지 않는다 ──
@@ -1272,4 +1280,60 @@ test('㊼ 강당 카메라 표 — 모양·범위가 정해져 있고 밖에서 
   assert.equal(AUDITORIUM_MIN_HOUSE_AHEAD, 0.30);
   assert.equal(AUDITORIUM_STAND_EYE, 1.70);
   assert.equal(AUDITORIUM_ROW_GAP, 0.5);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-f — 강당 V1 릴리스 · 동결 계약 (DEC-146)
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-e 릴리스 게이트를 통과해 강당 셋이 `ready` 가 되었다. 이제 강당은 앞서 릴리스한
+//   여섯 공간과 **같은 자격의 Golden Reference** 다 — 뒤 단계가 강당을 고치려면 이 검사를
+//   의도적으로 다시 써야 하고, 그때 근거를 문서에 남겨야 한다.
+//
+// **계약을 한 장으로 둔다.** 각 항목은 이미 앞 단계 검사들이 지키고 있다(㉕~㊼). 여기서는
+//   '릴리스 시점의 값'을 한자리에 모아 못박아, 어느 값이 바뀌었는지 한눈에 드러나게 한다.
+
+test('㊽ 강당 V1 동결 — 릴리스 시점의 구성이 한 값도 바뀌지 않는다', () => {
+  const 기준 = {
+    auditoriumSmall: { roomType: 'hall_s', seats: 84, rows: 7, perRow: 12, aisles: 1, aisleW: 1200,
+      tiers: 1, riserH: 200, stage: [7000, 2200, 300], led: [4000, 2300], rearEmpty: 2300 },
+    auditoriumMedium: { roomType: 'hall_m', seats: 280, rows: 14, perRow: 20, aisles: 2, aisleW: 1400,
+      tiers: 4, riserH: 220, stage: [11500, 2800, 450], led: [5200, 3000], rearEmpty: 2600 },
+    auditoriumLarge: { roomType: 'hall_l', seats: 418, rows: 19, perRow: 22, aisles: 2, aisleW: 1600,
+      tiers: 5, riserH: 250, stage: [13900, 3200, 600], led: [7100, 4000], rearEmpty: 4300 },
+  };
+  for (const [id, e] of Object.entries(기준)) {
+    const d = ROOM_DESIGNS[id];
+    // ① 수명주기 — ready 이고, 화면에 보내는 값은 조명과 화각 둘뿐이다.
+    assert.equal(d.status, DESIGN_STATUS.READY, `${id}: ready 가 아니다`);
+    assert.equal(d.roomType, e.roomType, `${id}: 용도가 바뀌었다`);
+    assert.equal(d.lighting, 'auditoriumStage', `${id}: 조명 프리셋이 바뀌었다`);
+    assert.equal(d.camera, 'auditoriumProposal', `${id}: 제안 화각이 바뀌었다`);
+    for (const f of ['furniture', 'palette', 'materials', 'wallTreatment', 'accessories']) {
+      assert.equal(d[f], INHERIT, `${id}.${f} 가 값을 갖게 되었다`);
+    }
+    // ② 배치 — 좌석·줄·통로·단·무대·LED 권장 크기·뒤 여유.
+    const { W, H, D, ledW, ledH } = 강당방[e.roomType];
+    const lay = layoutRoom(e.roomType, defaultOptions(e.roomType), { W, D, design: id, ledW, ledBottom: 1000 });
+    const p = lay.placed;
+    assert.deepEqual([p.seats, p.rows, p.perRow, p.tiers, p.riserH, p.aisleW, p.rearEmpty],
+      [e.seats, e.rows, e.perRow, e.tiers, e.riserH, e.aisleW, e.rearEmpty], `${id}: 좌석 구성이 바뀌었다`);
+    assert.equal(p.blocks.length - 1, e.aisles, `${id}: 통로 수가 바뀌었다`);
+    const st = lay.items.find(i => i.type === 'stage');
+    assert.deepEqual([st.w, st.d, st.h], e.stage, `${id}: 무대 치수가 바뀌었다`);
+    const led = auditoriumLedSize(e.roomType, { W, H, D, ledBottom: 1000,
+      lastRowZ: p.firstRowZ + (p.rows - 1) * p.pitchZ });
+    assert.deepEqual([led.w, led.h], e.led, `${id}: LED 권장 크기가 바뀌었다`);
+    // ③ 라우팅 — 제안 세 시점만 강당 화각으로 풀리고, 기술 세 시점은 손대지 않는다.
+    assert.deepEqual([...auditoriumCameraPresets(id)], ['interior', 'corner-l', 'corner-r'], id);
+    for (const v of ['front', 'iso', 'top']) {
+      assert.equal(auditoriumCameraPlanId(id, v), null, `${id}/${v}: 기술 시점을 가로챘다`);
+    }
+    // ④ 마감 라우팅 — 강당 디자인에만 붙고 다른 공간에는 null 이다.
+    assert.ok(auditoriumSurfaceFinish(id), `${id}: 강당 마감이 붙지 않는다`);
+  }
+  // 동결 여섯 공간은 강당 마감·화각을 한 조각도 받지 않는다.
+  for (const id of 동결) {
+    assert.equal(auditoriumSurfaceFinish(id), null, `${id}: 강당 마감이 새어 들어갔다`);
+    assert.deepEqual([...auditoriumCameraPresets(id)], [], `${id}: 강당 화각이 새어 들어갔다`);
+  }
 });

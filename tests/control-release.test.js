@@ -22,15 +22,16 @@ import { layoutRoom } from '../src/room-presets.js';
 
 const CR = 'controlRoom';
 // PHASE 7-c 에서 교육장이 다섯 번째로 릴리스되었다(DEC-131).
+//   PHASE 9-f 에서 강당 셋이 일곱~아홉 번째로 릴리스되어 **아홉 벌**이 되었다(DEC-146).
 const RELEASED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', CR, 'trainingRoom',
-  'ideationRoom'];
+  'ideationRoom', 'auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge'];
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
 /** 주석을 지운 소스 — 설명 글에 적힌 낱말이 검사에 걸리지 않게 한다. */
 const code = f => src(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 // ── ① 승급 규칙 ──────────────────────────────────────────────────────────────
 
-test('① 상황실이 ready 로 승급했고, 릴리스를 마친 다섯 공간만 ready 다', () => {
+test('① 상황실이 ready 로 승급했고, 릴리스를 마친 공간만 ready 다', () => {
   assert.equal(ROOM_DESIGNS[CR].status, DESIGN_STATUS.READY, '상황실이 아직 ready 가 아니다');
   for (const id of RELEASED) {
     assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.READY, `${id}: ready 가 아니다`);

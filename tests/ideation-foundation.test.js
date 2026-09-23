@@ -626,7 +626,7 @@ test('⑲ 릴리스된 다섯 공간의 계약이 그대로다', () => {
   assert.equal(ROOM_DESIGNS.controlRoom.camera, 'controlProposal');
 });
 
-test('⑳ 강당 디자인이 화면에 보내는 것은 조명과 화각뿐이다 (PHASE 9-d.2 에서 갱신)', () => {
+test('⑳ 강당 디자인이 화면에 보내는 것은 조명과 화각뿐이다 (PHASE 9-f 에서 갱신)', () => {
   // PHASE 9-a 는 자리만 만들었고(전부 INHERIT/planned), PHASE 9-d.1 이 **조명**을, PHASE 9-d.2 가
   //   **화각**을 실제로 채웠다. 나머지 다섯 항목은 여전히 '디자인 없음'과 한 값도 다르지 않다 —
   //   가구·팔레트·재질·벽 마감·소품은 뒤 단계의 몫이다.
@@ -644,7 +644,8 @@ test('⑳ 강당 디자인이 화면에 보내는 것은 조명과 화각뿐이�
     // 조명과 화각만 값이 있다 — 그리고 둘 다 강당 전용 이름이다(다른 공간 것이 아니다).
     assert.equal(해석.lighting, 'auditoriumStage', `${id}: 조명이 강당 전용이 아니다`);
     assert.equal(해석.camera, 'auditoriumProposal', `${id}: 화각이 강당 전용이 아니다`);
-    assert.equal(roomDesign(id).status, DESIGN_STATUS.PLANNED, `${id}: ready 로 올라갔다`);
+    // PHASE 9-f 에서 릴리스 게이트를 통과해 ready 가 되었다(DEC-146).
+    assert.equal(roomDesign(id).status, DESIGN_STATUS.READY, `${id}: ready 가 아니다`);
     assert.equal(moodFor(t), 'office', t);
     assert.equal(floorFinishFor(t), 'carpetTile', t);
   }
