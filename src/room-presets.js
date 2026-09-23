@@ -54,9 +54,9 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=447';
-import { conferenceAVItems } from './conference-av.js?v=447';
-import { controlAVItems } from './control-av.js?v=447';
+import { isOccupied } from './viewangle.js?v=449';
+import { conferenceAVItems } from './conference-av.js?v=449';
+import { controlAVItems } from './control-av.js?v=449';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -69,6 +69,55 @@ export const FURNITURE = Object.freeze({
   wallClear: 800,         // 벽에서 띄우는 최소 거리
   frontClear: 1800,       // LED 벽 앞 여유(첫 줄까지)
 });
+
+// ── 강당 전용 좌석 규칙(PHASE 9-b) ──────────────────────────────────────────
+// 소·중·대 강당이 **같은 그림을 확대·축소한 것처럼** 보이던 문제를 푸는 표다. 세 크기가
+//   첫 줄 위치(4,200mm) · 줄 간격(950mm) · 좌석 간격(550mm) · 통로 폭(1,200mm)을 모두
+//   똑같이 쓰고 있었고, 그래서 방이 커질수록 뒤쪽 바닥만 넓게 비었다(대강당 9,550mm).
+//
+// **공용 상수(`FURNITURE.seatPitchX/seatPitchZ/aisleW`)는 손대지 않는다.** `aisleW` 는
+//   교육장(강의실)이 함께 쓰고, 좌석 간격은 기존 검사가 기준으로 삼고 있다. 강당에서만
+//   쓰는 값을 여기에 따로 두어, 강당을 고쳐도 다른 용도가 흔들리지 않게 한다.
+//
+// 각 값의 뜻:
+//   pitchX/pitchZ  좌석 좌우 간격 / 줄 간격(mm). 큰 강당일수록 넉넉하게 준다.
+//   aisleW         통로 하나의 폭(mm).
+//   frontGap       무대 뒷면(또는 LED 앞 여유)에서 첫 줄까지 띄우는 거리(mm).
+//   rearMin/Max/Aim 맨 뒷줄과 뒤 벽 사이에 남길 거리(mm). Aim 을 목표로 줄 수를 정하고,
+//                  Min 보다 좁아지지 않게 한다. 0 으로 만들지 않는다(뒤쪽 통행로).
+//   maxSeats       자동으로 놓는 좌석 수 상한. **그리기 예산**을 지키려는 값이다
+//                  (대강당 기본 구성이 삼각형 200,000개를 넘지 않아야 한다).
+//   centerShare    통로가 둘(블록 셋)일 때 가운데 블록이 가져갈 비율. 0 이면 고르게 나눈다.
+//   rowsPerTier    단 하나에 들어갈 줄 수(자동 단 수 계산의 기준).
+//   riserH         한 단 높이(mm) 기본값.
+export const AUDITORIUM_SEATING = Object.freeze({
+  // 소강당 — 아담하게. 단차 없이 평평한 바닥이 어울린다(줄이 적어 시야가 막히지 않는다).
+  hall_s: Object.freeze({ pitchX: 570, pitchZ: 950, aisleW: 1200, frontGap: 1400,
+    rearMin: 1500, rearMax: 3000, rearAim: 2200, maxSeats: 140,
+    centerShare: 0, rowsPerTier: 99, riserH: 200 }),
+  // 중강당 — 블록 구조가 보이도록 통로를 넓히고, 방 깊이를 적극적으로 쓴다.
+  hall_m: Object.freeze({ pitchX: 620, pitchZ: 1000, aisleW: 1400, frontGap: 1800,
+    rearMin: 2000, rearMax: 4500, rearAim: 3200, maxSeats: 280,
+    centerShare: 0.44, rowsPerTier: 4, riserH: 220 }),
+  // 대강당 — 좌석을 넉넉하게 벌리고 가운데 블록을 키운다. 뒤로 갈수록 단이 올라간다.
+  // 뒤 여유 4,300mm — 실내 시점 카메라가 **맨 뒷줄 뒤에 서도록** 잡은 값이다.
+  //   3,250mm 였을 때는 카메라가 마지막 줄 사이에 서서 좌석 하나가 화면 아래 띠의
+  //   73.2% 를 덮었다(19.7% 로 내려갔다). 목표 범위(2.5 ~ 5.0m) 안쪽이다.
+  hall_l: Object.freeze({ pitchX: 700, pitchZ: 1050, aisleW: 1600, frontGap: 2200,
+    rearMin: 2500, rearMax: 5000, rearAim: 4300, maxSeats: 430,
+    centerShare: 0.44, rowsPerTier: 4, riserH: 250 }),
+});
+
+/** 한 단이 올라갈 수 있는 최대 높이(mm) — 강당에만 적용한다(상황실 콘솔 단은 그대로다). */
+export const AUDITORIUM_MAX_RISER = 450;
+
+/** 통로가 통로 구실을 하려면 적어도 이만큼은 비어야 한다(mm). 사람이 지나다니는 폭이다. */
+export const AUDITORIUM_MIN_AISLE = 900;
+
+/** 그 강당 크기의 좌석 규칙. 강당이 아닌 용도를 물으면 소강당 규칙을 돌려준다. */
+export function auditoriumSeating(typeId) {
+  return AUDITORIUM_SEATING[typeId] || AUDITORIUM_SEATING.hall_s;
+}
 
 // ── U자 테이블의 크기 상한 ───────────────────────────────────────────────────
 // U자 배치는 **방이 아무리 커도** 테이블을 무한정 키우지 않는다. 상한이 곧 좌석 정원이다.
@@ -182,15 +231,15 @@ export const ROOM_TYPES = Object.freeze([
   },
   {
     id: 'hall_s', label: '소강당', depthFactor: 1.2, minDepth: 8000,
-    options: hallOptions(6, 10, false),
+    options: hallOptions('hall_s', false),
   },
   {
     id: 'hall_m', label: '중강당', depthFactor: 1.35, minDepth: 12000,
-    options: hallOptions(10, 16, true),
+    options: hallOptions('hall_m', true),
   },
   {
     id: 'hall_l', label: '대강당', depthFactor: 1.6, minDepth: 18000,
-    options: hallOptions(16, 24, true),
+    options: hallOptions('hall_l', true),
   },
   {
     // 아이디에이션(협업) 공간 — 줄 맞춘 좌석이 아니라 '구역'으로 흩어 놓는다.
@@ -220,18 +269,21 @@ export const ROOM_TYPES = Object.freeze([
   },
 ]);
 
-function hallOptions(rows, perRow, twoAisles) {
+function hallOptions(size, twoAisles) {
+  const P = AUDITORIUM_SEATING[size];
   return [
-    { key: 'rows', label: '좌석 줄 수', type: 'number', default: rows, min: 1, max: 40 },
-    { key: 'seatsPerRow', label: '줄당 좌석 수', type: 'number', default: perRow, min: 2, max: 60 },
+    // 줄 수·줄당 좌석 수의 기본값은 **0 = 자동**이다(PHASE 9-b). 방 깊이·폭을 보고
+    //   크기별 규칙(AUDITORIUM_SEATING)대로 채운다. 숫자를 직접 넣으면 그 값을 쓴다.
+    { key: 'rows', label: '좌석 줄 수 (0=자동)', type: 'number', default: 0, min: 0, max: 40 },
+    { key: 'seatsPerRow', label: '줄당 좌석 수 (0=자동)', type: 'number', default: 0, min: 0, max: 60 },
     { key: 'aisles', label: '통로', type: 'select', default: twoAisles ? '2' : '1',
       choices: [{ value: '0', label: '없음' }, { value: '1', label: '가운데 1개' }, { value: '2', label: '양쪽 2개' }] },
     { key: 'stage', label: '무대(단상)', type: 'toggle', default: true },
     { key: 'stageStep', label: '무대 계단', type: 'toggle', default: true },
-    // 객석 단차(계단식 좌석). 단 수 1 = 평평한 바닥(기존과 동일).
+    // 객석 단차(계단식 좌석). 단 수 1 = 평평한 바닥, **0 = 자동**(줄 수에 맞춰 정한다).
     //   뒷줄로 갈수록 한 단씩 올라가 앞사람 머리에 시야가 가리지 않게 한다.
-    { key: 'tiers', label: '객석 단 수', type: 'number', default: 1, min: 1, max: 20 },
-    { key: 'riserH', label: '한 단 높이(mm)', type: 'number', default: 200, min: 0, max: 900 },
+    { key: 'tiers', label: '객석 단 수 (0=자동)', type: 'number', default: 0, min: 0, max: 20 },
+    { key: 'riserH', label: '한 단 높이(mm)', type: 'number', default: P.riserH, min: 0, max: 900 },
     { key: 'tierStartRow', label: '단 시작 줄 (0=자동)', type: 'number', default: 0, min: 0, max: 40 },
     { key: 'occupancy', label: '착석률 (%)', type: 'number', default: 0, min: 0, max: 100 },
     { key: 'plant', label: '화분', type: 'toggle', default: false },
@@ -292,7 +344,8 @@ export function layoutRoom(typeId, opts, room) {
   const W = Math.max(1000, room.W), D = Math.max(1000, room.D);
   switch (roomType(typeId).id) {
     case 'classroom': return layoutClassroom(o, W, D);
-    case 'hall_s': case 'hall_m': case 'hall_l': return layoutHall(o, W, D);
+    // 강당 셋은 한 배치 함수를 쓰되, **어느 크기인지**를 넘겨 크기별 좌석 규칙을 고른다.
+    case 'hall_s': case 'hall_m': case 'hall_l': return layoutHall(o, W, D, roomType(typeId).id);
     case 'control': return layoutControl(o, W, D);
     case 'ideation': return layoutIdeation(o, W, D);
     case 'meeting': default: return layoutMeeting(o, W, D);
@@ -657,45 +710,123 @@ function addRisers(items, { W, plan, rows, rowZ, pitchZ, platW }) {
   }
 }
 
+/**
+ * 자동 줄 수 — 맨 뒷줄과 뒤 벽 사이에 **목표한 여유(rearAim)** 가 남을 때까지 줄을 늘린다.
+ *   목표에 닿기 전이라도 최소 여유(rearMin)보다 좁아지면 멈춘다. 뒤쪽 통행로를 0 으로
+ *   만들지 않는 것이 이 함수의 목적이다(PHASE 9-b §8).
+ */
+function auditoriumRowCount(P, D, zStart, maxRows) {
+  let rows = 1;
+  for (let r = 1; r <= maxRows; r++) {
+    const rear = D - (zStart + (r - 1) * P.pitchZ);
+    if (rear < P.rearMin) break;
+    rows = r;
+    if (rear <= P.rearAim) break;
+  }
+  return rows;
+}
+
+/**
+ * 좌석을 블록으로 나눈다. 통로가 둘(블록 셋)이고 `centerShare` 가 있으면 가운데 블록을
+ *   키운다 — 실제 강당처럼 가운데가 넓고 양옆이 좁은 모양이 된다. 좌우는 항상 같은 수다.
+ */
+function auditoriumBlocks(perRow, blocks, centerShare) {
+  if (blocks === 3) {
+    // 양옆을 같은 수로 맞추고 남는 좌석은 가운데가 가져간다 — 좌우 대칭이 된다.
+    const 기본옆 = (centerShare > 0 && perRow >= 6)
+      ? Math.round(perRow * (1 - centerShare) / 2) : Math.floor(perRow / 3);
+    const side = clamp(기본옆, 1, Math.floor((perRow - 1) / 2));
+    return [side, perRow - side * 2, side];
+  }
+  const per = Math.floor(perRow / blocks), extra = perRow % blocks;
+  return Array.from({ length: blocks }, (_, i) => per + (i < extra ? 1 : 0));
+}
+
+/**
+ * 강당 객석의 단 계획. **공용 `tierPlan` 을 부르기만 한다** — 상황실 콘솔 단이 같은
+ *   함수를 쓰므로 그 안을 고치지 않는다(PHASE 9-b §6·§14). 강당에만 필요한 두 가지를
+ *   여기서 더한다: 단 수 자동(0 = 줄 수를 `rowsPerTier` 로 나눈다)과 한 단 높이 상한.
+ */
+export function auditoriumTierPlan(rows, o, P) {
+  const notes = [];
+  const askTiers = int(o.tiers, 0);
+  const tiers = askTiers > 0 ? askTiers : clamp(Math.ceil(rows / P.rowsPerTier), 1, Math.max(1, rows));
+  let riserH = Math.max(0, int(o.riserH, P.riserH));
+  if (riserH > AUDITORIUM_MAX_RISER) {
+    notes.push(`한 단 높이를 ${AUDITORIUM_MAX_RISER}mm로 낮췄습니다(객석 단이 너무 높으면 오르내리기 어렵습니다).`);
+    riserH = AUDITORIUM_MAX_RISER;
+  }
+  const plan = tierPlan(rows, tiers, riserH, o.tierStartRow);
+  return { ...plan, notes: [...notes, ...plan.notes] };
+}
+
+/**
+ * 강당 객석 단(플랫폼) 상자. 공용 `addRisers` 와 모양 규칙은 같지만 **따로 둔 함수**다 —
+ *   상황실과 한 함수를 나눠 쓰면 강당을 손볼 때마다 상황실이 함께 움직이기 때문이다
+ *   (PHASE 9-b §6). 각 단은 그 단의 첫 줄 앞에서 맨 뒷줄 뒤까지 깔리고, 뒤쪽 단일수록
+ *   높아 계단 모양이 된다.
+ */
+function addAuditoriumRisers(items, { W, plan, rows, rowZ, pitchZ, platW }) {
+  const { tiers, riserH, tierStart } = plan;
+  if (!(riserH > 0 && tiers > 1 && rows > 0)) return;
+  const zBackEdge = rowZ(rows - 1) + pitchZ * 0.75;
+  for (let t = 1; t < tiers; t++) {
+    const zFront = rowZ(tierStart[t]) - pitchZ * 0.55;
+    if (zFront >= zBackEdge) break;
+    items.push({
+      type: 'riser', x: W / 2, z: (zFront + zBackEdge) / 2, rotY: 0,
+      w: platW, d: zBackEdge - zFront, h: t * riserH, tier: t,
+    });
+  }
+}
+
 // ── 강당(소·중·대) ──────────────────────────────────────────────────────────
-function layoutHall(o, W, D) {
+// 좌석 간격·통로 폭·첫 줄 위치·단 수는 **크기별 표**(AUDITORIUM_SEATING)에서 가져온다.
+//   세 강당이 한 함수를 쓰지만 같은 숫자를 쓰지는 않는다(PHASE 9-b).
+function layoutHall(o, W, D, typeId = 'hall_s') {
   const F = FURNITURE;
+  const P = auditoriumSeating(typeId);
   const items = [], notes = [];
   const nAisle = int(o.aisles, 1);
-  const aisleTotal = nAisle * F.aisleW;
+  const aisleTotal = nAisle * P.aisleW;
   const stageD = o.stage ? 2600 : 0;
   // 높이는 보이는 값일 뿐 — 좌석 계산은 깊이(stageD)만 쓴다. step은 계단을 붙일지 여부.
   if (o.stage) items.push({ type: 'stage', x: W / 2, z: stageD / 2, rotY: 0, w: W, d: stageD, h: 280, step: o.stageStep !== false });
 
-  const zStart = Math.max(stageD, F.frontClear) + 1600;
-  const maxPerRow = Math.max(1, fitCount(W - F.wallClear * 2 - aisleTotal, F.seatPitchX));
-  const maxRows = Math.max(1, fitCount(D - zStart - F.wallClear, F.seatPitchZ));
-  const perRow = clamp(o.seatsPerRow, 1, maxPerRow), rows = clamp(o.rows, 1, maxRows);
-  if (perRow < o.seatsPerRow || rows < o.rows) notes.push(`방 크기에 맞춰 ${perRow}석 × ${rows}줄로 줄였습니다.`);
+  const zStart = Math.max(stageD, F.frontClear) + P.frontGap;
+  const maxPerRow = Math.max(1, fitCount(W - F.wallClear * 2 - aisleTotal, P.pitchX));
+  const maxRows = Math.max(1, fitCount(D - zStart - F.wallClear, P.pitchZ));
+  // 0 = 자동. 줄 수는 뒤 여유 목표로, 줄당 좌석 수는 '자동 좌석 상한 ÷ 줄 수'로 정한다.
+  const autoRows = auditoriumRowCount(P, D, zStart, maxRows);
+  const askRows = int(o.rows, 0) > 0 ? int(o.rows, 0) : autoRows;
+  const rows = clamp(askRows, 1, maxRows);
+  const autoPerRow = clamp(Math.floor(P.maxSeats / rows), 1, maxPerRow);
+  const askPerRow = int(o.seatsPerRow, 0) > 0 ? int(o.seatsPerRow, 0) : autoPerRow;
+  const perRow = clamp(askPerRow, 1, maxPerRow);
+  if (perRow < askPerRow || rows < askRows) notes.push(`방 크기에 맞춰 ${perRow}석 × ${rows}줄로 줄였습니다.`);
 
-  // 통로 위치: 좌석을 (통로수+1)개 블록으로 나눈다.
+  // 통로 위치: 좌석을 (통로수+1)개 블록으로 나눈다. 블록 셋이면 가운데를 넓게 잡는다.
   const blocks = nAisle + 1;
-  const per = Math.floor(perRow / blocks), extra = perRow % blocks;
-  const counts = Array.from({ length: blocks }, (_, i) => per + (i < extra ? 1 : 0));
-  const totalW = perRow * F.seatPitchX + aisleTotal;
-  let x = W / 2 - totalW / 2 + F.seatPitchX / 2;
+  const counts = auditoriumBlocks(perRow, blocks, P.centerShare);
+  const totalW = perRow * P.pitchX + aisleTotal;
+  let x = W / 2 - totalW / 2 + P.pitchX / 2;
   const xs = [];
   for (const cnt of counts) {
-    for (let i = 0; i < cnt; i++) { xs.push(x); x += F.seatPitchX; }
-    x += F.aisleW;
+    for (let i = 0; i < cnt; i++) { xs.push(x); x += P.pitchX; }
+    x += P.aisleW;
   }
   // ── 객석 단차(계단식 좌석) ──
   //   단 수(tiers)만큼 객석을 나누고, 뒤쪽 단일수록 한 단(riserH)씩 올라간다.
-  //   첫 단은 바닥(높이 0)이다 — 단 수 1이면 기존과 똑같이 평평하다.
-  //   '단 시작 줄'을 주면 그 줄부터 올라간다(0이면 고르게 나눈다). 계산은 tierPlan에 있다.
-  const plan = tierPlan(rows, o.tiers, o.riserH, o.tierStartRow);
+  //   첫 단은 바닥(높이 0)이다 — 단 수 1이면 평평하다. 0이면 줄 수를 보고 자동으로 정한다.
+  //   '단 시작 줄'을 주면 그 줄부터 올라간다(0이면 고르게 나눈다).
+  const plan = auditoriumTierPlan(rows, o, P);
   const { tiers, riserH, tierStart, tierOf } = plan;
   notes.push(...plan.notes);
-  const seatZ = r => zStart + r * F.seatPitchZ;
+  const seatZ = r => zStart + r * P.pitchZ;
 
-  addRisers(items, {
-    W, plan, rows, rowZ: seatZ, pitchZ: F.seatPitchZ,
-    platW: Math.min(W, perRow * F.seatPitchX + aisleTotal + F.seatPitchX),
+  addAuditoriumRisers(items, {
+    W, plan, rows, rowZ: seatZ, pitchZ: P.pitchZ,
+    platW: Math.min(W, perRow * P.pitchX + aisleTotal + P.pitchX),
   });
 
   // 착석 인원 — 좌석 위에 앉은 사람을 얹는다. 좌석 계산에는 전혀 끼어들지 않는다
@@ -722,9 +853,23 @@ function layoutHall(o, W, D) {
   if (riserH > 0 && tiers > 1) {
     notes.push(`객석 ${tiers}단 · 한 단 ${riserH}mm (맨 뒤 +${(tiers - 1) * riserH}mm)`);
   }
+  const rearEmpty = D - seatZ(rows - 1);
+  notes.push(`블록 ${counts.join('·')}석 · 통로 ${nAisle}개(${P.aisleW}mm) · 뒤 여유 ${rearEmpty}mm`);
+  // ── 세는 수를 넷으로 나눠 적는다(PHASE 9-b §12) ──
+  //   geometricCapacity  방에 **기하학적으로** 들어갈 수 있는 최대(간격만 보고 센 수)
+  //   plannedSeatCount   놓으려고 정한 수(자동이든 사용자가 넣은 값이든)
+  //   placedSeatCount    실제로 자리를 잡은 수
+  //   renderedSeatCount  화면에 좌석으로 그린 수 — placed 와 달라지면 조용히 사라진 것이다
+  const seatCount = items.filter(i => i.type === 'seat').length;
   return {
     items,
-    placed: { seats: rows * xs.length, rows, perRow: xs.length, tiers, riserH },
+    placed: { seats: rows * xs.length, rows, perRow: xs.length, tiers, riserH,
+      blocks: counts, aisleW: P.aisleW, pitchX: P.pitchX, pitchZ: P.pitchZ,
+      firstRowZ: zStart, rearEmpty,
+      geometricCapacity: maxRows * maxPerRow,
+      plannedSeatCount: askRows * askPerRow,
+      placedSeatCount: rows * xs.length,
+      renderedSeatCount: seatCount },
     capacity: maxRows * maxPerRow, notes,
   };
 }

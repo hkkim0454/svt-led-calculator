@@ -15,8 +15,8 @@
 //   따라서 콘솔의 **운용자 쪽은 +Z**이고, 모니터 화면은 그쪽을 바라봐야 한다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=447';
-import { panelSize } from './monitors.js?v=447';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=449';
+import { panelSize } from './monitors.js?v=449';
 
 const DEG = Math.PI / 180;
 

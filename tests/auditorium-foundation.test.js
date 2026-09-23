@@ -14,8 +14,11 @@ import {
   DEFAULT_DESIGN_BY_ROOM_TYPE, defaultDesignFor, designsFor, normalizeDesign, resolveDesign,
   roomDesign, layoutPlan, layoutVariant, isPlanned,
 } from '../src/room-design.js';
-import { layoutRoom, defaultOptions, roomType, ROOM_TYPES, FURNITURE } from '../src/room-presets.js';
+import { layoutRoom, defaultOptions, roomType, ROOM_TYPES, FURNITURE, tierPlan,
+  AUDITORIUM_SEATING, AUDITORIUM_MAX_RISER, AUDITORIUM_MIN_AISLE, auditoriumSeating, auditoriumTierPlan } from '../src/room-presets.js';
 import { DIMS } from '../src/furniture-assets.js';
+import { buildGLModel, presetPose, FOV_DEG } from '../src/gl-model.js';
+import { cameraPlanForDesign } from '../src/design-camera.js';
 import { LIGHTING_PRESETS } from '../src/design-lighting.js';
 import { MATERIAL_IDS } from '../src/materials.js';
 
@@ -115,55 +118,75 @@ test('⑤ 배치는 여전히 용도의 것이다 — 변형 이름은 이름표
     assert.equal(p.useBaseLayout, true, `${t}: 배치를 가로챘다`);
     assert.equal(layoutVariant(variant).base, t, `${variant}: base 가 다르다`);
   }
-  // 강당 셋은 배치 함수 하나(`layoutHall`)를 같이 쓴다 — 이 단계가 나누지 않았다.
-  assert.match(src('room-presets.js'), /case 'hall_s': case 'hall_m': case 'hall_l': return layoutHall\(o, W, D\);/);
+  // 강당 셋은 배치 함수 하나(`layoutHall`)를 같이 쓴다. PHASE 9-b 가 **어느 크기인지**를
+  //   함께 넘기게 바꿨을 뿐, 배치 함수를 크기별로 쪼개지는 않았다.
+  assert.match(src('room-presets.js'),
+    /case 'hall_s': case 'hall_m': case 'hall_l': return layoutHall\(o, W, D, roomType\(typeId\)\.id\);/);
 });
 
 // ── ③ 레거시 기준선 — '승인'이 아니라 '지금 값' 이다 ────────────────────────
 
-test('⑥ 강당 기본값 스냅샷 — 뒤 단계가 의도적으로 바꿀 때만 이 수가 움직인다', () => {
-  // **이 값들을 좋다고 인정하는 것이 아니다.** PHASE 9-0 감사가 찾아낸 그대로이고,
-  //   세 크기가 사실상 같은 값을 쓴다는 것(첫 줄 4,200 · 줄 간격 950 · 무대 2,600×280)이
-  //   PHASE 9-b·9-c 가 풀어야 할 숙제다. 여기서는 바꾸지 않고 못박기만 한다.
+test('⑥ 강당 기본값 스냅샷 — 세 크기가 각자의 구성을 가진다 (PHASE 9-b 에서 갱신)', () => {
+  // **바뀐 이유.** PHASE 9-a 는 레거시(소 6×10 · 중 10×16 · 대 16×24, 첫 줄 4,200 ·
+  //   줄 간격 950 공통)를 '지금 값'으로 못박아 두었을 뿐, 좋다고 인정한 것이 아니었다.
+  //   PHASE 9-b 가 그 숙제를 풀어 크기별 좌석 규칙(AUDITORIUM_SEATING)을 세웠으므로
+  //   여기 숫자도 의도적으로 갱신한다. 줄 수·줄당 좌석 수는 이제 **0 = 자동**이고,
+  //   방 깊이를 보고 뒤 여유 목표에 맞춰 스스로 정한다.
   const 기대 = {
-    hall_s: { rows: 6, seatsPerRow: 10, aisles: '1', seats: 60, capacity: 91, W: 10000, D: 12000 },
-    hall_m: { rows: 10, seatsPerRow: 16, aisles: '2', seats: 160, capacity: 375, W: 18000, D: 20000 },
-    hall_l: { rows: 16, seatsPerRow: 24, aisles: '2', seats: 384, capacity: 864, W: 24000, D: 28000 },
+    hall_s: { rows: 7, perRow: 12, aisles: '1', seats: 84, capacity: 84, blocks: [6, 6],
+      firstRowZ: 4000, pitchZ: 950, pitchX: 570, tiers: 1, W: 10000, D: 12000 },
+    hall_m: { rows: 14, perRow: 20, aisles: '2', seats: 280, capacity: 294, blocks: [6, 8, 6],
+      firstRowZ: 4400, pitchZ: 1000, pitchX: 620, tiers: 4, W: 18000, D: 20000 },
+    hall_l: { rows: 19, perRow: 22, aisles: '2', seats: 418, capacity: 567, blocks: [6, 10, 6],
+      firstRowZ: 4800, pitchZ: 1050, pitchX: 700, tiers: 5, W: 24000, D: 28000 },
   };
   for (const [t] of 강당) {
     const e = 기대[t], o = defaultOptions(t);
-    assert.equal(o.rows, e.rows, `${t}: 기본 줄 수`);
-    assert.equal(o.seatsPerRow, e.seatsPerRow, `${t}: 기본 줄당 좌석`);
+    assert.equal(o.rows, 0, `${t}: 줄 수 기본값은 0(자동)이다`);
+    assert.equal(o.seatsPerRow, 0, `${t}: 줄당 좌석 수 기본값은 0(자동)이다`);
+    assert.equal(o.tiers, 0, `${t}: 객석 단 수 기본값은 0(자동)이다`);
     assert.equal(o.aisles, e.aisles, `${t}: 기본 통로 수`);
     assert.equal(o.stage, true, `${t}: 무대 기본값`);
-    assert.equal(o.tiers, 1, `${t}: 객석 단 기본값(1 = 평평한 바닥)`);
+    assert.equal(o.riserH, AUDITORIUM_SEATING[t].riserH, `${t}: 한 단 높이 기본값`);
     const r = layoutRoom(t, o, { W: e.W, D: e.D });
     const seats = r.items.filter(i => i.type === 'seat');
-    // **§18 — 두 수를 구분해서 기록한다.** `capacity` 는 방에 들어갈 수 있는 기하학적
-    //   최대이고, 실제로 놓인 좌석 수와 다르다(아이디에이션은 둘이 같아서 뜻이 어긋난다).
-    const geometricCapacity = r.capacity, renderedSeatCount = seats.length;
+    // **§12 — 네 수를 구분해서 기록한다.** 뜻이 다른 값이므로 한 칸에 몰아 담지 않는다.
+    const { geometricCapacity, plannedSeatCount, placedSeatCount, renderedSeatCount } = r.placed;
     assert.equal(renderedSeatCount, e.seats, `${t}: 그린 좌석 수`);
-    assert.equal(r.placed.seats, e.seats, `${t}: 놓았다고 센 수`);
+    assert.equal(seats.length, e.seats, `${t}: 실제 좌석 물건 수`);
+    assert.equal(placedSeatCount, e.seats, `${t}: 놓았다고 센 수`);
+    assert.equal(plannedSeatCount, e.seats, `${t}: 놓으려던 수(자동이면 그대로 놓인다)`);
     assert.equal(geometricCapacity, e.capacity, `${t}: 기하학적 최대`);
-    assert.ok(geometricCapacity > renderedSeatCount,
-      `${t}: 두 수가 같아졌다 — 뜻이 다른 값이라는 사실이 흐려진다`);
-    // 세 크기가 같은 값을 쓰는 지점(= PHASE 9-b 의 숙제).
+    assert.equal(r.capacity, e.capacity, `${t}: 예전 이름(capacity)도 같은 값을 준다`);
+    assert.ok(geometricCapacity >= renderedSeatCount, `${t}: 정원보다 많이 놓았다`);
+    assert.equal(r.placed.rows, e.rows, `${t}: 줄 수`);
+    assert.equal(r.placed.perRow, e.perRow, `${t}: 줄당 좌석 수`);
+    assert.deepEqual(r.placed.blocks, e.blocks, `${t}: 좌석 블록 구성`);
+    assert.equal(r.placed.tiers, e.tiers, `${t}: 객석 단 수`);
+    // 크기마다 첫 줄 위치·줄 간격·좌석 간격이 다르다 — 더 이상 같은 값을 쓰지 않는다.
     const zs = [...new Set(seats.map(i => Math.round(i.z)))].sort((a, b) => a - b);
-    assert.equal(zs[0], 4200, `${t}: 첫 줄 위치가 세 크기 공통 4,200 이 아니다`);
-    assert.equal(zs[1] - zs[0], FURNITURE.seatPitchZ, `${t}: 줄 간격`);
+    assert.equal(zs[0], e.firstRowZ, `${t}: 첫 줄 위치`);
+    assert.equal(zs[1] - zs[0], e.pitchZ, `${t}: 줄 간격`);
+    const xs = [...new Set(seats.map(i => Math.round(i.x)))].sort((a, b) => a - b);
+    assert.equal(xs[1] - xs[0], e.pitchX, `${t}: 좌석 간격`);
+    // 무대는 이 단계의 범위 밖이다 — 한 값도 움직이지 않았다.
     const stage = r.items.find(i => i.type === 'stage');
     assert.equal(stage.w, e.W, `${t}: 무대 폭이 방 폭 100% 가 아니다`);
     assert.equal(stage.d, 2600, `${t}: 무대 깊이`);
     assert.equal(stage.h, 280, `${t}: 무대 높이`);
   }
-  // 좌석 간격 상수도 세 크기 공통이다.
+  // 세 크기의 첫 줄·간격이 서로 다르다(단순 확대·축소가 아니다).
+  const 첫줄 = 강당.map(([t]) => 기대[t].firstRowZ);
+  assert.equal(new Set(첫줄).size, 3, '세 크기의 첫 줄 위치가 여전히 같다');
+  assert.equal(new Set(강당.map(([t]) => 기대[t].pitchZ)).size, 3, '세 크기의 줄 간격이 여전히 같다');
+  // **공용 상수는 그대로다.** 교육장이 함께 쓰는 값이라 강당 때문에 움직이면 안 된다.
   assert.equal(FURNITURE.seatPitchX, 550);
   assert.equal(FURNITURE.seatPitchZ, 950);
   assert.equal(FURNITURE.aisleW, 1200);
 });
 
-test('⑦ 물리 기준선 — 지금도 좌석이 겹치거나 방을 넘지 않는다', () => {
-  // 뒤 단계에서 줄 간격·통로·단차를 손볼 때 이 검사가 먼저 깨져야 한다.
+test('⑦ 물리 기준선 — 좌석이 겹치거나 방을 넘지 않는다', () => {
+  // 줄 간격·통로·단차를 손볼 때 이 검사가 먼저 깨져야 한다.
   const S = DIMS.auditoriumChair, hw = S.seatW / 2, hd = S.seatD / 2;
   for (const [t] of 강당) {
     const { W, D } = { hall_s: { W: 10000, D: 12000 }, hall_m: { W: 18000, D: 20000 },
@@ -181,7 +204,9 @@ test('⑦ 물리 기준선 — 지금도 좌석이 겹치거나 방을 넘지 �
       }
     }
     assert.equal(겹침, 0, `${t}: 좌석이 겹친다`);
-    assert.equal(Math.round(최소여유), 50, `${t}: 좌석 최소 여유가 50mm 에서 달라졌다`);
+    // 가장 가까운 두 좌석 사이 = 좌석 간격 − 좌석 폭. 크기마다 다르다(소 70 · 중 120 · 대 200mm).
+    assert.equal(Math.round(최소여유), auditoriumSeating(t).pitchX - S.seatW,
+      `${t}: 좌석 최소 여유가 좌석 간격 표와 어긋난다`);
     assert.equal(seats.filter(s => s.x - hw < 0 || s.x + hw > W).length, 0, `${t}: 좌우 벽을 넘는다`);
     assert.equal(seats.filter(s => s.z - hd < 0 || s.z + hd > D).length, 0, `${t}: 앞뒤 벽을 넘는다`);
     // 무대 위에 좌석이 올라가 있지 않다.
@@ -217,18 +242,25 @@ test('⑨ 알려진 결함 ②: 큰 방일수록 LED 가 작아진다 — 방 �
   }
 });
 
-test('⑩ 알려진 결함 ③: 방이 커질수록 뒤쪽 빈 바닥이 넓어진다', () => {
-  // 소 3,050 → 중 7,250 → 대 **9,550mm**. 좌석은 방 폭의 59 ~ 63% 만 쓴다.
-  //   PHASE 9-b 가 줄 수·간격을 다시 잡을 때 이 수가 줄어야 한다.
-  const 기대 = { hall_s: 3050, hall_m: 7250, hall_l: 9550 };
+test('⑩ 해결됨 — 뒤쪽 빈 바닥이 크기별 목표 범위 안으로 들어왔다 (PHASE 9-b)', () => {
+  // **바뀐 이유.** PHASE 9-0 감사가 찾은 결함(소 3,050 → 중 7,250 → 대 **9,550mm**)을
+  //   PHASE 9-b 가 고쳤다. 이제 맨 뒷줄과 뒤 벽 사이는 크기별 목표 범위 안에 있고,
+  //   0 이 되지도 않는다(뒤쪽 통행로는 남겨 둔다).
+  const 기대 = { hall_s: 2300, hall_m: 2600, hall_l: 4300 };
   for (const [t] of 강당) {
     const { W, D } = { hall_s: { W: 10000, D: 12000 }, hall_m: { W: 18000, D: 20000 },
       hall_l: { W: 24000, D: 28000 } }[t];
+    const P = auditoriumSeating(t);
     const r = layoutRoom(t, defaultOptions(t), { W, D });
     const seats = r.items.filter(i => i.type === 'seat');
     const 뒤끝 = Math.max(...seats.map(i => i.z));
     assert.equal(D - 뒤끝, 기대[t], `${t}: 뒤쪽 빈 깊이가 달라졌다`);
+    assert.equal(r.placed.rearEmpty, 기대[t], `${t}: 배치가 적어 준 뒤 여유가 실측과 다르다`);
+    assert.ok(D - 뒤끝 >= P.rearMin, `${t}: 뒤 여유가 최소치(${P.rearMin}mm)보다 좁다`);
+    assert.ok(D - 뒤끝 <= P.rearMax, `${t}: 뒤 여유가 최대치(${P.rearMax}mm)보다 넓다`);
   }
+  // 대강당이 다시 7m 이상 비면 실패다(PHASE 9-b §8).
+  assert.ok(기대.hall_l < 7000, '대강당 뒤쪽이 다시 7m 이상 비었다');
 });
 
 // ── ⑤ 동결 보호 ────────────────────────────────────────────────────────────
@@ -255,9 +287,20 @@ test('⑫ 상황실 단차 보호 — 강당과 같은 헬퍼를 쓰므로 여�
   //   앞으로 객석 단차를 손볼 때 이 검사가 먼저 깨져서 상황실이 함께 움직인 것을 알린다.
   const s = src('room-presets.js');
   assert.match(s, /const plan = tierPlan\(rows, o\.tiers, o\.riserH, o\.tierStartRow\);/);
-  // 선언 1 + 부르는 곳 2(강당·상황실) = 3. 부르는 곳이 늘거나 줄면 여기서 걸린다.
-  assert.equal((s.match(/addRisers\(items, \{/g) || []).length, 3,
-    '단 만들기를 선언하거나 부르는 곳의 수가 달라졌다');
+  // **PHASE 9-b 에서 바뀐 점.** 강당은 이제 자기 것(`auditoriumTierPlan` ·
+  //   `addAuditoriumRisers`)을 쓴다. 그래서 공용 `addRisers` 는 선언 1 + 상황실 1 = **2** 곳뿐이다.
+  //   수가 3 으로 돌아가면 강당이 다시 공용 함수를 붙잡았다는 뜻이므로 여기서 걸린다.
+  assert.equal((s.match(/addRisers\(items, \{/g) || []).length, 2,
+    '공용 단 만들기를 선언하거나 부르는 곳의 수가 달라졌다');
+  assert.match(s, /function addRisers\(items, \{ W, plan, rows, rowZ, pitchZ, platW \}\)/,
+    '공용 addRisers 의 모양이 바뀌었다');
+  // 상황실 배치가 부르는 곳은 그대로 남아 있다.
+  assert.match(s.split('function layoutControl')[1] || '', /addRisers\(items, \{/,
+    '상황실이 공용 단 만들기를 놓쳤다');
+  // 강당은 공용 `addRisers` 를 부르지 않는다.
+  const 강당본문 = s.split('function layoutHall')[1].split('function layoutControl')[0];
+  assert.equal(/addRisers\(items, \{/.test(강당본문), false, '강당이 다시 공용 단 만들기를 부른다');
+  assert.match(강당본문, /addAuditoriumRisers\(items, \{/, '강당 전용 단 만들기가 사라졌다');
   assert.match(s, /^function addRisers\(items, \{/m, '단 만들기 함수 선언이 사라졌다');
 
   const r = layoutRoom('control', { ...defaultOptions('control'), tiers: 3, riserH: 250 },
@@ -271,13 +314,346 @@ test('⑫ 상황실 단차 보호 — 강당과 같은 헬퍼를 쓰므로 여�
   assert.ok(r.notes.some(n => n.includes('2단으로 줄였습니다')), '단 수 안내가 사라졌다');
 });
 
-test('⑬ 이 단계는 배치·렌더러·카메라·조명 파일을 건드리지 않았다', () => {
-  // 강당 배치 함수의 핵심 줄이 그대로인지 — 좌석·통로·무대 계산.
+test('⑬ 무대·카메라·조명은 이 단계의 범위 밖이다', () => {
+  // 무대 계산은 한 글자도 바뀌지 않았다(PHASE 9-b §20 — 무대는 다음 단계의 몫).
   const s = src('room-presets.js');
   assert.match(s, /const stageD = o\.stage \? 2600 : 0;/);
-  assert.match(s, /const zStart = Math\.max\(stageD, F\.frontClear\) \+ 1600;/);
   assert.match(s, /h: 280, step: o\.stageStep !== false/);
+  // 첫 줄 위치만 크기별 표에서 가져오도록 바뀌었다(PHASE 9-b §9).
+  assert.match(s, /const zStart = Math\.max\(stageD, F\.frontClear\) \+ P\.frontGap;/);
   // 카메라 계획표에 강당이 아직 없다(PHASE 9-d.2 의 몫).
   assert.equal(/hall/i.test(src('design-camera.js')), false, '카메라 층에 강당이 들어갔다');
   assert.equal(/hall/i.test(src('design-lighting.js')), false, '조명 층에 강당이 들어갔다');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-b — 좌석 · 통로 · 단차 계약 (DEC-142)
+// ─────────────────────────────────────────────────────────────────────────────
+// 여기부터는 '지금 값을 못박는' 검사가 아니라 **지켜야 할 약속**이다. 방 크기를 바꿔
+// 가며 훑어 어떤 조합에서도 좌석이 겹치거나, 벽·무대·통로를 넘거나, 조용히 사라지지
+// 않는지 본다. 한 크기만 보면 '그 크기에서만 맞는 값'을 약속으로 착각하게 된다.
+
+/** 훑어볼 방 크기 — 작은 방부터 아주 큰 방까지. (폭 mm, 깊이 mm) */
+const 방행렬 = Object.freeze([
+  [8000, 8000], [10000, 12000], [12000, 14000], [14000, 18000],
+  [18000, 20000], [20000, 24000], [24000, 28000], [28000, 34000],
+]);
+const 좌석 = DIMS.auditoriumChair;
+
+/** 그 배치의 물리 위반 건수를 모두 센다. 하나라도 0 이 아니면 그 조합이 깨진 것이다. */
+function 물리검사(t, W, D, opts) {
+  const P = auditoriumSeating(t);
+  const r = layoutRoom(t, { ...defaultOptions(t), ...opts }, { W, D });
+  const seats = r.items.filter(i => i.type === 'seat');
+  const risers = r.items.filter(i => i.type === 'riser');
+  const stage = r.items.find(i => i.type === 'stage');
+  const hw = 좌석.seatW / 2, hd = 좌석.seatD / 2;
+  const 결과 = { 겹침: 0, 벽넘침: 0, 무대침범: 0, LED침범: 0, 통로침범: 0, 좁은통로: 0, 단밖: 0, 단무대침범: 0,
+    좌석수: seats.length, placed: r.placed.placedSeatCount, rendered: r.placed.renderedSeatCount,
+    rearEmpty: r.placed.rearEmpty, r };
+  // 같은 단(같은 높이)에 있는 좌석끼리만 겹침을 본다 — 높이가 다르면 부딪히지 않는다.
+  for (let i = 0; i < seats.length; i++) {
+    for (let j = i + 1; j < seats.length; j++) {
+      if ((seats[i].y || 0) !== (seats[j].y || 0)) continue;
+      if (Math.abs(seats[i].x - seats[j].x) < 2 * hw && Math.abs(seats[i].z - seats[j].z) < 2 * hd) 결과.겹침++;
+    }
+  }
+  for (const s of seats) {
+    if (s.x - hw < 0 || s.x + hw > W || s.z - hd < 0 || s.z + hd > D) 결과.벽넘침++;
+    if (stage && s.z - hd < stage.z + stage.d / 2) 결과.무대침범++;
+    // LED 벽(z = 0) 앞에는 최소한 무대 깊이만큼, 무대가 없으면 LED 앞 여유만큼 비운다.
+    if (s.z - hd < (stage ? stage.d : FURNITURE.frontClear)) 결과.LED침범++;
+  }
+  // 통로 — 블록과 블록 사이는 통로 폭만큼 실제로 비어 있어야 한다.
+  const xs = [...new Set(seats.map(s => Math.round(s.x)))].sort((a, b) => a - b);
+  for (let i = 1; i < xs.length; i++) {
+    const 간격 = xs[i] - xs[i - 1];
+    if (간격 <= P.pitchX + 1) continue;                    // 같은 블록 안
+    if (간격 - 좌석.seatW < P.aisleW) 결과.통로침범++;      // 통로인데 표에 적힌 폭에 못 미친다
+    if (간격 - 좌석.seatW < AUDITORIUM_MIN_AISLE) 결과.좁은통로++;   // 사람이 지나갈 수 없다
+  }
+  // 단(riser) — 올라앉은 좌석은 제 높이의 단 안에 온전히 들어가야 한다.
+  for (const s of seats) {
+    const y = s.y || 0;
+    if (y === 0) continue;
+    const 단 = risers.find(v => v.h === y);
+    if (!단 || s.x - hw < 단.x - 단.w / 2 || s.x + hw > 단.x + 단.w / 2
+      || s.z - hd < 단.z - 단.d / 2 || s.z + hd > 단.z + 단.d / 2) 결과.단밖++;
+  }
+  for (const v of risers) if (stage && v.z - v.d / 2 < stage.z + stage.d / 2) 결과.단무대침범++;
+  return 결과;
+}
+
+test('⑭ 좌석 물리 안전 — 방 크기를 바꿔 가며 훑어도 겹침·벽·무대·LED 침범이 없다', () => {
+  for (const [t] of 강당) {
+    for (const [W, D] of 방행렬) {
+      const g = 물리검사(t, W, D, {});
+      assert.ok(g.좌석수 > 0, `${t} ${W}×${D}: 좌석이 하나도 없다`);
+      assert.equal(g.겹침, 0, `${t} ${W}×${D}: 좌석이 겹친다`);
+      assert.equal(g.벽넘침, 0, `${t} ${W}×${D}: 좌석이 벽을 넘는다`);
+      assert.equal(g.무대침범, 0, `${t} ${W}×${D}: 좌석이 무대를 침범한다`);
+      assert.equal(g.LED침범, 0, `${t} ${W}×${D}: 좌석이 LED 벽 앞 여유를 침범한다`);
+    }
+  }
+});
+
+test('⑮ 통로 계약 — 블록 사이가 통로 폭만큼 실제로 비고, 좌우 블록이 대칭이다', () => {
+  for (const [t] of 강당) {
+    const P = auditoriumSeating(t);
+    for (const [W, D] of 방행렬) {
+      for (const aisles of ['0', '1', '2']) {
+        const g = 물리검사(t, W, D, { aisles });
+        assert.equal(g.통로침범, 0, `${t} ${W}×${D} 통로 ${aisles}: 통로가 좁다`);
+        // 표에 적힌 통로 폭 자체가 사람이 지나다닐 수 있는 최소치를 지킨다.
+        assert.ok(P.aisleW >= AUDITORIUM_MIN_AISLE, `${t}: 통로 폭 ${P.aisleW}mm 가 최소치보다 좁다`);
+        assert.equal(g.좁은통로, 0, `${t} ${W}×${D} 통로 ${aisles}: 통로가 ${AUDITORIUM_MIN_AISLE}mm 보다 좁다`);
+        const blocks = g.r.placed.blocks;
+        assert.equal(blocks.length, Number(aisles) + 1, `${t} ${W}×${D}: 블록 수`);
+        assert.equal(blocks.reduce((a, b) => a + b, 0), g.r.placed.perRow, `${t}: 블록 합이 줄당 좌석과 다르다`);
+        // 좌우 블록은 같은 수다. 블록이 둘이고 좌석이 홀수일 때만 한 자리 차이를 허용한다.
+        const 차이 = Math.abs(blocks[0] - blocks[blocks.length - 1]);
+        assert.ok(차이 <= (blocks.length === 2 ? 1 : 0), `${t} ${W}×${D}: 좌우 블록이 대칭이 아니다 (${blocks})`);
+      }
+      // 통로가 둘이면 가운데 블록이 양옆보다 넓다(대·중강당의 자리 구조). 줄이 아주 짧으면
+      //   (좁은 방) 세 블록이 같아질 수 있으므로, 그때는 '작지 않다'까지만 요구한다.
+      const g2 = 물리검사(t, W, D, { aisles: '2' }), b = g2.r.placed.blocks;
+      assert.ok(b[1] >= b[0], `${t} ${W}×${D}: 가운데 블록이 양옆보다 좁다 (${b})`);
+      if (P.centerShare > 0 && g2.r.placed.perRow >= 10) {
+        assert.ok(b[1] > b[0], `${t} ${W}×${D}: 가운데 블록이 크지 않다 (${b})`);
+      }
+    }
+  }
+});
+
+test('⑯ 놓은 수 = 그린 수 — 조용히 사라지는 좌석이 없다', () => {
+  for (const [t] of 강당) {
+    for (const [W, D] of 방행렬) {
+      for (const o of [{}, { aisles: '0' }, { stage: false }, { occupancy: 60 },
+        { rows: 40, seatsPerRow: 60 }, { rows: 3, seatsPerRow: 5 }, { tiers: 8, riserH: 300 }]) {
+        const g = 물리검사(t, W, D, o);
+        assert.equal(g.placed, g.rendered, `${t} ${W}×${D} ${JSON.stringify(o)}: 놓은 수와 그린 수가 다르다`);
+        assert.equal(g.rendered, g.좌석수, `${t} ${W}×${D} ${JSON.stringify(o)}: 센 수와 실제 물건 수가 다르다`);
+        assert.ok(g.r.placed.geometricCapacity >= g.placed, `${t} ${W}×${D}: 정원보다 많이 놓았다`);
+        // 앉은 사람은 좌석 위에만 올라간다 — 좌석 수를 넘지 않는다.
+        const 앉은이 = g.r.items.filter(i => i.type === 'seated');
+        assert.ok(앉은이.length <= g.좌석수, `${t} ${W}×${D}: 좌석보다 사람이 많다`);
+      }
+    }
+  }
+});
+
+test('⑰ 뒤 여유 계약 — 어떤 방 깊이에서도 목표 범위 안이고 0 이 되지 않는다', () => {
+  for (const [t] of 강당) {
+    const P = auditoriumSeating(t);
+    for (const [W, D] of 방행렬) {
+      const g = 물리검사(t, W, D, {});
+      assert.ok(g.rearEmpty > 0, `${t} ${W}×${D}: 뒤쪽 통행로가 사라졌다`);
+      // 방이 아주 얕아 한 줄밖에 못 놓는 경우가 아니면 최소 여유를 지킨다.
+      if (g.r.placed.rows > 1) {
+        assert.ok(g.rearEmpty >= P.rearMin, `${t} ${W}×${D}: 뒤 여유 ${g.rearEmpty} < ${P.rearMin}`);
+      }
+      // 방이 깊어도 뒤쪽을 목표 이상으로 비워 두지 않는다(줄을 더 놓을 수 있으면 놓는다).
+      if (g.r.placed.rows < g.r.placed.geometricCapacity / g.r.placed.perRow) {
+        assert.ok(g.rearEmpty <= P.rearMax, `${t} ${W}×${D}: 뒤 여유 ${g.rearEmpty} > ${P.rearMax}`);
+      }
+    }
+  }
+});
+
+test('⑱ 단차 안전 — 단이 낮은 곳에서 높은 곳으로만 가고, 좌석이 단 위에 온전히 앉는다', () => {
+  for (const [t] of 강당) {
+    const P = auditoriumSeating(t);
+    for (const [W, D] of 방행렬) {
+      for (const o of [{}, { tiers: 8, riserH: 300 }, { tiers: 3, riserH: 900 }]) {
+        const g = 물리검사(t, W, D, o);
+        const risers = g.r.items.filter(i => i.type === 'riser').sort((a, b) => a.z - b.z);
+        assert.equal(g.단밖, 0, `${t} ${W}×${D} ${JSON.stringify(o)}: 좌석이 단 밖으로 나갔다`);
+        assert.equal(g.단무대침범, 0, `${t} ${W}×${D}: 단이 무대를 침범한다`);
+        // 뒤로 갈수록 높아진다(같은 높이가 두 번 나오지 않는다).
+        for (let i = 1; i < risers.length; i++) {
+          assert.ok(risers[i].h > risers[i - 1].h, `${t} ${W}×${D}: 단 높이가 뒤로 가며 낮아진다`);
+        }
+        // 한 단 높이는 상한을 넘지 않는다 — 900mm 를 넣어도 강당에서는 잘린다.
+        const step = g.r.placed.riserH;
+        assert.ok(step <= AUDITORIUM_MAX_RISER, `${t}: 한 단이 ${step}mm 로 너무 높다`);
+        // 좌석이 실제로 단 위에 올라앉는다 — 단은 있는데 좌석은 바닥에 있으면 잡는다.
+        const 높이집합 = new Set(g.r.items.filter(i => i.type === 'seat').map(s => s.y || 0));
+        if (g.r.placed.riserH > 0 && g.r.placed.tiers > 1) {
+          assert.equal(높이집합.size, g.r.placed.tiers,
+            `${t} ${W}×${D} ${JSON.stringify(o)}: 좌석 높이 종류(${높이집합.size})가 단 수(${g.r.placed.tiers})와 다르다`);
+          for (const v of risers) {
+            assert.ok(높이집합.has(v.h), `${t} ${W}×${D}: ${v.h}mm 단 위에 앉은 좌석이 없다`);
+          }
+        }
+        // 좌석 눈높이가 뒷줄로 가며 낮아지지 않는다.
+        const 줄별y = new Map();
+        for (const s of g.r.items.filter(i => i.type === 'seat')) 줄별y.set(Math.round(s.z), s.y || 0);
+        const 줄 = [...줄별y.entries()].sort((a, b) => a[0] - b[0]).map(v => v[1]);
+        for (let i = 1; i < 줄.length; i++) assert.ok(줄[i] >= 줄[i - 1], `${t} ${W}×${D}: 뒷줄이 더 낮다`);
+      }
+      // 자동 단 수 — 한 단에 몰리는 평평한 줄이 규칙(rowsPerTier)보다 많아지지 않는다.
+      const auto = 물리검사(t, W, D, {}).r.placed;
+      if (auto.tiers > 1) {
+        assert.ok(Math.ceil(auto.rows / auto.tiers) <= P.rowsPerTier,
+          `${t} ${W}×${D}: 한 단에 평평한 줄이 ${Math.ceil(auto.rows / auto.tiers)}줄이나 있다`);
+      }
+    }
+  }
+});
+
+test('⑲ 성능 예산 — 자동 배치가 좌석 상한을 넘지 않는다', () => {
+  // 좌석 하나가 그리기 삼각형 약 452개를 쓴다(PHASE 9-b 실측). 대강당 기본 구성이
+  //   삼각형 200,000개를 넘지 않게 하려면 자동으로 놓는 좌석이 430석을 넘으면 안 된다.
+  for (const [t] of 강당) {
+    const P = auditoriumSeating(t);
+    for (const [W, D] of 방행렬) {
+      const g = 물리검사(t, W, D, {});
+      assert.ok(g.좌석수 <= P.maxSeats, `${t} ${W}×${D}: 자동으로 ${g.좌석수}석을 놓았다(상한 ${P.maxSeats})`);
+    }
+  }
+  assert.equal(AUDITORIUM_SEATING.hall_l.maxSeats, 430, '대강당 자동 좌석 상한이 바뀌었다');
+  const 대 = layoutRoom('hall_l', defaultOptions('hall_l'), { W: 24000, D: 28000 });
+  assert.ok(대.placed.seats * 452 < 200000, `대강당 기본 구성이 삼각형 예산을 넘는다`);
+});
+
+test('⑳ 결정성 — 같은 입력을 세 번 계산하면 한 값도 다르지 않다', () => {
+  const 지문 = (t, W, D, o) => JSON.stringify(layoutRoom(t, { ...defaultOptions(t), ...o }, { W, D })
+    .items.map(i => [i.type, Math.round(i.x), Math.round(i.z), Math.round(i.y || 0), i.w || 0, i.d || 0, i.h || 0]));
+  for (const [t] of 강당) {
+    for (const [W, D] of 방행렬) {
+      const a = 지문(t, W, D, {}), b = 지문(t, W, D, {}), c = 지문(t, W, D, {});
+      assert.equal(a, b, `${t} ${W}×${D}: 두 번째 계산이 다르다`);
+      assert.equal(b, c, `${t} ${W}×${D}: 세 번째 계산이 다르다`);
+    }
+  }
+});
+
+test('㉑ 크기별 차별화 — 소·중·대가 같은 숫자를 쓰지 않는다', () => {
+  const keys = ['pitchX', 'pitchZ', 'aisleW', 'frontGap', 'rearAim', 'maxSeats'];
+  for (const k of keys) {
+    const 값 = 강당.map(([t]) => AUDITORIUM_SEATING[t][k]);
+    assert.equal(new Set(값).size, 3, `${k}: 세 크기가 같은 값을 쓴다`);
+    assert.ok(값[0] < 값[1] && 값[1] < 값[2], `${k}: 크기 순서대로 커지지 않는다`);
+  }
+  // 소강당은 평평하고(단 1), 중·대강당은 단이 생긴다.
+  assert.equal(layoutRoom('hall_s', defaultOptions('hall_s'), { W: 10000, D: 12000 }).placed.tiers, 1);
+  assert.ok(layoutRoom('hall_m', defaultOptions('hall_m'), { W: 18000, D: 20000 }).placed.tiers > 1);
+  assert.ok(layoutRoom('hall_l', defaultOptions('hall_l'), { W: 24000, D: 28000 }).placed.tiers > 1);
+});
+
+test('㉒ 직접 넣은 값이 자동보다 앞선다 — 방보다 크면 줄이고 알린다', () => {
+  for (const [t] of 강당) {
+    const 요청 = layoutRoom(t, { ...defaultOptions(t), rows: 5, seatsPerRow: 8 }, { W: 24000, D: 28000 });
+    assert.equal(요청.placed.rows, 5, `${t}: 직접 넣은 줄 수가 무시됐다`);
+    assert.equal(요청.placed.perRow, 8, `${t}: 직접 넣은 줄당 좌석이 무시됐다`);
+    assert.equal(요청.placed.plannedSeatCount, 40, `${t}: 놓으려던 수가 40이 아니다`);
+    assert.equal(요청.placed.placedSeatCount, 40, `${t}: 실제로 놓은 수가 다르다`);
+    // 방보다 크게 요청하면 줄여 놓고 **말해 준다**(조용히 줄이지 않는다).
+    const 과다 = layoutRoom(t, { ...defaultOptions(t), rows: 40, seatsPerRow: 60 }, { W: 9000, D: 9000 });
+    assert.ok(과다.placed.rows < 40 && 과다.placed.perRow < 60, `${t}: 좁은 방인데 줄이지 않았다`);
+    assert.ok(과다.notes.some(n => n.includes('줄였습니다')), `${t}: 줄였다는 안내가 없다`);
+    assert.ok(과다.placed.plannedSeatCount > 과다.placed.placedSeatCount, `${t}: 놓으려던 수와 놓은 수가 같다`);
+  }
+});
+
+test('㉓ 강당 전용 단 계획은 공용 tierPlan 의 결과를 바꾸지 않는다', () => {
+  // 같은 요청을 공용 함수와 강당 함수에 각각 넣어 본다. 강당 쪽이 더 얹는 것은
+  //   ① 단 수 자동(0) ② 한 단 높이 상한뿐이고, 그 밖에는 공용 결과 그대로여야 한다.
+  const P = auditoriumSeating('hall_l');
+  for (const rows of [3, 6, 10, 20]) {
+    for (const tiers of [1, 2, 4]) {
+      const 공용 = tierPlan(rows, tiers, 250, 0);
+      const 강당것 = auditoriumTierPlan(rows, { tiers, riserH: 250, tierStartRow: 0 }, P);
+      assert.deepEqual(강당것.tierRows, 공용.tierRows, `${rows}줄 ${tiers}단: 단에 나눈 줄이 다르다`);
+      assert.deepEqual(강당것.tierStart, 공용.tierStart, `${rows}줄 ${tiers}단: 단 시작 줄이 다르다`);
+      assert.equal(강당것.riserH, 공용.riserH, `${rows}줄 ${tiers}단: 한 단 높이가 다르다`);
+    }
+  }
+  // 상한을 넘겨 넣으면 강당에서만 잘린다 — 상황실(공용)은 그대로 900mm 를 쓴다.
+  assert.equal(tierPlan(6, 3, 900, 0).riserH, 900, '공용 단 높이가 잘렸다');
+  assert.equal(auditoriumTierPlan(6, { tiers: 3, riserH: 900, tierStartRow: 0 }, P).riserH, AUDITORIUM_MAX_RISER);
+});
+
+test('㉔ 전경 가림 — 좌석이나 단 하나가 화면 아래 띠를 독점하지 않는다', () => {
+  // PHASE 8 에서 세운 **물건을 가리지 않는** 잣대를 강당에 그대로 쓴다(§18). 카메라는
+  //   손대지 않았다 — 강당 전용 화각은 PHASE 9-d.2 의 몫이라, 지금은 공용 계획을 쓴다.
+  //   좌석을 앞으로 당기거나 단을 높이면 맨 앞 물건이 화면 아래를 덮게 되는데, 그때
+  //   이 검사가 걸린다.
+  const aspect = 574 / 563;
+  /** 바닥 위 상자 하나가 화면 **아래 25% 띠**를 덮는 넓이 비율(%). */
+  const 아래띠점유 = (plan, 상자) => {
+    const [cx, cy, cz] = plan.position, [tx, ty, tz] = plan.target;
+    const fx = tx - cx, fy = ty - cy, fz = tz - cz, fl = Math.hypot(fx, fy, fz);
+    const f = [fx / fl, fy / fl, fz / fl];
+    const rl = Math.hypot(-f[2], f[0]) || 1;
+    const r = [-f[2] / rl, 0, f[0] / rl];
+    const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+    const tV = Math.tan(plan.fov * Math.PI / 360), tH = tV * aspect;
+    const 점 = [];
+    for (const [px, pz] of 상자.pts) for (const py of [상자.y, 상자.y + 상자.h]) {
+      const dx = px - cx, dy = py - cy, dz = pz - cz;
+      const fwd = dx * f[0] + dy * f[1] + dz * f[2];
+      if (fwd <= 1e-6) continue;
+      점.push([(dx * r[0] + dy * r[1] + dz * r[2]) / fwd / tH, (dx * u[0] + dy * u[1] + dz * u[2]) / fwd / tV]);
+    }
+    if (점.length < 3) return 0;
+    const p0 = [...점].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+    const 반 = s => { const h = [];
+      for (const q of s) { while (h.length >= 2 && cr(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop(); h.push(q); }
+      h.pop(); return h; };
+    let poly = [...반(p0), ...반([...p0].reverse())];
+    for (const [nx, ny, d] of [[1, 0, 1], [-1, 0, 1], [0, 1, -0.5], [0, -1, 1]]) {
+      const out = [];
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length];
+        const da = d - (a[0] * nx + a[1] * ny), db = d - (b[0] * nx + b[1] * ny);
+        if (da >= 0) out.push(a);
+        if ((da >= 0) !== (db >= 0)) { const t = da / (da - db); out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); }
+      }
+      poly = out; if (!poly.length) return 0;
+    }
+    let A = 0;
+    for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; A += a[0] * b[1] - b[0] * a[1]; }
+    return Math.min(100, Math.abs(A / 2) / (2 * 0.5) * 100);
+  };
+  /** 좌석을 바닥 위 상자로 바꾼다(단위 m). 좌석 등받이 높이 0.95m.
+   *  **단(riser)은 세지 않는다** — 단은 물건이 아니라 카메라가 딛고 선 바닥이라,
+   *  '앞을 가리는 물건'으로 재면 언제나 화면 아래를 가득 채운 것으로 나온다. */
+  const 상자 = it => {
+    if (it.type === 'seat') {
+      const w = DIMS.auditoriumChair.seatW / 1000, d = DIMS.auditoriumChair.seatD / 1000;
+      return { pts: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sz]) =>
+        [(it.x + sx * w * 500) / 1000, (it.z + sz * d * 500) / 1000]), y: (it.y || 0) / 1000, h: 0.95 };
+    }
+    return null;
+  };
+  let 최악 = { v: 0, 이름: '', type: '' };
+  for (const [t, id] of 강당) {
+    const { W, H, D } = { hall_s: { W: 10000, H: 4000, D: 12000 },
+      hall_m: { W: 18000, H: 6000, D: 20000 }, hall_l: { W: 24000, H: 8000, D: 28000 } }[t];
+    const lay = layoutRoom(t, defaultOptions(t), { W, D, design: id });
+    const model = buildGLModel({
+      space: { W, H, D },
+      led: { marginW: Math.max(0, (W - 4000) / 2), mount: 1000, w: 4000, h: 2300, depth: 60, cols: 4, rows: 4 },
+      items: lay.items, roomType: t, design: id,
+    });
+    for (const view of ['interior', 'corner-l', 'corner-r', 'front', 'iso', 'top']) {
+      // 강당 전용 화각은 아직 없다(PHASE 9-d.2). 공용 시점 자세를 그대로 쓴다.
+      const pose = cameraPlanForDesign(id, view, model, aspect) || presetPose(view, model, aspect);
+      const plan = { position: pose.position, target: pose.target, fov: pose.fov || FOV_DEG };
+      for (const it of lay.items) {
+        const b = 상자(it); if (!b) continue;
+        const v = 아래띠점유(plan, b);
+        if (v > 최악.v) 최악 = { v: +v.toFixed(1), 이름: `${t}/${view}`, type: it.type };
+      }
+    }
+  }
+  // 아이디에이션 계약(56%)보다 엄격하게 **35%** 로 둔다 — 강당에는 앞을 막을 만큼 큰
+  //   상판 가구가 없고, 좌석 하나가 화면 아래를 3분의 1 넘게 덮으면 좌석이 카메라에
+  //   붙었다는 뜻이기 때문이다.
+  assert.ok(최악.v <= 35,
+    `${최악.이름}: ${최악.type} 하나가 화면 아래 띠의 ${최악.v}% 를 덮는다`);
+  // 잣대가 헛돌지 않는다는 확인 — 실제로 잰 값이 0 이 아니다.
+  assert.ok(최악.v > 3, `가장 큰 전경 물건이 ${최악.v}% 뿐이다 — 재는 방법이 잘못됐을 수 있다`);
 });

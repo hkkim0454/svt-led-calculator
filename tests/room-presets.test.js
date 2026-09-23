@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {
   ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions,
   autoDepthForType, layoutRoom, FURNITURE, faceTowards, distributeSeats, personSpot, PERSON_BLOCKING, tierPlan,
+  AUDITORIUM_SEATING,
 } from '../src/room-presets.js';
 
 // 배치된 물건이 모두 방 안(0..W, 0..D)에 있는지 확인한다.
@@ -169,7 +170,9 @@ test('강당 — 통로 수에 따라 좌석 블록이 나뉜다', () => {
   const gaps = aisles => {
     const r = layoutRoom('hall_m', { rows: 1, seatsPerRow: 12, aisles, stage: false }, room);
     const xs = r.items.filter(i => i.type === 'seat').map(i => i.x).sort((a, b) => a - b);
-    return xs.slice(1).map((x, i) => Math.round(x - xs[i])).filter(g => g > FURNITURE.seatPitchX + 1);
+    // 통로는 '좌석 간격보다 눈에 띄게 벌어진 자리'다. 강당 좌석 간격은 크기별 표에서 온다
+    //   (PHASE 9-b — 중강당은 620mm). 공용 상수로 재면 모든 사이가 통로로 잡힌다.
+    return xs.slice(1).map((x, i) => Math.round(x - xs[i])).filter(g => g > AUDITORIUM_SEATING.hall_m.pitchX + 1);
   };
   assert.equal(gaps('0').length, 0);
   assert.equal(gaps('1').length, 1);
