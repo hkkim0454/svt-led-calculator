@@ -20,8 +20,11 @@ import { layoutRoom, defaultOptions, roomType, ROOM_TYPES, FURNITURE, tierPlan,
   auditoriumStageSize, auditoriumLedSize } from '../src/room-presets.js';
 import { DIMS, FURNITURE_COLORS } from '../src/furniture-assets.js';
 import { auditoriumSurfaceFinish, AUDITORIUM_SURFACE_PARTS } from '../src/design-finish.js';
-import { buildGLModel, presetPose, FOV_DEG } from '../src/gl-model.js';
-import { cameraPlanForDesign } from '../src/design-camera.js';
+import { buildGLModel, presetPose, settledPose, FOV_DEG } from '../src/gl-model.js';
+import { cameraPlanForDesign, auditoriumCameraPlanId, auditoriumCameraPresets,
+  AUDITORIUM_CAMERA_PRESETS, AUDITORIUM_CAMERA_SIZES, AUDITORIUM_CAMERA_VIEWS,
+  AUDITORIUM_FOV_RANGE, AUDITORIUM_EYE_RANGE, AUDITORIUM_BAND_MAX,
+  AUDITORIUM_MIN_HOUSE_AHEAD, AUDITORIUM_STAND_EYE, AUDITORIUM_ROW_GAP } from '../src/design-camera.js';
 import { LIGHTING_PRESETS, LIGHT_ROLES, SCALE_RANGE, MAX_ABS_INTENSITY, MAX_SHADOW_CASTERS,
   lightingForDesign, applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign, stageWashForDesign } from '../src/design-lighting.js';
@@ -87,26 +90,27 @@ test('③ 상태는 planned 다 — 릴리스 게이트(PHASE 9-f) 전에는 rea
 
 // ── ② 이 단계의 핵심 안전장치 — 붙였지만 화면에는 아무 값도 도달하지 않는다 ──
 
-test('④ 강당 디자인이 화면에 보내는 것은 조명뿐이다 (PHASE 9-d.1 에서 갱신)', () => {
+test('④ 강당 디자인이 화면에 보내는 것은 조명과 화각뿐이다 (PHASE 9-d.2 에서 갱신)', () => {
   // **바뀐 이유.** PHASE 9-a 는 자리만 만들었고(일곱 항목 전부 INHERIT/planned), PHASE 9-d.1 이
-  //   그중 **조명 한 항목**을 실제로 채웠다. 나머지 여섯은 여전히 '디자인 없음'과 한 값도
-  //   다르지 않다 — 한 항목이라도 더 새어 나가면 그 변화가 어느 단계의 것인지 따질 수 없게 된다.
-  const 그대로 = ['furniture', 'palette', 'materials', 'wallTreatment', 'camera', 'accessories'];
+  //   **조명**을, PHASE 9-d.2 가 **화각**을 실제로 채웠다. 나머지 다섯은 여전히 '디자인 없음'과
+  //   한 값도 다르지 않다 — 한 항목이라도 더 새어 나가면 그 변화가 어느 단계의 것인지 따질 수 없다.
+  const 그대로 = ['furniture', 'palette', 'materials', 'wallTreatment', 'accessories'];
   for (const [, id] of 강당) {
     const 해석 = resolveDesign(id);
     for (const f of 그대로) {
       assert.equal(해석[f], NEUTRAL_DESIGN[f], `${id}.${f} 가 화면에 값을 보낸다`);
     }
     assert.equal(해석.lighting, 'auditoriumStage', `${id}: 조명이 강당 전용이 아니다`);
-    // 선언 쪽도 확인한다 — 화각만 `planned(...)` 로 남아 있다(PHASE 9-d.2 의 몫).
+    assert.equal(해석.camera, 'auditoriumProposal', `${id}: 화각이 강당 전용이 아니다`);
+    // 선언 쪽도 확인한다 — 이제 예약(`planned`)으로 남은 항목은 하나도 없다.
     const d = ROOM_DESIGNS[id];
-    for (const f of ['furniture', 'palette', 'materials', 'wallTreatment', 'accessories']) {
+    for (const f of 그대로) {
       assert.equal(d[f], INHERIT, `${id}.${f} 는 INHERIT 여야 한다`);
     }
     assert.equal(d.lighting, 'auditoriumStage', `${id}: 조명 이름`);
-    assert.deepEqual(d.camera, { planned: 'auditoriumProposal' }, `${id}: 화각 예약 이름`);
+    assert.equal(d.camera, 'auditoriumProposal', `${id}: 화각 이름`);
     assert.equal(isPlanned(d.lighting), false, `${id}: 조명이 아직 예약 상태다`);
-    assert.ok(isPlanned(d.camera), `${id}: 화각은 예약 표시여야 한다`);
+    assert.equal(isPlanned(d.camera), false, `${id}: 화각이 아직 예약 상태다`);
   }
   // 조명 프리셋은 일곱 벌이고 강당 것이 맨 뒤다(기존 여섯 벌은 이름·순서 그대로).
   assert.deepEqual(Object.keys(LIGHTING_PRESETS),
@@ -980,4 +984,292 @@ test('㊲ 조명 계산은 결정적이다 — 같은 입력을 세 번 물어�
     assert.equal(a[0], a[1], `${id}: 두 번째가 다르다`);
     assert.equal(a[1], a[2], `${id}: 세 번째가 다르다`);
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-d.2 — 강당 제안 카메라 계약 (DEC-145)
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-d.1 까지 강당은 **공용 실내 시점**을 썼다. 그 자리는 맨 뒷줄 뒤라, 대강당에서
+//   LED 6.08% · 무대 0.19% · 맨 뒤 단 하나가 화면 아래 띠의 56.47% 였다(렌더 실측).
+//   눈높이도 선언값 1.75m 가 아니라 2.35m 였다 — 시선을 눈보다 높게 두어 조작기가
+//   카메라를 밀어 올렸기 때문이다.
+// 여기서 고정하는 것은 **카메라뿐이다.** 좌석·단·무대·LED·재질·조명은 앞 단계 값 그대로이며,
+//   그 사실도 아래에서 다시 확인한다.
+
+/** 강당 세 크기의 대표 방(mm)과 그 방에서 쓰는 LED 권장 설치 크기. */
+const 강당방 = Object.freeze({
+  hall_s: { W: 10000, H: 4000, D: 12000, ledW: 4000, ledH: 2300 },
+  hall_m: { W: 18000, H: 6000, D: 20000, ledW: 5200, ledH: 3000 },
+  hall_l: { W: 24000, H: 8000, D: 28000, ledW: 7100, ledH: 4000 },
+});
+const 화면비 = 574 / 563;
+
+/** 대표 방의 GL 모델. 배치는 제품 기본값 그대로 — 카메라만 보는 검사다. */
+function 강당모델(t, id) {
+  const { W, H, D, ledW, ledH } = 강당방[t];
+  const lay = layoutRoom(t, defaultOptions(t), { W, D, design: id, ledW, ledBottom: 1000 });
+  return buildGLModel({
+    space: { W, H, D },
+    led: { marginW: Math.max(0, (W - ledW) / 2), mount: 1000, w: ledW, h: ledH, depth: 60, cols: 4, rows: 4 },
+    items: lay.items, roomType: t, design: id,
+  });
+}
+
+test('㊳ 강당 제안 카메라 — 세 크기 × 세 시점에 실제로 붙고, 다른 공간에는 붙지 않는다', () => {
+  for (const [t, id] of 강당) {
+    assert.deepEqual([...auditoriumCameraPresets(id)], ['interior', 'corner-l', 'corner-r'], id);
+    const m = 강당모델(t, id);
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      assert.equal(auditoriumCameraPlanId(id, v), v, `${id}/${v}: 계획 이름이 풀리지 않는다`);
+      const plan = cameraPlanForDesign(id, v, m, 화면비);
+      assert.ok(plan, `${id}/${v}: 계획이 없다`);
+      // 라우터가 **강당 계획**을 돌려주었는지 — 다른 계열이 가로채면 이 항목이 없다.
+      assert.equal(typeof plan.ledScreenShare, 'number', `${id}/${v}: 강당 계획이 아니다`);
+      assert.equal(typeof plan.riserAtStand, 'number', `${id}/${v}: 강당 계획이 아니다`);
+    }
+    // 기술 시점 셋은 이름조차 풀리지 않는다.
+    for (const v of ['front', 'iso', 'top']) {
+      assert.equal(auditoriumCameraPlanId(id, v), null, `${id}/${v}: 기술 시점을 가로챘다`);
+    }
+  }
+  // 강당이 아닌 디자인은 한 시점도 풀리지 않는다.
+  for (const id of [...동결, null, undefined, '', '없는디자인', 0, {}]) {
+    assert.deepEqual([...auditoriumCameraPresets(id)], [], String(id));
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      assert.equal(auditoriumCameraPlanId(id, v), null, `${String(id)}/${v}`);
+    }
+  }
+});
+
+test('㊴ 화각 — 권장 상한 44°를 넘지 않고, 표에 적은 값도 그 범위 안이다', () => {
+  assert.deepEqual({ ...AUDITORIUM_FOV_RANGE }, { min: 36, max: 44 });
+  for (const [t, id] of 강당) {
+    const m = 강당모델(t, id);
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      const plan = cameraPlanForDesign(id, v, m, 화면비);
+      assert.ok(plan.fov >= AUDITORIUM_FOV_RANGE.min && plan.fov <= AUDITORIUM_FOV_RANGE.max,
+        `${id}/${v}: 화각 ${plan.fov}° 가 ${AUDITORIUM_FOV_RANGE.min}~${AUDITORIUM_FOV_RANGE.max}° 밖이다`);
+      // 50° 는 금지선이다(§9). 상한이 44 이므로 구조적으로 닿을 수 없지만 한 번 더 못박는다.
+      assert.ok(plan.fov < 50, `${id}/${v}: 광각 왜곡 구간이다`);
+    }
+    // 표에 적은 기준 화각도 범위 안이어야 한다 — 표만 고치고 상한을 잊는 일을 막는다.
+    const s = AUDITORIUM_CAMERA_SIZES[id];
+    for (const v of Object.values(AUDITORIUM_CAMERA_VIEWS)) {
+      const f = s.fov + (v.fovAdd || 0);
+      assert.ok(f >= AUDITORIUM_FOV_RANGE.min && f <= AUDITORIUM_FOV_RANGE.max,
+        `${id}: 표에 적은 화각 ${f}° 가 범위 밖이다`);
+    }
+  }
+});
+
+test('㊵ 눈높이 — 1.60~2.20m 안이고, 시선은 언제나 눈보다 낮다(조작기가 카메라를 올리지 않는다)', () => {
+  // **왜 시선이 눈보다 낮아야 하는가.** 조작기(OrbitControls)는 극각을 90° 아래로 자른다.
+  //   시선이 눈보다 높으면 극각이 상한에 걸려 조작기가 카메라를 위로 밀어 올린다. 그래서
+  //   선언한 눈높이와 화면의 눈높이가 갈린다(PHASE 9-d.1 대강당 실측 1.75 → 2.35m).
+  assert.deepEqual({ ...AUDITORIUM_EYE_RANGE }, { min: 1.60, max: 2.20 });
+  for (const [t, id] of 강당) {
+    const m = 강당모델(t, id);
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      const plan = cameraPlanForDesign(id, v, m, 화면비);
+      const eye = plan.position[1];
+      assert.ok(eye >= AUDITORIUM_EYE_RANGE.min - 1e-9 && eye <= AUDITORIUM_EYE_RANGE.max + 1e-9,
+        `${id}/${v}: 눈높이 ${eye}m 가 범위 밖이다`);
+      assert.ok(plan.target[1] < eye - 1e-6, `${id}/${v}: 시선(${plan.target[1]})이 눈(${eye})보다 낮지 않다`);
+      // 조작기를 거쳐도 자세가 그대로인지 — 이것이 위 조건의 진짜 목적이다.
+      const 앉힘 = settledPose({ id: v, ortho: false, position: plan.position, target: plan.target,
+        up: [0, 1, 0], fov: plan.fov, orthoHeight: null });
+      assert.deepEqual(앉힘.position, plan.position, `${id}/${v}: 조작기가 카메라를 옮겼다`);
+      // 단 위에 선 사람이다 — 카메라 높이는 '그 자리의 단 높이 + 선 눈높이'와 같다.
+      assert.ok(Math.abs(eye - (plan.riserAtStand + plan.standEye)) < 1e-6
+        || Math.abs(eye - AUDITORIUM_EYE_RANGE.max) < 1e-6,
+        `${id}/${v}: 눈높이가 단 높이와 이어지지 않는다`);
+    }
+  }
+});
+
+/** 넓은 방 행렬 — 대표 방 셋에 **깊은 방·작은 방**을 더한다. 각 줄은
+ *  [용도, 디자인, 가로, 높이, 깊이, LED 권장 가로, LED 권장 세로]다(mm).
+ *  **왜 대표 방만으로는 모자라는가.** 대표 세 방에서는 눈높이 규칙(단이 높으면 서지 않는다)이
+ *  먼저 걸려 카메라 자리를 정해 버린다. 그래서 LED 목표 규칙이 실제로 자리를 옮기는지는
+ *  **더 깊은 방**에서만 드러난다 — 소강당을 20m·26m 로 늘리면 그 규칙이 카메라를 앞으로 당긴다. */
+const 넓은강당행렬 = Object.freeze([
+  ['hall_s', 'auditoriumSmall', 8000, 3600, 10000, 4000, 2300],
+  ['hall_s', 'auditoriumSmall', 10000, 4000, 12000, 4000, 2300],
+  ['hall_s', 'auditoriumSmall', 10000, 4000, 20000, 4000, 2300],
+  ['hall_s', 'auditoriumSmall', 12000, 4500, 26000, 4000, 2300],
+  ['hall_m', 'auditoriumMedium', 14000, 5000, 16000, 5200, 3000],
+  ['hall_m', 'auditoriumMedium', 18000, 6000, 20000, 5200, 3000],
+  ['hall_m', 'auditoriumMedium', 18000, 6000, 30000, 5200, 3000],
+  ['hall_l', 'auditoriumLarge', 20000, 7000, 24000, 7100, 4000],
+  ['hall_l', 'auditoriumLarge', 24000, 8000, 28000, 7100, 4000],
+  ['hall_l', 'auditoriumLarge', 24000, 8000, 34000, 7100, 4000],
+]);
+
+/** 행렬 한 줄의 GL 모델. */
+function 행렬모델(t, id, W, H, D, ledW, ledH) {
+  const lay = layoutRoom(t, defaultOptions(t), { W, D, design: id, ledW, ledBottom: 1000 });
+  return buildGLModel({
+    space: { W, H, D },
+    led: { marginW: Math.max(0, (W - ledW) / 2), mount: 1000, w: ledW, h: ledH, depth: 60, cols: 4, rows: 4 },
+    items: lay.items, roomType: t, design: id,
+  });
+}
+
+test('㊶ LED 화면 점유 — 어느 방에서도 목표 아래로 내려가지 않고, 화면 밖으로 잘리지 않는다', () => {
+  // 목표는 **화면 넓이 대비 비율**이다(§10). 렌더 실측은 가림·테두리 때문에 이 값보다
+  //   작게 나오므로(대표 세 방 실측 8.14~16.10%) 코드 쪽 목표를 따로 둔다.
+  //   **8.5% 를 고른 근거.** 이 행렬 30컷의 실제 최솟값이 10.02% 이고, LED 목표 규칙을 끄면
+  //   깊은 소강당이 3.0~7.1% 로 떨어진다. 그 사이에 선을 그어 규칙이 살아 있는지 잡는다.
+  let 최저 = { v: 1, 이름: '' };
+  for (const [t, id, W, H, D, lw, lh] of 넓은강당행렬) {
+    const m = 행렬모델(t, id, W, H, D, lw, lh);
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      const plan = cameraPlanForDesign(id, v, m, 화면비);
+      assert.equal(plan.ledFullyVisible, true, `${t} ${W}×${D}/${v}: LED 가 화면 밖으로 잘린다`);
+      assert.ok(plan.ledScreenShare >= 0.085,
+        `${t} ${W}×${D}/${v}: LED 화면 점유 ${plan.ledScreenShare} 가 목표 0.085 에 못 미친다`);
+      // 반대쪽도 본다 — LED 가 화면의 절반을 넘으면 'LED 사진'이지 제안 렌더가 아니다.
+      assert.ok(plan.ledScreenShare <= 0.45,
+        `${t} ${W}×${D}/${v}: LED 가 화면의 ${plan.ledScreenShare} 를 덮는다`);
+      if (plan.ledScreenShare < 최저.v) 최저 = { v: plan.ledScreenShare, 이름: `${t} ${W}×${D}/${v}` };
+    }
+  }
+  // 잣대가 놀고 있지 않다는 확인 — 실제로 목표에 가까운 칸이 있다.
+  assert.ok(최저.v < 0.13, `가장 작은 LED 가 ${최저.v}(${최저.이름}) 다 — 기준이 너무 헐겁다`);
+});
+
+test('㊷ 천장 띠·객석 — 위를 지나치게 비우지 않고, 카메라 앞뒤로 객석이 남는다', () => {
+  for (const [t, id] of 강당) {
+    const m = 강당모델(t, id);
+    const aud = m.fields.auditorium;
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      const plan = cameraPlanForDesign(id, v, m, 화면비);
+      assert.ok(plan.ceilingBand <= AUDITORIUM_BAND_MAX + 1e-9,
+        `${id}/${v}: 화면 위쪽 ${plan.ceilingBand} 가 천장 띠 상한을 넘는다`);
+      // **객석 한가운데에 선다.** 앞에도 뒤에도 좌석이 남아야 '강당 안'으로 읽힌다(§7).
+      assert.ok(plan.rowsAhead >= Math.round(aud.rows * AUDITORIUM_MIN_HOUSE_AHEAD) - 1,
+        `${id}/${v}: 카메라 앞 객석이 ${plan.rowsAhead}줄뿐이다`);
+      assert.ok(plan.rowsBehind >= 1, `${id}/${v}: 카메라 뒤에 객석이 없다 — 맨 뒷줄 뒤에 섰다`);
+      // 방 안에 서고 벽에 붙지 않는다.
+      assert.ok(plan.wallClearance >= 0.2, `${id}/${v}: 벽에서 ${plan.wallClearance}m 뿐이다`);
+    }
+  }
+  // **앞 한계가 실제로 듣는지** — 사용자가 LED 를 작게 잡아 목표를 채울 수 없는 방이 그 경우다.
+  //   목표만 좇으면 카메라가 맨 앞줄까지 걸어 나가는데, 앞 한계가 그것을 막는다.
+  //   값(7줄)은 이 단계에서 잰 값이고, 한계를 0 으로 되돌리면 5줄로 줄어 여기서 걸린다.
+  for (const [t, id, 깊이, 최소앞] of [['hall_l', 'auditoriumLarge', 34000, 7],
+    ['hall_m', 'auditoriumMedium', 30000, 7]]) {
+    const { W, H } = 강당방[t];
+    const 작은LED = 행렬모델(t, id, W, H, 깊이, 4000, 2300);
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      const plan = cameraPlanForDesign(id, v, 작은LED, 화면비);
+      assert.ok(plan.rowsAhead >= 최소앞,
+        `${id}/${v}: LED 를 작게 잡았다고 카메라가 ${plan.rowsAhead}줄 앞까지 나왔다`);
+    }
+  }
+});
+
+test('㊸ 기술 시점 동결 — 정면·아이소·평면은 강당에서도 자세가 한 값도 다르지 않다', () => {
+  for (const [t, id] of 강당) {
+    const m = 강당모델(t, id);
+    // 같은 배치에 **디자인만 뗀** 모델. 강당 카메라가 없으면 나왔을 자세다.
+    const 민짜 = buildGLModel({
+      space: { W: 강당방[t].W, H: 강당방[t].H, D: 강당방[t].D },
+      led: { marginW: Math.max(0, (강당방[t].W - 강당방[t].ledW) / 2), mount: 1000,
+        w: 강당방[t].ledW, h: 강당방[t].ledH, depth: 60, cols: 4, rows: 4 },
+      items: m.items, roomType: t, design: null,
+    });
+    for (const v of ['front', 'iso', 'top']) {
+      assert.equal(cameraPlanForDesign(id, v, m, 화면비), null, `${id}/${v}: 계획이 끼어들었다`);
+      assert.deepEqual(presetPose(v, m, 화면비, {}), presetPose(v, 민짜, 화면비, {}),
+        `${id}/${v}: 기술 시점 자세가 달라졌다`);
+    }
+    // 제안 세 시점은 반대로 **달라져야** 한다 — 검사가 헛돌지 않는다는 확인이다.
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      assert.notDeepEqual(presetPose(v, m, 화면비, {}), presetPose(v, 민짜, 화면비, {}),
+        `${id}/${v}: 제안 시점이 그대로다 — 카메라가 붙지 않았다`);
+    }
+  }
+});
+
+test('㊹ 동결 여섯 공간 — 강당 카메라가 한 값도 새어 나가지 않는다', () => {
+  // 강당 계열이 다른 공간을 가로채지 않는지, 그리고 그 공간들의 계획이 여전히 제 계열로
+  //   풀리는지 본다. 값 자체의 동결은 각 공간의 검사 파일이 이미 지킨다.
+  const 계열 = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
+    largeConference: 'conferenceProposal', controlRoom: 'controlProposal',
+    trainingRoom: 'trainingProposal', ideationRoom: 'ideationProposal' };
+  for (const id of 동결) {
+    assert.equal(resolveDesign(id).camera, 계열[id], `${id}: 화각 계열이 달라졌다`);
+    for (const v of [...AUDITORIUM_CAMERA_PRESETS, 'rear', 'front', 'iso', 'top']) {
+      assert.equal(auditoriumCameraPlanId(id, v), null, `${id}/${v}: 강당 계열이 가로챘다`);
+    }
+  }
+  // 강당 계열은 `auditoriumProposal` 이라는 이름에만 반응한다 — 이름을 바꿔 달면 붙지 않는다.
+  assert.equal(auditoriumCameraPlanId('trainingRoom', 'interior'), null);
+});
+
+test('㊺ 범위 동결 — 카메라 단계가 좌석·단·무대·LED·조명을 한 값도 바꾸지 않았다', () => {
+  // PHASE 9-b/9-c/9-d.1 이 확정한 값들을 여기서 한 번 더 확인한다. 카메라 표를 고치다
+  //   배치나 조명에 손이 가면 여기서 걸린다.
+  const 기준 = { hall_s: { seats: 84, rows: 7, perRow: 12, tiers: 1, riserH: 200, firstRowZ: 4000 },
+    hall_m: { seats: 280, rows: 14, perRow: 20, tiers: 4, riserH: 220, firstRowZ: 4400 },
+    hall_l: { seats: 418, rows: 19, perRow: 22, tiers: 5, riserH: 250, firstRowZ: 4800 } };
+  const 무대기준 = { hall_s: [7000, 2200, 300], hall_m: [11500, 2800, 450], hall_l: [13900, 3200, 600] };
+  for (const [t, id] of 강당) {
+    const { W, H, D, ledW, ledH } = 강당방[t];
+    const lay = layoutRoom(t, defaultOptions(t), { W, D, design: id, ledW, ledBottom: 1000 });
+    for (const [k, v] of Object.entries(기준[t])) {
+      assert.equal(lay.placed[k], v, `${t}.${k} 가 ${lay.placed[k]} 로 바뀌었다`);
+    }
+    const 무대 = lay.items.find(i => i.type === 'stage');
+    assert.deepEqual([무대.w, 무대.d, 무대.h], 무대기준[t], `${t}: 무대 치수가 바뀌었다`);
+    const led = auditoriumLedSize(t, { W, H, D, ledBottom: 1000, lastRowZ: lay.placed.firstRowZ
+      + (lay.placed.rows - 1) * lay.placed.pitchZ });
+    assert.deepEqual([led.w, led.h], [ledW, ledH], `${t}: LED 권장 크기가 바뀌었다`);
+    // 조명 — 프리셋 이름·세기·그림자 수가 PHASE 9-d.1 그대로다.
+    const p = lightingForDesign(id);
+    assert.equal(p.id, 'auditoriumStage', `${id}: 조명 프리셋이 바뀌었다`);
+    assert.equal(p.stageWash.intensity, 2.2, `${id}: 무대 워시 세기가 바뀌었다`);
+  }
+  assert.equal(Object.keys(LIGHTING_PRESETS).length, 7, '조명 프리셋 수가 바뀌었다');
+  assert.equal(MATERIAL_IDS.length, 13, '정식 재질 수가 바뀌었다');
+});
+
+test('㊻ 카메라 계산은 결정적이다 — 같은 입력을 세 번 물어도 같은 값이다', () => {
+  for (const [t, id] of 강당) {
+    const m = 강당모델(t, id);
+    for (const v of AUDITORIUM_CAMERA_PRESETS) {
+      const 답 = [0, 1, 2].map(() => JSON.stringify(cameraPlanForDesign(id, v, m, 화면비)));
+      assert.equal(답[0], 답[1], `${id}/${v}: 두 번째가 다르다`);
+      assert.equal(답[1], 답[2], `${id}/${v}: 세 번째가 다르다`);
+      // 모델을 새로 지어도 같아야 한다 — 상태를 들고 있지 않다는 확인이다.
+      assert.equal(답[0], JSON.stringify(cameraPlanForDesign(id, v, 강당모델(t, id), 화면비)),
+        `${id}/${v}: 모델을 다시 지으면 값이 달라진다`);
+    }
+  }
+});
+
+test('㊼ 강당 카메라 표 — 모양·범위가 정해져 있고 밖에서 고칠 수 없다', () => {
+  assert.deepEqual(Object.keys(AUDITORIUM_CAMERA_SIZES),
+    ['auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge']);
+  assert.deepEqual(Object.keys(AUDITORIUM_CAMERA_VIEWS), ['interior', 'corner-l', 'corner-r']);
+  assert.ok(Object.isFrozen(AUDITORIUM_CAMERA_SIZES) && Object.isFrozen(AUDITORIUM_CAMERA_VIEWS));
+  for (const s of Object.values(AUDITORIUM_CAMERA_SIZES)) {
+    assert.ok(Object.isFrozen(s));
+    assert.ok(s.ledAim > 0 && s.ledAim < 0.5, 'LED 목표가 범위 밖이다');
+    assert.ok(s.eye >= AUDITORIUM_EYE_RANGE.min && s.eye <= AUDITORIUM_EYE_RANGE.max, '선 눈높이가 범위 밖이다');
+    assert.ok(s.band >= 0 && s.band <= AUDITORIUM_BAND_MAX, '천장 띠가 범위 밖이다');
+  }
+  for (const v of Object.values(AUDITORIUM_CAMERA_VIEWS)) {
+    assert.ok(Object.isFrozen(v));
+    assert.ok(['center', 'side'].includes(v.place), '서는 자리 규칙 이름이 낯설다');
+    assert.ok(Math.abs(v.rowShift) <= 0.5, '줄 옮김이 객석의 절반을 넘는다');
+    assert.ok(v.aimMix >= 0 && v.aimMix <= 1, '시선 당김이 0~1 밖이다');
+  }
+  // 좌·우 코너가 **거울상이 아니다**(§7) — 서는 깊이나 시선이 달라야 한다.
+  const L = AUDITORIUM_CAMERA_VIEWS['corner-l'], R = AUDITORIUM_CAMERA_VIEWS['corner-r'];
+  assert.ok(L.rowShift !== R.rowShift || L.aimMix !== R.aimMix, '좌·우 코너가 완전한 거울상이다');
+  assert.equal(AUDITORIUM_MIN_HOUSE_AHEAD, 0.30);
+  assert.equal(AUDITORIUM_STAND_EYE, 1.70);
+  assert.equal(AUDITORIUM_ROW_GAP, 0.5);
 });

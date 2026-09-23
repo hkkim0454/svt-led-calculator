@@ -22,7 +22,7 @@ import { designPalette } from '../src/design-finish.js';
 import { lightingPreset } from '../src/design-lighting.js';
 import { WALL_PLAN_IDS } from '../src/control-walls.js';
 // 화각 계획 이름 — 실재하는 계획인지 확인하기 위한 목록(가짜 스펙 금지).
-const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal', 'controlProposal', 'trainingProposal', 'ideationProposal']);
+const CAMERA_PLAN_IDS = new Set(['corporateProposal', 'executiveProposal', 'conferenceProposal', 'controlProposal', 'trainingProposal', 'ideationProposal', 'auditoriumProposal']);
 import { FURNITURE_ASSETS } from '../src/furniture-assets.js';
 
 const ROOM_TYPE_IDS = ROOM_TYPES.map(t => t.id);
@@ -195,13 +195,14 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
   const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'trainingRoom',
     'controlRoom', 'ideationRoom'];
-  // 강당 셋은 PHASE 9-a 에서 자리만 만들었고, PHASE 9-d.1 에서 **조명 하나**를 정했다.
-  //   그 밖의 항목(가구·팔레트·재질·벽 마감·화각·소품)은 여전히 화면에 도달하지 않는다.
+  // 강당 셋은 PHASE 9-a 에서 자리만 만들었고, PHASE 9-d.1 에서 **조명**을, PHASE 9-d.2 에서
+  //   **화각**을 정했다. 그 밖의 항목(가구·팔레트·재질·벽 마감·소품)은 화면에 도달하지 않는다.
   const 강당 = ['auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge'];
   assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), 강당);
   for (const id of 강당) {
-    assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])), ['auditoriumStage'],
-      `${id}: 조명 말고 다른 것까지 화면에 보낸다`);
+    assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])),
+      ['auditoriumStage', 'auditoriumProposal'],
+      `${id}: 조명·화각 말고 다른 것까지 화면에 보낸다`);
   }
   // 아이디에이션은 PHASE 8-2a 에서 **조명**을, PHASE 8-2b 에서 **화각**을 정했다.
   //   나머지 항목은 여전히 전부 INHERIT 이다.
@@ -279,9 +280,11 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   //   조명·화각(7-b)까지 정했고, 가구·벽 구성·소품은 INHERIT 다.
   //   아이디에이션은 조명(8-2a)과 화각(8-2b) 두 가지다 — 팔레트를 만들 근거는 측정에서 나오지 않았다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
-  //   강당 셋은 PHASE 9-d.1 에서 조명 하나씩(auditoriumStage)을 정했다.
+  //   강당 셋은 PHASE 9-d.1 에서 조명(auditoriumStage)을, PHASE 9-d.2 에서 화각을 정했다.
   assert.deepEqual(applied.slice().sort(), [
-    'acousticPanel', 'acousticPanel', 'auditoriumStage', 'auditoriumStage', 'auditoriumStage',
+    'acousticPanel', 'acousticPanel',
+    'auditoriumProposal', 'auditoriumProposal', 'auditoriumProposal',
+    'auditoriumStage', 'auditoriumStage', 'auditoriumStage',
     'blackEquipment', 'blackEquipment', 'boardroomTable',
     'carpetTile', 'carpetTileDark',
     'carpetTileLight', 'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
@@ -390,7 +393,9 @@ test('기존 계산 무변경 ② LED — 삼성 검증 기준값(MP012F 6×3.4m
   //   디자인이 정하는 것은 **가구의 생김새와 마감·조명·화각**뿐이다 — 계산에는 닿지 않는다.
   const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
     largeConference: 'conferenceProposal', controlRoom: 'controlProposal',
-    trainingRoom: 'trainingProposal', ideationRoom: 'ideationProposal' };
+    trainingRoom: 'trainingProposal', ideationRoom: 'ideationProposal',
+    auditoriumSmall: 'auditoriumProposal', auditoriumMedium: 'auditoriumProposal',
+    auditoriumLarge: 'auditoriumProposal' };
   for (const id of [...DESIGN_IDS, undefined]) {
     if (CAM[id]) { assert.equal(resolveDesign(id).camera, CAM[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각은 아직 디자인이 정하지 않는다`);
