@@ -9,17 +9,17 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=449';
-import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign,
-} from './room-presets.js?v=449';
-import { createViewerGL } from './render3d-gl.js?v=449';
-import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=449';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=449';
-import { normalizeDesign, designsFor } from './room-design.js?v=449';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=449';
-import { sideMonitorLayout } from './monitors.js?v=449';
-import { ledImageFit } from './led-image.js?v=449';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=449';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=450';
+import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
+} from './room-presets.js?v=450';
+import { createViewerGL } from './render3d-gl.js?v=450';
+import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=450';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=450';
+import { normalizeDesign, designsFor } from './room-design.js?v=450';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=450';
+import { sideMonitorLayout } from './monitors.js?v=450';
+import { ledImageFit } from './led-image.js?v=450';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=450';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -836,7 +836,8 @@ function renderPreview3D() {
   // 공간 디자인 — 아직 고르는 화면이 없으므로 용도별 기본값을 쓴다(PHASE 2-a, §24).
   //   회의실 → corporateMeeting · 상황실 → controlRoom · 나머지 → null(디자인 없음)
   //   배치와 렌더가 **같은 값**을 봐야 한다(PHASE 4-b) — 대회의실 U자 테이블 상한이 여기서 갈린다.
-  const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D, ledBottom: mount, design: designId });
+  const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D, ledBottom: mount, design: designId,
+    ledW: r.actualW });   // 강당 무대가 LED 화면보다 좁아지지 않게 하는 데만 쓴다(PHASE 9-c)
 
   // 3D 뷰어는 처음 열 때 한 번만 만든다. WebGL을 못 쓰는 환경이면 정면 뷰 안내로 되돌린다.
   if (!viewer3d && !gl3dFailed) {
@@ -1343,12 +1344,41 @@ $('#person3dSel')?.addEventListener('change', () => {
   renderPreview();
 });
 
+// ── LED 설치 크기 '자동' (PHASE 9-c) ────────────────────────────────────────
+// 강당은 방이 깊을수록 뒷자리가 멀어지는데, ② 칸의 기본값(4,000×2,300)은 방 크기를 보지
+//   않는다. 그래서 대강당에서 화면이 벽의 점처럼 보였다(실내 시점 점유 1.55%).
+//   **사람이 ② 칸에 숫자를 넣기 전까지만** 공간 타입·크기에 맞는 값을 제안한다.
+//   제안하는 것은 '얼마나 큰 화면을 세울지'라는 요청값뿐이고, 캐비닛 수·전력 같은 산출은
+//   늘 하던 대로 그 요청값을 채우는 계산으로 나온다(지어낸 수치가 아니다).
+let ledSizeAuto = true;
+
+/** 강당이면 ② 칸을 방에 맞춰 채운다. 값을 바꿨으면 true. */
+function applyAutoLedSize() {
+  if (!ledSizeAuto) return false;
+  const wEl = $('#ledW'), hEl = $('#ledH');
+  if (!wEl || !hEl) return false;
+  const sW = spaceWmm(), sH = spaceHmm();
+  const D = spaceDmm() || autoDepthForType(roomTypeId, sW);
+  const baseH = num($('#baseHeight')?.value);
+  // 마지막 줄 위치는 배치 계산이 안다 — 화면 높이 기준(가장 먼 좌석 ÷ 6)에 그 값을 쓴다.
+  const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D, ledBottom: baseH, design: designId });
+  const size = auditoriumLedSize(roomTypeId, { W: sW, H: sH, D, ledBottom: baseH,
+    lastRowZ: Number(lay?.placed?.firstRowZ) > 0
+      ? lay.placed.firstRowZ + (lay.placed.rows - 1) * lay.placed.pitchZ : 0 });
+  if (!size) return false;                       // 강당이 아니면 건드리지 않는다
+  if (num(wEl.value) === size.w && num(hEl.value) === size.h) return false;
+  wEl.value = size.w; hEl.value = size.h;
+  return true;
+}
+
 $('#roomType')?.addEventListener('change', () => {
   roomTypeId = roomType($('#roomType').value).id;
   roomOpts = defaultOptions(roomTypeId);   // 타입이 바뀌면 그 타입의 기본 옵션으로
   // 디자인도 그 용도의 것으로 다시 정한다 — 회의실 디자인이 강당에 따라붙으면 안 된다.
   designId = normalizeDesign(designId, roomTypeId);
-  renderRoomDesigns(); renderRoomOptions(); renderPreview(); saveLastSession();
+  applyAutoLedSize();                      // 강당이면 LED 설치 크기를 방에 맞춘다
+  clampLedInputs();
+  renderRoomDesigns(); renderRoomOptions(); renderAll();
 });
 
 // 공간 디자인 — 고른 값을 상태에 넣고, 그 디자인에서만 쓰는 옵션(대회의실 테이블 방향)을 다시 그린다.
@@ -2633,11 +2663,16 @@ function clampManualArray() {
   if (rEl) rEl.removeAttribute('max');
 }
 // 벽면·하단 높이 편집: LED 입력칸의 max만 갱신하고 값은 보존(편집 중 LED 세로가 0으로 눌러붙지 않게).
-['spaceW', 'spaceH', 'baseHeight'].forEach(id => $('#' + id)?.addEventListener('input', () => { setLedMax(); renderAll(); }));
+['spaceW', 'spaceH', 'baseHeight'].forEach(id => $('#' + id)?.addEventListener('input', () => {
+  setLedMax(); applyAutoLedSize(); renderAll();
+}));
 // 공간 깊이는 3D 뷰에서만 쓰이므로 미리보기만 다시 그린다(스펙·견적 계산에는 영향 없음).
-$('#spaceD')?.addEventListener('input', renderPreview);
+$('#spaceD')?.addEventListener('input', () => { if (applyAutoLedSize()) renderAll(); else renderPreview(); });
 // LED 크기 직접 입력: 벽면 한계로 값 제한.
-['ledW', 'ledH'].forEach(id => $('#' + id)?.addEventListener('input', () => { clampLedInputs(); renderAll(); }));
+['ledW', 'ledH'].forEach(id => $('#' + id)?.addEventListener('input', () => {
+  ledSizeAuto = false;            // 사람이 직접 넣은 값이 언제나 이긴다(PHASE 9-c)
+  clampLedInputs(); renderAll();
+}));
 $('#sboxSpare')?.addEventListener('input', renderAll);
 // 05 비디오 프로세서 입력 — 05 결과만 다시 그린다(다른 산출엔 영향 없음).
 ['vpIn4k', 'vpIn2k', 'vpLayers4k'].forEach(id => $('#' + id)?.addEventListener('input', renderProcessors));
@@ -3113,6 +3148,7 @@ function applyConfig(raw) {
   renderPresetBar();
   renderRoomOptions();
   $('#baseHeight').value = c.baseHeight; $('#ledW').value = c.ledW; $('#ledH').value = c.ledH;
+  ledSizeAuto = false;   // 되살린 값은 **사람이 쓰던 값**이다. 자동 제안으로 덮지 않는다.
   $('#manCols').value = c.manCols; $('#manRows').value = c.manRows;
   $('#sboxSpare').value = c.sboxSpare;
   $('#spareRate').value = c.spareRate;

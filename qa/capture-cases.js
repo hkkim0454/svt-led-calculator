@@ -65,13 +65,18 @@ export const CAPTURE_CASES = Object.freeze([
   // ── 강당(PHASE 9-b 에서 좌석·통로·단차 재설계) · 아이디에이션 ────────────
   { id: 'hall-s-interior', roomType: 'hall_s', design: null,
     widthMm: 10000, heightMm: 4000, depthMm: 12000, view: 'interior', options: 강당옵션('1', 200), ...기본 },
+  // 중·대강당은 LED 설치 크기도 방에 맞춘 **제품 권장값**을 적어 둔다(PHASE 9-c).
+  //   4,000×2,300 고정이던 시절에는 대강당에서 화면이 벽의 점처럼 보였다(실내 점유 1.55%).
   { id: 'hall-m-interior', roomType: 'hall_m', design: null,
-    widthMm: 18000, heightMm: 6000, depthMm: 20000, view: 'interior', options: 강당옵션('2', 220), ...기본 },
+    widthMm: 18000, heightMm: 6000, depthMm: 20000, view: 'interior', options: 강당옵션('2', 220),
+    ...기본, ledWmm: 5200, ledHmm: 3000 },
   // 좌석이 많은 시점 — 인스턴싱·그림자가 가장 많이 걸리는 칸이다.
   { id: 'hall-l-interior', roomType: 'hall_l', design: null,
-    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'interior', options: 강당옵션('2', 250), ...기본 },
+    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'interior', options: 강당옵션('2', 250),
+    ...기본, ledWmm: 7100, ledHmm: 4000 },
   { id: 'hall-l-iso', roomType: 'hall_l', design: null,
-    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'iso', options: 강당옵션('2', 250), ...기본 },
+    widthMm: 24000, heightMm: 8000, depthMm: 28000, view: 'iso', options: 강당옵션('2', 250),
+    ...기본, ledWmm: 7100, ledHmm: 4000 },
   { id: 'ideation-interior', roomType: 'ideation', design: null,
     widthMm: 9000, heightMm: 3200, depthMm: 8000, view: 'interior', options: 아이디에이션옵션, ...기본 },
   { id: 'ideation-corner-l', roomType: 'ideation', design: null,

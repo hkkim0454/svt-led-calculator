@@ -19,9 +19,9 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=449';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=449';
-import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=449';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=450';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=450';
+import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=450';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.

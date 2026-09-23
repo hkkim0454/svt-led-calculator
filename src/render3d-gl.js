@@ -18,16 +18,16 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=449';
-import { createMaterialLibrary } from './materials-gl.js?v=449';
-import { MOODS } from './materials.js?v=449';
-import { roomFinishForDesign, consoleFinishForDesign } from './design-finish.js?v=449';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=450';
+import { createMaterialLibrary } from './materials-gl.js?v=450';
+import { MOODS } from './materials.js?v=450';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=450';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
-} from './design-lighting.js?v=449';
-import { ledImageFit } from './led-image.js?v=449';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=449';
+} from './design-lighting.js?v=450';
+import { ledImageFit } from './led-image.js?v=450';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=450';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -36,7 +36,7 @@ import {
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
   CONTROLS_MAX_POLAR,
-} from './gl-model.js?v=449';
+} from './gl-model.js?v=450';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -454,9 +454,17 @@ function buildRoomGroup(model, shared) {
   if (stage) {
     //   상자 하나로 그리면 '바닥에 놓인 회색 판'으로 읽힌다. 실제 무대처럼
     //   상판(앞으로 살짝 내민 코) + 전면판 + 계단으로 나눈다. 크기·위치는 배치 계산 값 그대로다.
-    const matTop = mats.surface('stageSurface', GL_PALETTE.stageTop, stage.w, stage.d);
-    const matSide = mats.get('stageSurface', GL_PALETTE.stageSide);
-    const matFascia = mats.get('stageSurface', GL_PALETTE.stageFascia);
+    // 강당은 전용 마감을 쓴다(PHASE 9-c). 그 밖의 공간은 `aud` 가 null 이라 예전 색 그대로다.
+    //   무대 윗면 색이 거의 흰색(#eef1f5)이라 빛을 받으면 날아가던 것이 이 갈래로 해결된다.
+    const aud = auditoriumSurfaceFinish(model.design);
+    const col = (role, fallback) => (aud?.[role]?.color) || fallback;
+    const matOf = (role, fallback) => (aud?.[role]?.material) || fallback;
+    const matTop = mats.surface(matOf('auditoriumStageTop', 'stageSurface'),
+      col('auditoriumStageTop', GL_PALETTE.stageTop), stage.w, stage.d);
+    const matSide = mats.get(matOf('auditoriumStageSide', 'stageSurface'),
+      col('auditoriumStageSide', GL_PALETTE.stageSide));
+    const matFascia = mats.get(matOf('auditoriumStageFascia', 'stageSurface'),
+      col('auditoriumStageFascia', GL_PALETTE.stageFascia));
     const sg = new THREE.Group();
     sg.name = 'stage';
     sg.position.set(stage.x, 0, stage.z);

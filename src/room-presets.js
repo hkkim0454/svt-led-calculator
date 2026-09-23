@@ -54,9 +54,9 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=449';
-import { conferenceAVItems } from './conference-av.js?v=449';
-import { controlAVItems } from './control-av.js?v=449';
+import { isOccupied } from './viewangle.js?v=450';
+import { conferenceAVItems } from './conference-av.js?v=450';
+import { controlAVItems } from './control-av.js?v=450';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -82,7 +82,9 @@ export const FURNITURE = Object.freeze({
 // 각 값의 뜻:
 //   pitchX/pitchZ  좌석 좌우 간격 / 줄 간격(mm). 큰 강당일수록 넉넉하게 준다.
 //   aisleW         통로 하나의 폭(mm).
-//   frontGap       무대 뒷면(또는 LED 앞 여유)에서 첫 줄까지 띄우는 거리(mm).
+//   firstRowZ      LED 벽에서 첫 줄 좌석 중심까지의 거리(mm). **무대 깊이와 분리돼 있다** —
+//                  PHASE 9-c 가 무대 깊이를 크기별로 바꿔도 좌석은 한 자리도 움직이지 않는다.
+//   stageClear     무대 뒷면과 첫 줄 사이에 반드시 남기는 통행 거리(mm).
 //   rearMin/Max/Aim 맨 뒷줄과 뒤 벽 사이에 남길 거리(mm). Aim 을 목표로 줄 수를 정하고,
 //                  Min 보다 좁아지지 않게 한다. 0 으로 만들지 않는다(뒤쪽 통행로).
 //   maxSeats       자동으로 놓는 좌석 수 상한. **그리기 예산**을 지키려는 값이다
@@ -92,21 +94,109 @@ export const FURNITURE = Object.freeze({
 //   riserH         한 단 높이(mm) 기본값.
 export const AUDITORIUM_SEATING = Object.freeze({
   // 소강당 — 아담하게. 단차 없이 평평한 바닥이 어울린다(줄이 적어 시야가 막히지 않는다).
-  hall_s: Object.freeze({ pitchX: 570, pitchZ: 950, aisleW: 1200, frontGap: 1400,
+  hall_s: Object.freeze({ pitchX: 570, pitchZ: 950, aisleW: 1200, firstRowZ: 4000, stageClear: 1200,
     rearMin: 1500, rearMax: 3000, rearAim: 2200, maxSeats: 140,
     centerShare: 0, rowsPerTier: 99, riserH: 200 }),
   // 중강당 — 블록 구조가 보이도록 통로를 넓히고, 방 깊이를 적극적으로 쓴다.
-  hall_m: Object.freeze({ pitchX: 620, pitchZ: 1000, aisleW: 1400, frontGap: 1800,
+  hall_m: Object.freeze({ pitchX: 620, pitchZ: 1000, aisleW: 1400, firstRowZ: 4400, stageClear: 1200,
     rearMin: 2000, rearMax: 4500, rearAim: 3200, maxSeats: 280,
     centerShare: 0.44, rowsPerTier: 4, riserH: 220 }),
   // 대강당 — 좌석을 넉넉하게 벌리고 가운데 블록을 키운다. 뒤로 갈수록 단이 올라간다.
   // 뒤 여유 4,300mm — 실내 시점 카메라가 **맨 뒷줄 뒤에 서도록** 잡은 값이다.
   //   3,250mm 였을 때는 카메라가 마지막 줄 사이에 서서 좌석 하나가 화면 아래 띠의
   //   73.2% 를 덮었다(19.7% 로 내려갔다). 목표 범위(2.5 ~ 5.0m) 안쪽이다.
-  hall_l: Object.freeze({ pitchX: 700, pitchZ: 1050, aisleW: 1600, frontGap: 2200,
+  hall_l: Object.freeze({ pitchX: 700, pitchZ: 1050, aisleW: 1600, firstRowZ: 4800, stageClear: 1200,
     rearMin: 2500, rearMax: 5000, rearAim: 4300, maxSeats: 430,
     centerShare: 0.44, rowsPerTier: 4, riserH: 250 }),
 });
+
+// ── 강당 전용 무대 규칙(PHASE 9-c) ──────────────────────────────────────────
+// 무대도 세 크기가 같은 논리를 썼다 — **폭 = 방 폭 100%** · 깊이 2,600 · 높이 280mm.
+//   방 폭을 꽉 채운 무대는 벽에서 벽까지 이어진 낮은 턱처럼 보여 '무대'로 읽히지 않고,
+//   전면부에 LED·무대·발표 구역의 위계도 생기지 않았다. 크기별 비율로 바꾼다.
+//
+//   widthRatio     방 폭 대비 무대 폭. 좌우에 벽까지의 여백이 남아 무대가 '무대'로 읽힌다.
+//   minSideMargin  무대 옆에서 벽까지 반드시 남기는 거리(mm).
+//   depth          무대 깊이(mm). 첫 줄 위치는 이 값과 분리돼 있다(AUDITORIUM_SEATING.firstRowZ).
+//   height         무대 높이(mm). LED 하단보다 낮아야 하므로 실제 값은 그때 한 번 더 잘린다.
+//   ledMargin      LED 폭 양옆으로 무대가 더 나와 있어야 하는 거리(mm) — 화면이 무대 밖으로
+//                  튀어나와 보이지 않게 한다.
+export const AUDITORIUM_STAGE = Object.freeze({
+  hall_s: Object.freeze({ widthRatio: 0.70, minSideMargin: 800, depth: 2200, height: 300, ledMargin: 800 }),
+  hall_m: Object.freeze({ widthRatio: 0.64, minSideMargin: 1200, depth: 2800, height: 450, ledMargin: 1000 }),
+  hall_l: Object.freeze({ widthRatio: 0.58, minSideMargin: 1600, depth: 3200, height: 600, ledMargin: 1200 }),
+});
+
+/** 무대 윗면과 LED 화면 아래 사이에 남기는 최소 거리(mm). 무대가 화면을 가리지 않게 한다. */
+export const AUDITORIUM_STAGE_LED_CLEAR = 200;
+
+/** 그 강당 크기의 무대 규칙. 강당이 아니면 null. */
+export function auditoriumStageRule(typeId) {
+  return AUDITORIUM_STAGE[typeId] || null;
+}
+
+/**
+ * 강당 무대의 실제 크기(mm). 방 폭·LED 폭·LED 하단 높이를 보고 한 번에 정한다.
+ *
+ * @param typeId    hall_s · hall_m · hall_l
+ * @param W         방 폭(mm)
+ * @param ledW      LED 화면 실폭(mm). 모르면 0 — 그러면 LED 여백 조건을 빼고 정한다.
+ * @param ledBottom LED 화면 아래까지의 높이(mm). 무대는 이보다 낮아야 한다.
+ * @returns {{w, d, h}} 또는 null(강당이 아닐 때)
+ */
+export function auditoriumStageSize(typeId, W, ledW = 0, ledBottom = 1000) {
+  const R = auditoriumStageRule(typeId);
+  if (!R) return null;
+  const maxW = Math.max(1000, W - R.minSideMargin * 2);
+  // LED 화면보다 좌우로 더 넓어야 한다. 방이 좁아 둘 다 만족할 수 없으면 벽 여백이 이긴다.
+  const needW = ledW > 0 ? ledW + R.ledMargin * 2 : 0;
+  const w = Math.min(maxW, Math.max(Math.round(W * R.widthRatio / 100) * 100, needW));
+  // 높이 — LED 화면 아래를 침범하지 않게 자른다(하단 높이가 낮은 방에서 걸린다).
+  const bottom = Number.isFinite(ledBottom) ? ledBottom : 1000;
+  const h = clamp(R.height, 120, Math.max(120, bottom - AUDITORIUM_STAGE_LED_CLEAR));
+  return { w: Math.max(1000, w), d: R.depth, h };
+}
+
+/**
+ * 강당 LED 화면의 **권장 설치 크기**(mm). 화면이 이 값을 ②번 칸에 넣으면, 캐비닛 수·전력 같은
+ *   산출은 늘 하던 대로 그 크기를 채우는 계산으로 나온다. **여기서 스펙을 지어내지 않는다** —
+ *   정하는 것은 '얼마나 큰 화면을 세울지'라는 요청값뿐이다.
+ *
+ * 근거: 관람용 화면의 통용 기준 — **가장 먼 좌석까지의 거리가 화면 높이의 6배를 넘지 않게** 한다.
+ *   강당은 방이 깊을수록 뒷자리가 멀어지는데 기본값(4,000×2,300)은 방 크기를 보지 않아
+ *   대강당에서 화면이 벽의 점처럼 보였다(실내 시점 점유 1.55%).
+ *
+ * @param typeId hall_s · hall_m · hall_l (그 밖이면 null — 다른 용도의 기본값은 건드리지 않는다)
+ * @param room   { W, H, D, ledBottom, lastRowZ } — 마지막 줄 위치를 모르면 방 깊이로 대신한다.
+ * @returns {{w, h}} 또는 null
+ */
+export function auditoriumLedSize(typeId, { W, H, D, ledBottom = 1000, lastRowZ = 0 } = {}) {
+  if (!auditoriumStageRule(typeId)) return null;
+  const R = auditoriumStageRule(typeId);
+  const far = Math.max(0, lastRowZ > 0 ? lastRowZ + 300 : D * 0.85);
+  // 필요한 화면 높이 — 가장 먼 좌석 거리 ÷ 6. 화면비는 16:9 로 잡는다.
+  let h = far / 6;
+  let w = h * (16 / 9);
+  // 벽 안에 들어와야 한다. 폭이 걸리면 폭을 기준으로 높이를 다시 잡는다(화면비 유지).
+  const maxW = Math.max(1000, W - R.minSideMargin * 2);
+  const maxH = Math.max(600, H - Math.max(0, ledBottom) - AUDITORIUM_LED_TOP_CLEAR);
+  if (w > maxW) { w = maxW; h = w * (9 / 16); }
+  if (h > maxH) { h = maxH; w = h * (16 / 9); }
+  const round100 = v => Math.max(100, Math.round(v / 100) * 100);
+  const size = { w: round100(Math.min(w, maxW)), h: round100(Math.min(h, maxH)) };
+  // **제품 기본값(4,000×2,300)보다 작게 제안하지 않는다.** 공간 타입을 바꿨다는 이유로
+  //   오너가 세우려던 화면이 줄어들면 안 된다(캐비닛 수·전력 산출이 함께 줄어든다).
+  //   벽이 그보다 좁으면 화면의 기존 제한(`clampLedInputs`)이 마지막에 잘라 준다.
+  if (size.w <= AUDITORIUM_LED_MIN.w || size.h <= AUDITORIUM_LED_MIN.h) {
+    return { w: AUDITORIUM_LED_MIN.w, h: AUDITORIUM_LED_MIN.h };
+  }
+  return size;
+}
+
+/** 강당 LED 권장 크기의 하한 — 제품 기본값(4,000×2,300)보다 작게 제안하지 않는다. */
+export const AUDITORIUM_LED_MIN = Object.freeze({ w: 4000, h: 2300 });
+/** LED 화면 위쪽으로 남기는 최소 여유(mm). */
+export const AUDITORIUM_LED_TOP_CLEAR = 300;
 
 /** 한 단이 올라갈 수 있는 최대 높이(mm) — 강당에만 적용한다(상황실 콘솔 단은 그대로다). */
 export const AUDITORIUM_MAX_RISER = 450;
@@ -340,6 +430,8 @@ export function layoutRoom(typeId, opts, room) {
   // 공간 디자인 id — **배치를 바꾸라는 뜻이 아니다.** U자 테이블의 크기 상한처럼
   //   디자인마다 다를 수밖에 없는 값 하나를 고르는 데만 쓴다. 없으면 전부 기본값이다.
   const o = { ...normalizeOptions(typeId, opts), ledBottom: Number(room.ledBottom),
+    // LED 화면 실폭(mm) — 강당 무대가 화면보다 좁아지지 않게 하는 데만 쓴다(PHASE 9-c).
+    ledW: Number(room.ledW) || 0,
     design: (typeof room.design === 'string' && room.design) ? room.design : null };
   const W = Math.max(1000, room.W), D = Math.max(1000, room.D);
   switch (roomType(typeId).id) {
@@ -776,6 +868,8 @@ function addAuditoriumRisers(items, { W, plan, rows, rowZ, pitchZ, platW }) {
     items.push({
       type: 'riser', x: W / 2, z: (zFront + zBackEdge) / 2, rotY: 0,
       w: platW, d: zBackEdge - zFront, h: t * riserH, tier: t,
+      // 재질을 상황실 콘솔 단과 나누기 위한 표식이다(PHASE 9-c). 기하는 한 값도 다르지 않다.
+      variant: 'auditorium',
     });
   }
 }
@@ -789,11 +883,19 @@ function layoutHall(o, W, D, typeId = 'hall_s') {
   const items = [], notes = [];
   const nAisle = int(o.aisles, 1);
   const aisleTotal = nAisle * P.aisleW;
-  const stageD = o.stage ? 2600 : 0;
-  // 높이는 보이는 값일 뿐 — 좌석 계산은 깊이(stageD)만 쓴다. step은 계단을 붙일지 여부.
-  if (o.stage) items.push({ type: 'stage', x: W / 2, z: stageD / 2, rotY: 0, w: W, d: stageD, h: 280, step: o.stageStep !== false });
+  // 무대 — 크기별 규칙(AUDITORIUM_STAGE)이 폭·깊이·높이를 정한다(PHASE 9-c).
+  //   폭은 더 이상 방 폭 100% 가 아니고, 높이는 LED 화면 아래를 침범하지 않게 잘린다.
+  const 무대 = o.stage ? auditoriumStageSize(typeId, W, Math.max(0, int(o.ledW, 0)), int(o.ledBottom, 1000)) : null;
+  const stageD = 무대 ? 무대.d : 0;
+  // 좌석 계산은 깊이(stageD)만 쓴다. step은 계단을 붙일지 여부.
+  if (무대) {
+    items.push({ type: 'stage', x: W / 2, z: 무대.d / 2, rotY: 0, w: 무대.w, d: 무대.d, h: 무대.h,
+      step: o.stageStep !== false, variant: 'auditorium' });
+  }
 
-  const zStart = Math.max(stageD, F.frontClear) + P.frontGap;
+  // 첫 줄은 크기별 고정값이다. 무대가 깊어지면 '무대 뒷면 + 통행 거리'가 그 값을 밀어낼 때만
+  //   뒤로 물러난다(기본 구성에서는 밀리지 않는다 — PHASE 9-b 좌석 위치가 그대로다).
+  const zStart = Math.max(P.firstRowZ, stageD + P.stageClear);
   const maxPerRow = Math.max(1, fitCount(W - F.wallClear * 2 - aisleTotal, P.pitchX));
   const maxRows = Math.max(1, fitCount(D - zStart - F.wallClear, P.pitchZ));
   // 0 = 자동. 줄 수는 뒤 여유 목표로, 줄당 좌석 수는 '자동 좌석 상한 ÷ 줄 수'로 정한다.
