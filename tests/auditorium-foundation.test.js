@@ -15,8 +15,11 @@ import {
   roomDesign, layoutPlan, layoutVariant, isPlanned,
 } from '../src/room-design.js';
 import { layoutRoom, defaultOptions, roomType, ROOM_TYPES, FURNITURE, tierPlan,
-  AUDITORIUM_SEATING, AUDITORIUM_MAX_RISER, AUDITORIUM_MIN_AISLE, auditoriumSeating, auditoriumTierPlan } from '../src/room-presets.js';
-import { DIMS } from '../src/furniture-assets.js';
+  AUDITORIUM_SEATING, AUDITORIUM_MAX_RISER, AUDITORIUM_MIN_AISLE, auditoriumSeating, auditoriumTierPlan,
+  AUDITORIUM_STAGE, AUDITORIUM_STAGE_LED_CLEAR, AUDITORIUM_LED_TOP_CLEAR, AUDITORIUM_LED_MIN,
+  auditoriumStageSize, auditoriumLedSize } from '../src/room-presets.js';
+import { DIMS, FURNITURE_COLORS } from '../src/furniture-assets.js';
+import { auditoriumSurfaceFinish, AUDITORIUM_SURFACE_PARTS } from '../src/design-finish.js';
 import { buildGLModel, presetPose, FOV_DEG } from '../src/gl-model.js';
 import { cameraPlanForDesign } from '../src/design-camera.js';
 import { LIGHTING_PRESETS } from '../src/design-lighting.js';
@@ -134,11 +137,14 @@ test('⑥ 강당 기본값 스냅샷 — 세 크기가 각자의 구성을 가�
   //   방 깊이를 보고 뒤 여유 목표에 맞춰 스스로 정한다.
   const 기대 = {
     hall_s: { rows: 7, perRow: 12, aisles: '1', seats: 84, capacity: 84, blocks: [6, 6],
-      firstRowZ: 4000, pitchZ: 950, pitchX: 570, tiers: 1, W: 10000, D: 12000 },
+      firstRowZ: 4000, pitchZ: 950, pitchX: 570, tiers: 1, W: 10000, D: 12000,
+      stage: { w: 7000, d: 2200, h: 300 }, led: { w: 4000, h: 2300 } },
     hall_m: { rows: 14, perRow: 20, aisles: '2', seats: 280, capacity: 294, blocks: [6, 8, 6],
-      firstRowZ: 4400, pitchZ: 1000, pitchX: 620, tiers: 4, W: 18000, D: 20000 },
+      firstRowZ: 4400, pitchZ: 1000, pitchX: 620, tiers: 4, W: 18000, D: 20000,
+      stage: { w: 11500, d: 2800, h: 450 }, led: { w: 5200, h: 3000 } },
     hall_l: { rows: 19, perRow: 22, aisles: '2', seats: 418, capacity: 567, blocks: [6, 10, 6],
-      firstRowZ: 4800, pitchZ: 1050, pitchX: 700, tiers: 5, W: 24000, D: 28000 },
+      firstRowZ: 4800, pitchZ: 1050, pitchX: 700, tiers: 5, W: 24000, D: 28000,
+      stage: { w: 13900, d: 3200, h: 600 }, led: { w: 7100, h: 4000 } },
   };
   for (const [t] of 강당) {
     const e = 기대[t], o = defaultOptions(t);
@@ -169,11 +175,12 @@ test('⑥ 강당 기본값 스냅샷 — 세 크기가 각자의 구성을 가�
     assert.equal(zs[1] - zs[0], e.pitchZ, `${t}: 줄 간격`);
     const xs = [...new Set(seats.map(i => Math.round(i.x)))].sort((a, b) => a - b);
     assert.equal(xs[1] - xs[0], e.pitchX, `${t}: 좌석 간격`);
-    // 무대는 이 단계의 범위 밖이다 — 한 값도 움직이지 않았다.
+    // 무대 — PHASE 9-c 가 크기별 비율로 바꿨다(그전에는 셋 다 방 폭 100% · 2,600 × 280).
     const stage = r.items.find(i => i.type === 'stage');
-    assert.equal(stage.w, e.W, `${t}: 무대 폭이 방 폭 100% 가 아니다`);
-    assert.equal(stage.d, 2600, `${t}: 무대 깊이`);
-    assert.equal(stage.h, 280, `${t}: 무대 높이`);
+    assert.equal(stage.w, e.stage.w, `${t}: 무대 폭`);
+    assert.equal(stage.d, e.stage.d, `${t}: 무대 깊이`);
+    assert.equal(stage.h, e.stage.h, `${t}: 무대 높이`);
+    assert.ok(stage.w < e.W, `${t}: 무대가 아직 방 폭을 꽉 채운다`);
   }
   // 세 크기의 첫 줄·간격이 서로 다르다(단순 확대·축소가 아니다).
   const 첫줄 = 강당.map(([t]) => 기대[t].firstRowZ);
@@ -314,13 +321,13 @@ test('⑫ 상황실 단차 보호 — 강당과 같은 헬퍼를 쓰므로 여�
   assert.ok(r.notes.some(n => n.includes('2단으로 줄였습니다')), '단 수 안내가 사라졌다');
 });
 
-test('⑬ 무대·카메라·조명은 이 단계의 범위 밖이다', () => {
-  // 무대 계산은 한 글자도 바뀌지 않았다(PHASE 9-b §20 — 무대는 다음 단계의 몫).
+test('⑬ 카메라·조명은 이 단계의 범위 밖이다', () => {
   const s = src('room-presets.js');
-  assert.match(s, /const stageD = o\.stage \? 2600 : 0;/);
-  assert.match(s, /h: 280, step: o\.stageStep !== false/);
-  // 첫 줄 위치만 크기별 표에서 가져오도록 바뀌었다(PHASE 9-b §9).
-  assert.match(s, /const zStart = Math\.max\(stageD, F\.frontClear\) \+ P\.frontGap;/);
+  // **PHASE 9-c 에서 바뀐 것.** 무대는 이제 크기별 규칙이 정한다(그전에는 2,600 × 280 고정).
+  assert.match(s, /const 무대 = o\.stage \? auditoriumStageSize\(typeId, W, Math\.max\(0, int\(o\.ledW, 0\)\), int\(o\.ledBottom, 1000\)\) : null;/);
+  assert.match(s, /step: o\.stageStep !== false, variant: 'auditorium'/);
+  // 첫 줄 위치는 **무대 깊이와 분리**돼 있다 — 무대가 깊어져도 좌석이 밀리지 않는다.
+  assert.match(s, /const zStart = Math\.max\(P\.firstRowZ, stageD \+ P\.stageClear\);/);
   // 카메라 계획표에 강당이 아직 없다(PHASE 9-d.2 의 몫).
   assert.equal(/hall/i.test(src('design-camera.js')), false, '카메라 층에 강당이 들어갔다');
   assert.equal(/hall/i.test(src('design-lighting.js')), false, '조명 층에 강당이 들어갔다');
@@ -529,7 +536,7 @@ test('⑳ 결정성 — 같은 입력을 세 번 계산하면 한 값도 다르�
 });
 
 test('㉑ 크기별 차별화 — 소·중·대가 같은 숫자를 쓰지 않는다', () => {
-  const keys = ['pitchX', 'pitchZ', 'aisleW', 'frontGap', 'rearAim', 'maxSeats'];
+  const keys = ['pitchX', 'pitchZ', 'aisleW', 'firstRowZ', 'rearAim', 'maxSeats'];
   for (const k of keys) {
     const 값 = 강당.map(([t]) => AUDITORIUM_SEATING[t][k]);
     assert.equal(new Set(값).size, 3, `${k}: 세 크기가 같은 값을 쓴다`);
@@ -656,4 +663,205 @@ test('㉔ 전경 가림 — 좌석이나 단 하나가 화면 아래 띠를 독�
     `${최악.이름}: ${최악.type} 하나가 화면 아래 띠의 ${최악.v}% 를 덮는다`);
   // 잣대가 헛돌지 않는다는 확인 — 실제로 잰 값이 0 이 아니다.
   assert.ok(최악.v > 3, `가장 큰 전경 물건이 ${최악.v}% 뿐이다 — 재는 방법이 잘못됐을 수 있다`);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-c — 무대 · 전면부 · LED 크기 · 밝은 면 재질 계약 (DEC-143)
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-b 가 좌석을 정리했고, 여기서는 **전면부**를 정리한다. 세 가지가 목표다.
+//   ① 무대가 방 폭 100% 인 '낮은 턱'에서 크기별 비율을 가진 무대로
+//   ② 무대 윗면·객석 단 윗면이 하얗게 날아가던 문제를 마감 체계로 해결
+//   ③ 방이 커져도 LED 가 그대로이던 문제를 **권장 설치 크기**로 해결
+
+test('㉕ 무대 비율 — 방 폭을 꽉 채우지 않고, 좌우 여백과 LED 여백을 지킨다', () => {
+  for (const [t] of 강당) {
+    const R = AUDITORIUM_STAGE[t];
+    for (const [W, D] of 방행렬) {
+      for (const ledW of [0, 3226, 6451, 12000]) {
+        const r = layoutRoom(t, defaultOptions(t), { W, D, ledW, ledBottom: 1000 });
+        const stage = r.items.find(i => i.type === 'stage');
+        assert.ok(stage, `${t} ${W}×${D}: 무대가 없다`);
+        assert.ok(stage.w < W, `${t} ${W}×${D}: 무대가 방 폭을 꽉 채운다(${stage.w}/${W})`);
+        // 좌우 벽까지 여백. 방이 아주 좁으면 최소 폭(1,000mm)이 이기므로 그때는 건너뛴다.
+        if (stage.w > 1000) {
+          assert.ok((W - stage.w) / 2 >= R.minSideMargin - 1,
+            `${t} ${W}×${D}: 무대 옆 여백 ${(W - stage.w) / 2}mm < ${R.minSideMargin}mm`);
+        }
+        // LED 화면보다 좌우로 더 넓다(방이 좁아 둘 다 못 지키면 벽 여백이 이긴다).
+        if (ledW > 0 && ledW + R.ledMargin * 2 <= W - R.minSideMargin * 2) {
+          assert.ok(stage.w >= ledW + R.ledMargin * 2,
+            `${t} ${W}×${D}: 무대(${stage.w})가 LED(${ledW}) + 여백보다 좁다`);
+        }
+        assert.equal(stage.d, R.depth, `${t} ${W}×${D}: 무대 깊이`);
+        assert.equal(stage.variant, 'auditorium', `${t}: 무대에 강당 표식이 없다`);
+        // 무대 앞면은 LED 벽에 붙어 있다(PHASE 9-a 부터의 관계).
+        assert.equal(stage.z - stage.d / 2, 0, `${t} ${W}×${D}: 무대 앞면이 LED 벽에서 떨어졌다`);
+      }
+    }
+  }
+  // 세 크기의 무대 비율·깊이·높이가 서로 다르다(더 이상 한 값이 아니다).
+  for (const k of ['widthRatio', 'depth', 'height', 'minSideMargin']) {
+    const 값 = 강당.map(([t]) => AUDITORIUM_STAGE[t][k]);
+    assert.equal(new Set(값).size, 3, `${k}: 세 크기가 같은 값을 쓴다`);
+  }
+  // 큰 강당일수록 무대 폭 **비율**은 작아진다(방이 커진다고 벽까지 채우지 않는다).
+  assert.ok(AUDITORIUM_STAGE.hall_s.widthRatio > AUDITORIUM_STAGE.hall_m.widthRatio);
+  assert.ok(AUDITORIUM_STAGE.hall_m.widthRatio > AUDITORIUM_STAGE.hall_l.widthRatio);
+});
+
+test('㉖ 무대와 첫 줄 사이에 통행 거리가 남는다 — 좌석은 한 자리도 밀리지 않는다', () => {
+  const hd = DIMS.auditoriumChair.seatD / 2;
+  for (const [t] of 강당) {
+    const P = auditoriumSeating(t);
+    for (const [W, D] of 방행렬) {
+      const r = layoutRoom(t, defaultOptions(t), { W, D, ledBottom: 1000 });
+      const stage = r.items.find(i => i.type === 'stage');
+      const 첫줄 = Math.min(...r.items.filter(i => i.type === 'seat').map(i => i.z));
+      assert.ok(첫줄 - hd - (stage.z + stage.d / 2) >= P.stageClear - hd - 1,
+        `${t} ${W}×${D}: 무대 뒤 통행 거리가 모자라다`);
+      // 무대 깊이가 바뀌어도 첫 줄은 크기별 고정값 그대로다(PHASE 9-b 동결).
+      if (D - P.firstRowZ > 3000) {
+        assert.equal(첫줄, P.firstRowZ, `${t} ${W}×${D}: 첫 줄이 ${P.firstRowZ} 에서 밀렸다`);
+      }
+    }
+  }
+});
+
+test('㉗ 무대 높이 — LED 화면 아래를 침범하지 않는다', () => {
+  for (const [t] of 강당) {
+    const R = AUDITORIUM_STAGE[t];
+    for (const ledBottom of [1000, 900, 700, 500, 300]) {
+      const r = layoutRoom(t, defaultOptions(t), { W: 20000, D: 24000, ledBottom });
+      const stage = r.items.find(i => i.type === 'stage');
+      assert.ok(stage.h + AUDITORIUM_STAGE_LED_CLEAR <= ledBottom || stage.h === 120,
+        `${t} 하단 ${ledBottom}: 무대(${stage.h})가 LED 화면 아래를 침범한다`);
+      assert.ok(stage.h <= R.height, `${t}: 무대가 표보다 높아졌다`);
+      assert.ok(stage.h >= 120, `${t}: 무대가 사라졌다`);
+      assert.ok(stage.h < 1000, `${t}: 무대 높이가 비현실적이다`);
+    }
+    // 하단 높이가 넉넉하면 표의 값을 그대로 쓴다.
+    const 기본 = layoutRoom(t, defaultOptions(t), { W: 20000, D: 24000, ledBottom: 1500 });
+    assert.equal(기본.items.find(i => i.type === 'stage').h, R.height, `${t}: 기본 무대 높이`);
+  }
+});
+
+test('㉘ LED 권장 설치 크기 — 강당만, 방 안에, 작은 강당은 그대로', () => {
+  // 이 함수는 **요청값(얼마나 큰 화면을 세울지)** 을 돌려줄 뿐이다. 캐비닛 수·전력 같은
+  //   산출은 늘 하던 계산이 그 요청값을 채우며 나온다 — 여기서 스펙을 지어내지 않는다.
+  for (const t of ['meeting', 'classroom', 'control', 'ideation', '없는용도']) {
+    assert.equal(auditoriumLedSize(t, { W: 12000, H: 4000, D: 14000 }), null,
+      `${t}: 강당이 아닌 용도에 권장 크기가 생겼다`);
+  }
+  const 기대 = {
+    hall_s: { W: 10000, H: 4000, D: 12000, lastRowZ: 9700, w: 4000, h: 2300 },
+    hall_m: { W: 18000, H: 6000, D: 20000, lastRowZ: 17400, w: 5200, h: 3000 },
+    hall_l: { W: 24000, H: 8000, D: 28000, lastRowZ: 23700, w: 7100, h: 4000 },
+  };
+  for (const [t] of 강당) {
+    const e = 기대[t];
+    const got = auditoriumLedSize(t, { W: e.W, H: e.H, D: e.D, ledBottom: 1000, lastRowZ: e.lastRowZ });
+    assert.deepEqual(got, { w: e.w, h: e.h }, `${t}: 권장 크기`);
+    // 소강당은 제품 기본값(4,000×2,300) 그대로 — 작은 방에서 화면을 억지로 키우지 않는다.
+    if (t === 'hall_s') assert.deepEqual(got, { w: 4000, h: 2300 }, '소강당은 기본값 그대로다');
+  }
+  // 방이 깊을수록 커진다(줄지 않는다).
+  let 앞 = 0;
+  for (const D of [12000, 16000, 20000, 24000, 28000, 34000]) {
+    const s = auditoriumLedSize('hall_l', { W: 30000, H: 9000, D, ledBottom: 1000, lastRowZ: D - 4000 });
+    assert.ok(s.h >= 앞, `깊이 ${D}: 화면이 더 작아졌다`);
+    앞 = s.h;
+  }
+  // 벽·천장을 넘지 않는다. **제품 기본값으로 떨어진 경우는 뺀다** — 그때는 화면의 기존
+  //   제한(`clampLedInputs`)이 마지막에 벽 크기로 잘라 주고, 여기서 줄이지 않는 것이 규칙이다.
+  for (const [W, H, ledBottom] of [[9000, 8000, 1000], [24000, 5000, 1000], [24000, 8000, 3000]]) {
+    const s = auditoriumLedSize('hall_l', { W, H, D: 30000, ledBottom, lastRowZ: 26000 });
+    assert.ok(s.w <= W - AUDITORIUM_STAGE.hall_l.minSideMargin * 2 + 1, `${W}×${H}: 화면이 벽을 넘는다`);
+    assert.ok(s.h + ledBottom + AUDITORIUM_LED_TOP_CLEAR <= H + 1, `${W}×${H}: 화면이 천장을 넘는다`);
+    assert.ok(Math.abs(s.w / s.h - 16 / 9) < 0.35, `${W}×${H}: 화면비가 크게 어긋났다`);
+  }
+  // 방이 작아 권장값이 기본값보다 작아지는 경우 — **줄이지 않고 기본값 그대로 둔다.**
+  for (const [W, H, ledBottom] of [[6000, 3000, 800], [8000, 3400, 1000], [7000, 3000, 1000]]) {
+    assert.deepEqual(auditoriumLedSize('hall_l', { W, H, D: 18000, ledBottom, lastRowZ: 14000 }),
+      { w: AUDITORIUM_LED_MIN.w, h: AUDITORIUM_LED_MIN.h },
+      `${W}×${H}: 공간 타입을 바꿨다고 화면이 줄었다`);
+  }
+  // 같은 입력이면 같은 값이다(결정적).
+  const a = auditoriumLedSize('hall_m', { W: 18000, H: 6000, D: 20000, ledBottom: 1000, lastRowZ: 17400 });
+  const b = auditoriumLedSize('hall_m', { W: 18000, H: 6000, D: 20000, ledBottom: 1000, lastRowZ: 17400 });
+  assert.deepEqual(a, b);
+});
+
+test('㉙ 밝은 면 마감 — 강당에서만 갈아 끼우고, 더 이상 흰색이 아니다', () => {
+  // 날림(흰색으로 타 버리는 면)의 원인은 거의 흰색이던 두 값이었다.
+  //   무대 윗면 `#eef1f5`(밝기 0.94) · 객석 단 윗면 `#e6eaf0`(0.91).
+  const 밝기 = hex => {
+    const n = parseInt(hex.slice(1), 16);
+    return (((n >> 16) & 255) * 0.2126 + ((n >> 8) & 255) * 0.7152 + (n & 255) * 0.0722) / 255;
+  };
+  for (const [, id] of 강당) {
+    const fin = auditoriumSurfaceFinish(id);
+    assert.ok(fin, `${id}: 강당 마감이 없다`);
+    for (const part of AUDITORIUM_SURFACE_PARTS) {
+      const f = fin[part];
+      assert.ok(f && f.color && f.material, `${id}.${part}: 마감이 비었다`);
+      // 정식 재질을 새로 만들지 않는다 — 기존 13종 안에서 고른다.
+      assert.ok(MATERIAL_IDS.includes(f.material), `${id}.${part}: 모르는 재질 ${f.material}`);
+      assert.ok(밝기(f.color) <= 0.80, `${id}.${part}: 아직 너무 밝다(${f.color})`);
+      // 바닥(#d4d9e1)보다 어둡거나 비슷해야 구조물로 읽힌다.
+      assert.ok(밝기(f.color) <= 밝기('#d4d9e1'), `${id}.${part}: 바닥보다 밝다`);
+    }
+    // 예전 흰색 두 값이 그대로 돌아오지 않았다.
+    assert.notEqual(fin.auditoriumStageTop.color.toLowerCase(), '#eef1f5');
+    assert.notEqual(fin.auditoriumRiserTop.color.toLowerCase(), '#e6eaf0');
+    // 무대와 객석 단은 서로 다른 색이다(뭉개지지 않는다).
+    assert.notEqual(fin.auditoriumStageTop.color, fin.auditoriumRiserTop.color);
+    // 전면판은 윗면보다 어둡다(무대 높이가 읽힌다).
+    assert.ok(밝기(fin.auditoriumStageFascia.color) < 밝기(fin.auditoriumStageTop.color));
+  }
+  // 강당이 아닌 공간에는 붙지 않는다 — 여기서 null 이 아니면 동결 공간이 함께 바뀐다.
+  for (const id of [...동결, null, undefined, '없는디자인']) {
+    assert.equal(auditoriumSurfaceFinish(id), null, `${id}: 강당 마감이 새어 나갔다`);
+  }
+  // 공용 값(상황실 콘솔 단·렌더러 무대 색)은 그대로 남아 있다.
+  assert.equal(FURNITURE_COLORS.riserTop, '#e6eaf0', '공용 단 색이 바뀌었다');
+  assert.equal(FURNITURE_COLORS.riserSide, '#b9c1cd', '공용 단 옆면 색이 바뀌었다');
+  assert.match(src('render3d-gl.js'), /stageTop: '#eef1f5',/);
+});
+
+test('㉚ 강당 단에만 표식이 붙는다 — 상황실 콘솔 단은 예전 마감 그대로다', () => {
+  const 강당단 = layoutRoom('hall_l', defaultOptions('hall_l'), { W: 24000, D: 28000 })
+    .items.filter(i => i.type === 'riser');
+  assert.ok(강당단.length > 0, '강당 단이 없다');
+  for (const v of 강당단) assert.equal(v.variant, 'auditorium', '강당 단에 표식이 없다');
+  const 상황실 = layoutRoom('control', { ...defaultOptions('control'), tiers: 3, riserH: 250 },
+    { W: 16000, D: 14000 });
+  const 상황실단 = 상황실.items.filter(i => i.type === 'riser');
+  assert.equal(상황실단.length, 1, '상황실 단 수가 달라졌다');
+  assert.equal(상황실단[0].variant, undefined, '상황실 단에 강당 표식이 붙었다');
+  // 기하 기준값도 그대로다(PHASE 9-a 부터의 값).
+  assert.deepEqual(상황실단.map(i => ({ x: i.x, z: i.z, w: i.w, d: i.d, h: i.h })),
+    [{ x: 8000, z: 5800, w: 9200, d: 3250, h: 250 }], '상황실 단이 달라졌다');
+  // 그리는 쪽도 표식으로만 갈라진다.
+  assert.match(src('furniture-gl.js'), /const aud = it\.variant === 'auditorium' && mat\.auditoriumRiserTop;/);
+});
+
+test('㉛ PHASE 9-b 좌석·단차가 한 값도 바뀌지 않았다 (무대·LED 변경의 부작용 확인)', () => {
+  const 기대 = {
+    hall_s: { W: 10000, D: 12000, seats: 84, rows: 7, perRow: 12, first: 4000, rear: 2300, tiers: 1, risers: [] },
+    hall_m: { W: 18000, D: 20000, seats: 280, rows: 14, perRow: 20, first: 4400, rear: 2600, tiers: 4,
+      risers: [220, 440, 660] },
+    hall_l: { W: 24000, D: 28000, seats: 418, rows: 19, perRow: 22, first: 4800, rear: 4300, tiers: 5,
+      risers: [250, 500, 750, 1000] },
+  };
+  for (const [t] of 강당) {
+    const e = 기대[t];
+    const r = layoutRoom(t, defaultOptions(t), { W: e.W, D: e.D, ledBottom: 1000 });
+    assert.equal(r.placed.seats, e.seats, `${t}: 좌석 수`);
+    assert.equal(r.placed.rows, e.rows, `${t}: 줄 수`);
+    assert.equal(r.placed.perRow, e.perRow, `${t}: 줄당 좌석`);
+    assert.equal(r.placed.firstRowZ, e.first, `${t}: 첫 줄`);
+    assert.equal(r.placed.rearEmpty, e.rear, `${t}: 뒤 여유`);
+    assert.equal(r.placed.tiers, e.tiers, `${t}: 단 수`);
+    assert.deepEqual(r.items.filter(i => i.type === 'riser').map(i => i.h), e.risers, `${t}: 단 높이`);
+  }
 });

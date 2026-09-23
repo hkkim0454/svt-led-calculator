@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=449';
-import { resolveMaterialId, finishForPart } from './materials.js?v=449';
+import { roomDesign, isPlanned } from './room-design.js?v=450';
+import { resolveMaterialId, finishForPart } from './materials.js?v=450';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -504,6 +504,42 @@ export function credenzaFinishForDesign(designId) {
     if (f) out[part] = f;
   }
   return Object.keys(out).length ? Object.freeze(out) : null;
+}
+
+// ── 강당 전면부·객석 단 마감 (PHASE 9-c) ───────────────────────────────────
+// **왜 여기에 두는가.** 무대 윗면(`GL_PALETTE.stageTop = '#eef1f5'`)과 객석 단 윗면
+//   (`FURNITURE_COLORS.riserTop = '#e6eaf0'`)은 거의 흰색이라 빛을 받으면 그대로 날아갔다
+//   (PHASE 9-b 실측 최대 10.14%). 두 값은 렌더러·자산에 박혀 있어 마감 체계의 손이 닿지
+//   않았다. 그래서 상황실 콘솔 단(같은 `riser` 물건)과 함께 쓰는 값을 건드리지 않고,
+//   **강당 디자인에서만** 갈아 끼우는 표를 여기에 둔다.
+//
+// **정식 재질을 새로 만들지 않는다**(이 파일의 원칙). 질감은 기존 `stageSurface` 를 그대로
+//   쓰고, 색만 강당의 것으로 정한다. 그래서 `MATERIAL_IDS` 는 13종 그대로다.
+export const AUDITORIUM_SURFACE_PARTS = Object.freeze([
+  'auditoriumStageTop', 'auditoriumStageSide', 'auditoriumStageFascia',
+  'auditoriumRiserTop', 'auditoriumRiserSide',
+]);
+
+/** 강당 전면부·객석 단 색. 바닥(`#d4d9e1`)보다 어둡고, LED 화면보다 약하게. */
+export const AUDITORIUM_SURFACES = Object.freeze({
+  // 무대 — 따뜻한 중간 톤. 바닥(차가운 밝은 회색)과 확실히 구분되고 날아가지 않는다.
+  auditoriumStageTop: Object.freeze({ material: 'stageSurface', color: '#a89e92', roughness: 0.92 }),
+  auditoriumStageSide: Object.freeze({ material: 'stageSurface', color: '#8b8279', roughness: 0.92 }),
+  // 전면판은 한 단 더 어둡게 — 무대 높이(단 끝 선)가 또렷하게 읽힌다.
+  auditoriumStageFascia: Object.freeze({ material: 'stageSurface', color: '#6b6560', roughness: 0.92 }),
+  // 객석 단 — 바닥보다 약간 어두운 구조물. 좌석(밝은 회녹)과도 구분된다.
+  auditoriumRiserTop: Object.freeze({ material: 'stageSurface', color: '#b7bdc6', roughness: 0.93 }),
+  auditoriumRiserSide: Object.freeze({ material: 'stageSurface', color: '#949ba6', roughness: 0.93 }),
+});
+
+/**
+ * 강당 전면부·객석 단 마감. **강당 디자인에서만** 값을 돌려준다(그 밖에는 null).
+ *   null 이면 렌더러·가구는 지금 하던 그대로 그린다 — 다른 공간이 한 픽셀도 흔들리지 않는 이유다.
+ */
+export function auditoriumSurfaceFinish(designId) {
+  const d = roomDesign(designId);
+  if (!d || !String(d.id || '').startsWith('auditorium')) return null;
+  return AUDITORIUM_SURFACES;
 }
 
 /** 그 디자인의 마감 상태 한눈에 보기(검증·디버깅용). */

@@ -15,12 +15,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=449';
-import { createMaterialLibrary } from './materials-gl.js?v=449';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=449';
-import { GRADE_COLORS } from './viewangle.js?v=449';
-import { createGeometryCache } from './geometry-gl.js?v=449';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=449';
+import { u } from './gl-model.js?v=450';
+import { createMaterialLibrary } from './materials-gl.js?v=450';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=450';
+import { GRADE_COLORS } from './viewangle.js?v=450';
+import { createGeometryCache } from './geometry-gl.js?v=450';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=450';
 import {
   credenzaFinishForDesign,
   avFinishForDesign,
@@ -28,13 +28,14 @@ import {
   tablePartFinishForDesign,
   consoleFinishForDesign,
   trainingFinishForDesign,
-} from './design-finish.js?v=449';
+  auditoriumSurfaceFinish,
+} from './design-finish.js?v=450';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=449';
+} from './furniture-assets.js?v=450';
 
 const DEG = Math.PI / 180;
 
@@ -433,7 +434,8 @@ export function buildFurnitureGroup(items, opts = {}) {
   //   디자인이 마감을 정하지 않았으면 null이므로 아무 일도 일어나지 않는다.
   for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId),
     tablePartFinishForDesign(designId), avFinishForDesign(designId),
-    consoleFinishForDesign(designId), trainingFinishForDesign(designId)]) {
+    consoleFinishForDesign(designId), trainingFinishForDesign(designId),
+    auditoriumSurfaceFinish(designId)]) {
     if (!fin) continue;
     for (const [part, f] of Object.entries(fin)) {
       // 거칠기·금속성은 **부품 마감표가 정한 값을 그대로 나른다**(design-finish가 실어 보낸다).
@@ -515,10 +517,15 @@ export function buildFurnitureGroup(items, opts = {}) {
     else if (it.type === 'plant') obj = plantMesh(mat, geoCache);
     else if (it.type === 'riser') {
       // 객석 단 — 윗면과 옆면 색을 나눠 낮고 얇은 단으로 읽히게 한다.
+      //   **강당 단(variant: 'auditorium')은 전용 마감을 쓴다**(PHASE 9-c). 상황실 콘솔 단은
+      //   표식이 없으므로 예전 색 그대로다 — 두 공간이 한 색을 나눠 쓰지 않게 갈라 둔다.
+      const aud = it.variant === 'auditorium' && mat.auditoriumRiserTop;
+      const top = aud ? mat.auditoriumRiserTop : mat.riserTop;
+      const side = aud ? mat.auditoriumRiserSide : mat.riserSide;
       const h = u(it.h || 200);
       obj = new THREE.Mesh(
         new THREE.BoxGeometry(u(it.w || 6000), h, u(it.d || 2000)),
-        [mat.riserSide, mat.riserSide, mat.riserTop, mat.riserSide, mat.riserSide, mat.riserSide],
+        [side, side, top, side, side, side],
       );
       obj.position.y = h / 2;
       obj.renderOrder = -1;   // 좌석보다 먼저 — 단 위에 앉은 좌석이 묻히지 않게
