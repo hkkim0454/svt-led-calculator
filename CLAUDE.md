@@ -41,6 +41,19 @@ docs/           SPEC.md, aidlc-state.md, audit.md.
 - 테스트: `npm test` (= `node --test tests/`). **커밋 전 반드시 green.**
 - 로컬 실행: `npm run dev` 후 브라우저에서 `http://localhost:5173`.
   (ESM import 때문에 `file://` 직접 열기는 브라우저에 따라 차단됨 — 반드시 서버로 띄울 것.)
+- **배포(Production) 기준 주소 — GitHub Pages.** 오너가 실제 화면을 확인하는 곳이다.
+  `main` 에 병합하면 이 주소에 반영된다(별도 배포 작업 없음).
+
+  ```
+  https://hkkim0454.github.io/svt-led-calculator/src/index.html
+  ```
+
+  - 과거 주소 `https://hkkim0454.github.io/Samsung-led-calculator/src/index.html` 는
+    **더 이상 기준이 아니다.** 저장소 이름을 `Samsung-led-calculator` → `svt-led-calculator`
+    로 바꿨는데, GitHub 은 저장소 주소만 자동으로 연결해 주고 **Pages 주소는 옮겨 주지
+    않는다.** 그래서 옛 주소는 갱신이 멈춘 옛 화면을 계속 보여 준다(2026-09-23 확인).
+  - 화면이 최신인지 보는 법: 페이지 아래쪽 `화면 버전 vNNN` 이 `src/index.html` 의 값과
+    같은지 확인한다. 다르면 **Ctrl+Shift+R** 로 캐시를 비우고 다시 본다.
 
 ## 규칙 (반드시 준수)
 
