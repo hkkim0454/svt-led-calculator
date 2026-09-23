@@ -138,7 +138,10 @@ test('⑪ 조명 개수·종류가 그대로다 — 새 광원을 만들지 않�
   assert.equal(count(/new THREE\.HemisphereLight/g), 1);
   assert.equal(count(/new THREE\.DirectionalLight/g), 3);   // 천장등 · 주광 · 보조광
   assert.equal(count(/new THREE\.PointLight/g), 1);         // LED 번짐
-  assert.equal(count(/new THREE\.SpotLight/g), 0, '스포트라이트를 새로 만들었다');
+  // PHASE 9-d.1 — 강당 무대 워시만 SpotLight 하나를 쓴다. **강당 프리셋이 자리를 줄 때만**
+  //   만들어지므로 상황실 장면에는 생기지 않는다(아래 줄이 그 조건을 고정한다).
+  assert.equal(count(/new THREE\.SpotLight/g), 1, '스포트라이트 수가 달라졌다');
+  assert.match(code, /const sw = stageWashForDesign\(model\?\.design, room, model\?\.stage\);/);
   assert.equal(count(/new THREE\.RectAreaLight/g), 0);
   assert.equal(count(/new THREE\.AmbientLight/g), 0);
 });
@@ -272,7 +275,7 @@ test('⑳ 회의실 3종의 조명이 한 값도 바뀌지 않았다', () => {
 test('㉑ 조명 프리셋은 6벌이고, 디자인이 없는 공간은 여전히 기준값 그대로다', () => {
   assert.deepEqual(Object.keys(LIGHTING_PRESETS),
     ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'trainingSoft', 'controlTechnical',
-      'ideationSoft']);
+      'ideationSoft', 'auditoriumStage']);
   const base = { hemi: 1, ceiling: 1, key: 1, fill: 1, ledSpill: 1 };
   for (const id of [null, undefined, '', '없는디자인', 0, {}]) {
     assert.deepEqual(applyDesignLighting(base, id), base, String(id));

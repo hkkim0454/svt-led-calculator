@@ -408,10 +408,11 @@ function auditoriumDesigns() {
       //   PHASE 9-c 에서 **실제로 만들면서** 여기에 적는다.
       materials: INHERIT,
       wallTreatment: INHERIT,
-      // 조명·화각은 재질과 달리 '실재하는 이름' 계약이 없어 `planned(...)` 로 예약해 둔다 —
-      //   어느 단계가 무엇을 채울지 코드에 남겨 두는 편이 낫다. 해석기가 INHERIT 로
-      //   떨어뜨리므로 화면에는 도달하지 않는다.
-      lighting: planned('auditoriumStage'),
+      // 조명 — PHASE 9-d.1 에서 실제로 만들었다(`design-lighting.js` 의 `auditoriumStage`).
+      //   예약(`planned`)이 아니라 이름이므로 이제 화면까지 도달한다.
+      lighting: 'auditoriumStage',
+      // 화각은 아직 예약이다 — 어느 단계가 채울지 코드에 남겨 둔다(PHASE 9-d.2).
+      //   해석기가 INHERIT 로 떨어뜨리므로 화면에는 도달하지 않는다.
       camera: planned('auditoriumProposal'),
       accessories: INHERIT,
     });

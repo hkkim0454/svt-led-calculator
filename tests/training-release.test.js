@@ -232,7 +232,7 @@ test('⑬ 릴리스된 네 공간의 조명이 한 값도 바뀌지 않았다', 
     { hemi: 0.58, ceiling: 0.22, key: 0.98, fill: 2.00, ledSpill: 1.00 });
   assert.deepEqual(Object.keys(LIGHTING_PRESETS),
     ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'trainingSoft', 'controlTechnical',
-      'ideationSoft']);
+      'ideationSoft', 'auditoriumStage']);
 });
 
 test('⑭ 강당·아이디에이션 배치가 그대로다', () => {

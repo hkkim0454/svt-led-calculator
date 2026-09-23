@@ -626,10 +626,10 @@ test('⑲ 릴리스된 다섯 공간의 계약이 그대로다', () => {
   assert.equal(ROOM_DESIGNS.controlRoom.camera, 'controlProposal');
 });
 
-test('⑳ 강당 화면은 그대로다 — PHASE 9-a 가 자리만 만들었고 값은 하나도 도달하지 않는다', () => {
-  // PHASE 9-a 에서 강당 셋에 디자인이 하나씩 붙었다. 이 검사는 **그 디자인이 화면에
-  //   아무 값도 보내지 않는다**는 것을 고정한다 — 아이디에이션이 릴리스될 때의 강당 그림이
-  //   그대로 유지되어야 하기 때문이다. (값을 넣는 것은 PHASE 9-c 이후의 몫이다.)
+test('⑳ 강당 디자인이 화면에 보내는 것은 조명뿐이다 (PHASE 9-d.1 에서 갱신)', () => {
+  // PHASE 9-a 는 자리만 만들었고(전부 INHERIT/planned), PHASE 9-d.1 이 **조명 한 항목**을
+  //   실제로 채웠다. 나머지 여섯 항목은 여전히 '디자인 없음'과 한 값도 다르지 않다 —
+  //   가구·팔레트·재질·벽 마감·화각·소품은 뒤 단계의 몫이다.
   const 중립 = resolveDesign(null);
   for (const [t, id] of [['hall_s', 'auditoriumSmall'], ['hall_m', 'auditoriumMedium'],
     ['hall_l', 'auditoriumLarge']]) {
@@ -638,10 +638,12 @@ test('⑳ 강당 화면은 그대로다 — PHASE 9-a 가 자리만 만들었고
     assert.equal(normalizeDesign(undefined, t), id, t);
     // **핵심** — 해석 결과의 일곱 가지 표현 항목이 '디자인 없음'과 한 값도 다르지 않다.
     const 해석 = resolveDesign(id);
-    for (const k of ['furniture', 'palette', 'materials', 'wallTreatment', 'lighting',
+    for (const k of ['furniture', 'palette', 'materials', 'wallTreatment',
       'camera', 'accessories']) {
       assert.equal(해석[k], 중립[k], `${id}.${k} 가 화면에 값을 보낸다`);
     }
+    // 조명만 값이 있다 — 그리고 그 값은 강당 전용 프리셋 이름이다(다른 공간 것이 아니다).
+    assert.equal(해석.lighting, 'auditoriumStage', `${id}: 조명이 강당 전용이 아니다`);
     assert.equal(roomDesign(id).status, DESIGN_STATUS.PLANNED, `${id}: ready 로 올라갔다`);
     assert.equal(moodFor(t), 'office', t);
     assert.equal(floorFinishFor(t), 'carpetTile', t);
@@ -666,7 +668,7 @@ test('㉑ 결정적 촬영 계약이 그대로다', () => {
 test('㉒ 조명 프리셋 여섯 벌 — 아이디에이션이 맨 뒤에 붙었다', () => {
   assert.deepEqual(Object.keys(LIGHTING_PRESETS),
     ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'trainingSoft', 'controlTechnical',
-      'ideationSoft']);
+      'ideationSoft', 'auditoriumStage']);
   // 광원 개수·그림자 광원 구조는 그대로다(세기만 바꿨다).
   assert.match(src('gl-model.js'), /export const LIGHTS = Object\.freeze\(\{/);
   assert.match(src('gl-model.js'), /hemi: 1\.85,/);

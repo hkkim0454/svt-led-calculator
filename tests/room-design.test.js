@@ -195,12 +195,13 @@ test('아직 구현하지 않은 1개 공간 — 적용해도 화면이 바뀌�
   //   이제 아무것도 정하지 않은 공간은 **하나도 없다** — 대신 각 공간이 '정한 것만' 정했는지 본다.
   const STARTED = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'trainingRoom',
     'controlRoom', 'ideationRoom'];
-  // 강당 셋(PHASE 9-a)은 **아직 아무것도 정하지 않은 공간**이다 — 자리만 만들었다.
+  // 강당 셋은 PHASE 9-a 에서 자리만 만들었고, PHASE 9-d.1 에서 **조명 하나**를 정했다.
+  //   그 밖의 항목(가구·팔레트·재질·벽 마감·화각·소품)은 여전히 화면에 도달하지 않는다.
   const 강당 = ['auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge'];
   assert.deepEqual(DESIGN_IDS.filter(x => !STARTED.includes(x)), 강당);
   for (const id of 강당) {
-    assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])), [],
-      `${id}: 아직 화면에 값을 보내면 안 된다`);
+    assert.deepEqual(VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])), ['auditoriumStage'],
+      `${id}: 조명 말고 다른 것까지 화면에 보낸다`);
   }
   // 아이디에이션은 PHASE 8-2a 에서 **조명**을, PHASE 8-2b 에서 **화각**을 정했다.
   //   나머지 항목은 여전히 전부 INHERIT 이다.
@@ -278,8 +279,10 @@ test('가짜 스펙 금지 — 아직 없는 자산은 planned로만 적히고 �
   //   조명·화각(7-b)까지 정했고, 가구·벽 구성·소품은 INHERIT 다.
   //   아이디에이션은 조명(8-2a)과 화각(8-2b) 두 가지다 — 팔레트를 만들 근거는 측정에서 나오지 않았다.
   const applied = DESIGN_IDS.flatMap(id => VALUE_FIELDS.flatMap(f => appliedIds(resolveDesign(id)[f])));
+  //   강당 셋은 PHASE 9-d.1 에서 조명 하나씩(auditoriumStage)을 정했다.
   assert.deepEqual(applied.slice().sort(), [
-    'acousticPanel', 'acousticPanel', 'blackEquipment', 'blackEquipment', 'boardroomTable',
+    'acousticPanel', 'acousticPanel', 'auditoriumStage', 'auditoriumStage', 'auditoriumStage',
+    'blackEquipment', 'blackEquipment', 'boardroomTable',
     'carpetTile', 'carpetTileDark',
     'carpetTileLight', 'carpetTileLight', 'carpetTileLight', 'conferenceBright', 'conferenceErgoChair',
     'conferenceProposal', 'conferenceSoft', 'consoleMonitor', 'controlPalette', 'controlProposal', 'controlTechnical', 'controlWalls', 'corporateChair',

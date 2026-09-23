@@ -458,7 +458,7 @@ test('㉙ 조명·상판·재질은 8-2a 그대로다 — 카메라 단계가 �
   const L = LIGHTING_PRESETS.ideationSoft;
   assert.deepEqual({ ...L.scale }, { hemi: 0.84, ceiling: 1.00, key: 1.05, fill: 1.60, ledSpill: 1.00 });
   assert.deepEqual({ ...L.shadow }, { radius: 7, bias: -0.00035, normalBias: 0.030 });
-  assert.equal(Object.keys(LIGHTING_PRESETS).length, 6);
+  assert.equal(Object.keys(LIGHTING_PRESETS).length, 7);   // PHASE 9-d.1 에서 강당 조명이 더해졌다
   assert.equal(FURNITURE_COLORS.highTop, '#ded9cf');
   assert.equal(FURNITURE_COLORS.collabTop, '#ded9cf');
   assert.equal(MATERIAL_IDS.length, 13);
