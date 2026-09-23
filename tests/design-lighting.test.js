@@ -54,7 +54,10 @@ test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
 // ③ 화면 프리셋 목록·기본 화각 무변경 — 조명 단계가 화각 '구조'를 건드리지 않았다
 const CAMERA_DESIGNS = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
   largeConference: 'conferenceProposal', controlRoom: 'controlProposal',
-  trainingRoom: 'trainingProposal', ideationRoom: 'ideationProposal' };
+  trainingRoom: 'trainingProposal', ideationRoom: 'ideationProposal',
+  // PHASE 9-d.2 에서 강당 세 크기가 전용 화각을 갖게 되었다.
+  auditoriumSmall: 'auditoriumProposal', auditoriumMedium: 'auditoriumProposal',
+  auditoriumLarge: 'auditoriumProposal' };
 test('화각 — 프리셋 목록·기본 화각·범위가 그대로다(PHASE 2-d.2 에서도 늘리지 않았다)', () => {
   // 아직 구현 전인 공간은 여전히 화각을 적용하지 않는다(planned = '아직 없음').
   for (const id of DESIGN_IDS) {

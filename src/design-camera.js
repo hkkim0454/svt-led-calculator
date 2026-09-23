@@ -21,7 +21,7 @@
 // 디자인이 화각을 정하지 않았으면 **null**을 돌려준다. 그러면 기존 계산이 그대로 쓰인다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=451';
+import { roomDesign, isPlanned } from './room-design.js?v=452';
 
 /** 이 파일이 다루는 시점. 아이소·평면도는 **손대지 않는다**(오너 지침 §12). */
 export const CORPORATE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
@@ -287,6 +287,13 @@ export function cameraPlanForDesign(designId, presetId, model, aspect = 16 / 9) 
   if (ct) {
     return controlCameraPlan(model.room, model.led, ct, aspect,
       { consoles: model.fields?.consoles || null, partitions: model.partitions || null });
+  }
+  // 강당 — 객석 줄·통로·단을 읽어 **객석 한가운데**에 선다(PHASE 9-d.2).
+  //   좌석이 아직 없는 방이면 계획이 null 을 돌려주어 기존 계산이 그대로 돈다.
+  const au = auditoriumCameraPlanId(designId, presetId);
+  if (au) {
+    const plan = auditoriumCameraPlan(model.room, model.led, designId, au, aspect, model.fields || null);
+    if (plan) return plan;
   }
   // 아이디에이션 — 협업 구역과 하이 테이블 구역을 읽어 구도를 잡는다(PHASE 8-2b).
   //   실내·좌코너·우코너만 가로챈다. 정면·아이소·평면은 기술 시점이라 손대지 않는다.
@@ -1520,5 +1527,319 @@ export function ideationCameraPlanWith(room, led, s, aspect = 16 / 9, fields = n
     standoff: +standoff.toFixed(4),
     rearClearance: +(standZ - content.z1).toFixed(4),
     wallClearance: +Math.min(x, room.W - x, room.D - standZ, standZ).toFixed(4),
+  });
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 강당 카메라 (PHASE 9-d.2)
+// ─────────────────────────────────────────────────────────────────────────────
+// 앞의 계열들과 **무엇이 다른가.**
+//   회의실·교육장·아이디에이션은 깊이가 7~14m라 '내용물 뒤에 선다'는 한 줄로 충분했다.
+//   강당은 깊이가 12~28m다. 같은 규칙을 그대로 쓰면 카메라가 맨 뒷줄 뒤에 서게 되는데,
+//   PHASE 9-d.1 기준 화면을 실제로 재어 보면 그 자리에서 세 가지가 함께 무너진다.
+//     ① **LED 가 작아진다.** 대강당 실내 시점의 LED 화면 점유는 6.08% 였다.
+//     ② **무대가 사라진다.** 같은 컷의 무대 상판 점유는 0.19% 로, 무대와 LED 의 관계가
+//        읽히지 않는다(중강당 0.39%).
+//     ③ **맨 뒤 단이 화면 아래를 덮는다.** 대강당 실내 시점은 객석 단 상판 하나가 화면
+//        아래 1/4 띠의 **56.47%** 를 차지해, 제안서에 쓸 수 없는 민무늬 판으로 읽힌다.
+//   게다가 그 자리의 눈높이는 선언값 1.75m 가 아니라 **2.35m** 였다. 시선을 눈보다 높게
+//   두면 조작기가 카메라를 위로 밀어 올리기 때문이다(`settledPose` 의 극각 상한).
+//
+// 그래서 이 계열은 서는 자리를 **뒷벽이 아니라 객석 한가운데**로 옮긴다.
+//   ① **줄을 세어 선다.** 객석 첫 줄과 맨 뒷줄 사이를 `coverage` 비율로 나눈 자리에서,
+//      **두 줄 사이**에 선다. 사람이 실제로 설 수 있는 자리이고, 방이 커지면 줄 수가
+//      늘어 자리도 따라 뒤로 간다 — 고정 거리가 아니다.
+//   ② **눈높이를 단이 정한다.** 그 자리를 덮는 객석 단의 높이에 선 사람의 눈높이를 더한다.
+//      단이 높아 2.20m 를 넘을 자리라면 **더 낮은 단으로 앞당겨 선다**(드론 시점 금지).
+//   ③ **시선은 언제나 눈보다 낮다.** 그래야 조작기의 극각 상한에 걸리지 않아, 여기서 적은
+//      눈높이가 화면의 눈높이와 같아진다.
+//   ④ **LED 가 목표만큼 안 차면 한 줄씩 앞으로 나온다.** 화각을 넓혀서 풀지 않는다 —
+//      광각 왜곡은 제안서에서 쓸 수 없다(상한 44°).
+//
+// 정면·아이소·평면은 **가로채지 않는다.** 그 셋은 기술 시점이라 PHASE 9-d.1 자세 그대로
+//   두고 픽셀 차이 0 으로 증명한다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 이 계열이 다루는 시점. 정면·아이소·평면도는 **언제나 제외**다(§6 동결). */
+export const AUDITORIUM_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r']);
+
+/** 화각 하드 게이트(§9). 권장 상한 44°를 코드에서 지킨다 — 50°는 애초에 닿지 않는다. */
+export const AUDITORIUM_FOV_RANGE = Object.freeze({ min: 36, max: 44 });
+
+/** 눈높이 허용 범위(m·§15). 단 위에 서더라도 2.20m 를 넘지 않는다. */
+export const AUDITORIUM_EYE_RANGE = Object.freeze({ min: 1.60, max: 2.20 });
+
+/** 단 위에 **선 사람**의 눈높이(m). 여기에 그 자리의 단 높이를 더해 카메라 높이를 만든다. */
+export const AUDITORIUM_STAND_EYE = 1.70;
+
+/** 화면 위쪽에 남길 천장 띠의 상한(§14). 이보다 크게 적어도 여기서 잘린다. */
+export const AUDITORIUM_BAND_MAX = 0.15;
+
+/** 두 줄 사이 어디에 서는가(줄 간격에 대한 비율). 0.5 면 정확히 한가운데다. */
+export const AUDITORIUM_ROW_GAP = 0.5;
+
+/** 카메라 앞에 반드시 남겨 두는 객석 비율. 이보다 앞으로는 나오지 않는다(객석이 사라진다). */
+export const AUDITORIUM_MIN_HOUSE_AHEAD = 0.30;
+
+/**
+ * 크기별 기준값. **세 강당이 한 함수를 쓰되 같은 숫자를 쓰지는 않는다**(§8).
+ *   ledAim    LED 가 화면 넓이에서 차지할 목표 비율. 이 값이 **서는 깊이를 정한다**
+ *   eye       단 위에 선 사람의 눈높이(m)
+ *   fov       기준 화각(°)
+ *   band      화면 위쪽에 남길 천장 띠 목표 비율
+ *
+ * **왜 깊이를 비율이 아니라 LED 목표로 정하는가.** 객석 깊이의 몇 할이라는 식으로 정하면,
+ *   같은 비율이라도 소강당에서는 LED 까지 5m, 대강당에서는 14m 가 되어 LED 크기가 크게
+ *   갈린다. 반대로 LED 목표를 정해 두고 **그 목표를 지키는 가장 뒤쪽 줄**에 서면, 세 강당이
+ *   모두 같은 굵기로 LED 를 보여 주면서 객석은 담을 수 있는 만큼 담는다(§31).
+ *
+ * **왜 큰 방일수록 목표가 조금 낮은가.** 대강당은 LED 가 7.1m 로 커서 같은 목표라도 카메라가
+ *   훨씬 앞으로 나와야 하고, 그러면 뒤쪽 객석이 통째로 화면에서 빠진다. 대·중강당은 목표를
+ *   조금 낮춰 객석 깊이를 남긴다.
+ */
+export const AUDITORIUM_CAMERA_SIZES = Object.freeze({
+  auditoriumSmall: Object.freeze({ ledAim: 0.150, eye: 1.70, fov: 40, band: 0.05 }),
+  auditoriumMedium: Object.freeze({ ledAim: 0.135, eye: 1.70, fov: 41, band: 0.05 }),
+  auditoriumLarge: Object.freeze({ ledAim: 0.125, eye: 1.70, fov: 42, band: 0.05 }),
+});
+
+/**
+ * 시점별 기준값. 크기와 따로 두어 **한 곳만 고치면 세 강당에 같이 듣게** 한다(§5).
+ *   place     서는 가로 자리를 어떻게 고르는가 — 'center' 는 방 한가운데, 'side' 는 옆 통로
+ *   side      옆 통로를 고를 때 어느 쪽인가(-1 왼쪽 · +1 오른쪽)
+ *   rowShift  기준 자리에서 **객석 깊이의 몇 할**만큼 앞뒤로 옮겨 설지(음수 = 무대 쪽).
+ *             줄 수가 아니라 비율로 적는 까닭은, 7줄짜리 소강당과 19줄짜리 대강당에서 '세 줄'이
+ *             전혀 다른 거리이기 때문이다. 소강당에서 세 줄은 객석의 절반이다
+ *   fovAdd    기준 화각에 더하는 값(°)
+ *   aimMix    시선을 LED 벽(0)에서 객석 첫 줄(1) 쪽으로 얼마나 당길지
+ *
+ * **왜 코너의 깊이를 LED 목표로 다시 풀지 않는가.** 옆에서 보면 LED 가 비스듬해 같은 자리라도
+ *   화면에서 작아진다. 그 값을 그대로 목표에 견주면 카메라가 맨 앞줄까지 걸어 나와 객석이
+ *   통째로 사라진다(실제로 그렇게 나왔다). 그래서 깊이는 **크기가 한 번만 정하고**, 시점은
+ *   그 자리에서 몇 줄 옮길지만 고른다.
+ *
+ * **좌·우 코너를 대칭으로 두지 않는다**(§7). 왼쪽은 기준 자리 그대로 서서 객석 깊이를
+ *   보여 주고, 오른쪽은 세 줄 앞에 서서 무대를 크게 보여 준다. 거울상 두 장을 나란히 놓으면
+ *   제안서에서 같은 그림 두 장으로 읽힌다.
+ */
+export const AUDITORIUM_CAMERA_VIEWS = Object.freeze({
+  interior: Object.freeze({ place: 'center', side: 0, rowShift: 0, fovAdd: 0, aimMix: 0.30 }),
+  'corner-l': Object.freeze({ place: 'side', side: -1, rowShift: 0, fovAdd: 1, aimMix: 0.42 }),
+  'corner-r': Object.freeze({ place: 'side', side: 1, rowShift: -0.18, fovAdd: 1, aimMix: 0.30 }),
+});
+
+/**
+ * LED 가 **화면 넓이의 몇 할**을 차지하는가(0~1). `ledAreaShare` 는 'LED 가 얼마나 잘리지
+ *   않았는가'를 재는 값이라 이 판단에 쓸 수 없다 — 아무리 멀어도 다 보이면 1 이기 때문이다.
+ *   네 모서리를 화면 좌표로 옮긴 사각형을 화면 테두리로 자른 뒤 그 넓이를 화면 넓이로 나눈다.
+ */
+function screenAreaShare(view, tanH, tanV) {
+  if (!view || view.length < 4) return 0;
+  // 화면 좌표를 [-1,1]² 로 정규화해 자른다 — 자르는 식이 간단해진다.
+  let poly = view.map(t => [t.u / tanH, t.v / tanV]);
+  for (const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const p = poly[i], q = poly[(i + 1) % poly.length];
+      const dp = 1 - (p[0] * nx + p[1] * ny), dq = 1 - (q[0] * nx + q[1] * ny);
+      if (dp >= 0) out.push(p);
+      if ((dp >= 0) !== (dq >= 0)) {
+        const t = dp / (dp - dq);
+        out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    }
+    poly = out;
+    if (!poly.length) return 0;
+  }
+  let A = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    A += p[0] * q[1] - q[0] * p[1];
+  }
+  return +(Math.abs(A / 2) / 4).toFixed(5);
+}
+
+/** 이 디자인·시점이 강당 화각을 쓰는가. 아니면 null(= 기존 공용 시점 그대로). */
+export function auditoriumCameraPlanId(designId, presetId) {
+  if (roomDesign(designId).camera !== 'auditoriumProposal') return null;
+  if (!AUDITORIUM_CAMERA_SIZES[designId]) return null;
+  return AUDITORIUM_CAMERA_PRESETS.includes(presetId) ? presetId : null;
+}
+
+/** 이 디자인이 쓰는 시점 이름들(검증·디버깅용). */
+export function auditoriumCameraPresets(designId) {
+  return Object.freeze(AUDITORIUM_CAMERA_PRESETS.filter(p => auditoriumCameraPlanId(designId, p)));
+}
+
+/** 이름으로 고른 기준값으로 구도를 푼다. */
+export function auditoriumCameraPlan(room, led, designId, preset, aspect = 16 / 9, fields = null) {
+  const size = AUDITORIUM_CAMERA_SIZES[designId];
+  const view = AUDITORIUM_CAMERA_VIEWS[preset];
+  if (!size || !view) return null;
+  return auditoriumCameraPlanWith(room, led, { ...size, ...view }, aspect, fields);
+}
+
+/**
+ * 강당 제안용 카메라. **배치·형상·마감·조명은 한 값도 바꾸지 않는다** — 이미 놓인 좌석과
+ *   단을 읽어 카메라 자리와 방향만 고른다.
+ *
+ * 기준값을 인자로 받는 까닭은, 후보 기준값을 **렌더러에 실제로 놓고 재서** 고르기
+ *   위해서다(QA 도구가 이 함수를 그대로 부른다). 제품이 쓰는 값은 위 두 표뿐이다.
+ *
+ * @param fields `model.fields` — 여기서는 `auditorium` 만 쓴다. 없으면 null 을 돌려주어
+ *               기존 계산(`presetPose`)이 그대로 돌게 한다.
+ */
+export function auditoriumCameraPlanWith(room, led, s, aspect = 16 / 9, fields = null) {
+  const aud = fields && fields.auditorium;
+  if (!s || !room || !led || !aud || !aud.rowZ || aud.rowZ.length < 2) return null;
+  const a = Math.max(0.3, aspect);
+  const rows = aud.rowZ;
+  const pitchZ = aud.pitchZ > 0 ? aud.pitchZ : 1;
+  const 마지막 = rows.length - 1;
+
+  // ── 눈높이가 허락하는 단 ── 그 깊이를 덮는 단 가운데 가장 높은 것이 바닥을 정한다.
+  const 단높이 = z => {
+    let h = 0;
+    for (const r of aud.risers || []) if (z >= r.z0 && z <= r.z1 && r.h > h) h = r.h;
+    return h;
+  };
+  const standEye = clamp(s.eye, AUDITORIUM_EYE_RANGE.min, AUDITORIUM_EYE_RANGE.max);
+  // 천장이 낮으면 천장을 뚫지 않게 한 번 더 자른다(강당 천장은 4m 이상이라 보통 놀고 있다).
+  const eyeCap = Math.min(AUDITORIUM_EYE_RANGE.max, Math.max(AUDITORIUM_EYE_RANGE.min,
+    room.H - WALL_MARGIN - 0.2));
+  const 눈높이 = z => clamp(단높이(z) + standEye, AUDITORIUM_EYE_RANGE.min, eyeCap);
+
+  // 설 수 있는 자리 — 두 줄 사이. `k` 번째 자리는 `k-1` 번 줄과 `k` 번 줄 사이다.
+  const 자리 = k => rows[clamp(k, 0, 마지막 - 1)] + pitchZ * AUDITORIUM_ROW_GAP;
+  // 단이 높아 눈높이가 2.20m 를 넘는 자리에는 **서지 않는다**(드론 시점 금지 · §15).
+  const 설수있는 = k => 단높이(자리(k)) + standEye <= eyeCap + 1e-9;
+
+  // ── 가로 자리 ── 실내는 방 한가운데, 코너는 **객석 블록 바깥의 옆 통로**에 선다.
+  //   옆 통로는 좌석이 없는 자리라 카메라 앞을 막는 것이 없고, 객석 블록의 옆면과 단차가
+  //   한 화면에 들어온다(§7). 방마다 폭이 다르므로 자리는 좌석 범위와 벽에서 계산한다.
+  const 가운데 = room.W / 2;
+  const 블록0 = aud.x0 - aud.pitchX / 2, 블록1 = aud.x1 + aud.pitchX / 2;
+  let 선자리x = 가운데;
+  if (s.place === 'side') {
+    선자리x = s.side < 0 ? (WALL_MARGIN + 블록0) / 2 : (블록1 + room.W - WALL_MARGIN) / 2;
+  }
+  선자리x = clamp(선자리x, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN));
+
+  const ledCx = led.x + led.w / 2;
+  // LED 네 모서리. **테두리를 도는 차례**로 적는다 — 넓이를 신발끈 공식으로 재기 때문에,
+  //   마주 보는 두 점을 이어 적으면 나비 모양이 되어 넓이가 0 에 가깝게 나온다.
+  const ledPts = [[led.x, led.y, led.depth], [led.x + led.w, led.y, led.depth],
+    [led.x + led.w, led.y + led.h, led.depth], [led.x, led.y + led.h, led.depth]];
+
+  /** 한 줄에서의 해. 화각·시선·천장 띠가 서로를 물고 있어 네 번 되풀이해 수렴시킨다. */
+  function solveAt(k, 가운데기준 = false) {
+    // `가운데기준` 은 **기준 자리를 고를 때만** 쓴다 — 세 시점이 같은 잣대로 깊이를 얻도록,
+    //   옆 통로가 아니라 방 한가운데에서 기준 화각으로 재는 것이다.
+    const x = 가운데기준 ? 가운데 : 선자리x;
+    const baseFov = s.fov + (가운데기준 ? 0 : (s.fovAdd || 0));
+    const z = clamp(자리(k), WALL_MARGIN, Math.max(WALL_MARGIN, room.D - WALL_MARGIN));
+    const eye = 눈높이(z);
+    const dzWall = Math.max(0.5, z - led.depth);
+    let fov = clamp(baseFov, AUDITORIUM_FOV_RANGE.min, AUDITORIUM_FOV_RANGE.max);
+    let pitch = Math.atan(POLAR_GAP_PER_DIST), yaw = 0;
+    for (let it = 0; it < 4; it++) {
+      const halfV = fov * DEG / 2;
+      // 시선 방향(좌우) — LED 가운데를 본다. 코너에서도 LED 를 놓치지 않게 한다.
+      yaw = Math.atan2(ledCx - x, led.depth - z);
+      // 내려본 각 — 천장 띠에서 역산한다. **시선은 언제나 눈보다 낮다**(극각 상한 회피).
+      const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+      pitch = Math.max(Math.atan((1 - 2 * clamp(s.band, 0, AUDITORIUM_BAND_MAX)) * Math.tan(halfV)) - eCeil,
+        Math.atan(POLAR_GAP_PER_DIST));
+      // LED 가 다 들어오는 최소 화각. 기준보다 넓혀야 하면 넓히되 **44°를 넘지 않는다.**
+      let needV = 0, needH = 0;
+      for (const p of ledPts) {
+        const q = toView(p, [x, eye, z], yaw, pitch);
+        if (!q) continue;
+        needV = Math.max(needV, Math.abs(q.v)); needH = Math.max(needH, Math.abs(q.u));
+      }
+      const m = Math.tan(LED_EDGE_MARGIN_DEG * DEG);
+      const wantV = 2 * Math.atan(Math.max(needV + m, (needH + m) / a)) / DEG;
+      fov = clamp(Math.max(baseFov, wantV), AUDITORIUM_FOV_RANGE.min, AUDITORIUM_FOV_RANGE.max);
+    }
+    const tanV = Math.tan(fov * DEG / 2);
+    const tanH = Math.tan(hFovDeg(fov, a) * DEG / 2);
+    const q = ledPts.map(p => toView(p, [x, eye, z], yaw, pitch)).filter(Boolean);
+    const whole = q.length === 4 && q.every(t => Math.abs(t.u) <= tanH + 1e-9 && Math.abs(t.v) <= tanV + 1e-9);
+    return { row: k, x, z, eye, fov, pitch, yaw, tanV, tanH, dzWall, whole,
+      share: screenAreaShare(q, tanH, tanV), visible: ledAreaShare(q, tanH, tanV) };
+  }
+
+  // ── 기준 자리 ── **LED 목표를 지키는 가장 뒤쪽 자리**를 방 한가운데 기준으로 한 번만 푼다.
+  //   뒤로 갈수록 LED 는 작아지고 객석은 많이 담기므로, 목표를 만족하는 자리 가운데 가장 뒤가
+  //   곧 '객석을 가장 많이 담은 구도'다(§31). 설 수 없는 자리는 애초에 후보에서 뺀다.
+  //   어느 자리도 목표를 못 채우면(LED 가 아주 작은 방) 설 수 있는 가장 앞자리가 기준이 된다.
+  const aim = clamp(s.ledAim || 0, 0, 1);
+  const 앞한계 = Math.max(1, Math.round(마지막 * AUDITORIUM_MIN_HOUSE_AHEAD));
+  let 기준 = null, 가장앞 = null;
+  for (let k = 마지막 - 1; k >= 앞한계; k--) {
+    if (!설수있는(k)) continue;
+    가장앞 = k;
+    if (solveAt(k, true).share >= aim) { 기준 = k; break; }
+  }
+  if (기준 == null) 기준 = 가장앞 != null ? 가장앞 : 앞한계;
+
+  // ── 시점이 고른 자리 ── 기준에서 `rowShift` 만큼 옮기고, 설 수 있는 자리까지 앞으로 당긴다.
+  let 줄 = clamp(기준 + Math.round((s.rowShift || 0) * 마지막), 앞한계, 마지막 - 1);
+  let 눈낮춤 = 0;
+  while (줄 > 1 && !설수있는(줄)) { 줄--; 눈낮춤++; }
+  const sol = solveAt(줄);
+  const 앞당김 = 마지막 - 1 - 줄;
+
+  const { x, z, eye, fov, pitch, yaw, tanV, tanH, dzWall } = sol;
+  const cam = [x, eye, z];
+
+  // ── 시선점 ── 방향(방위각·내려본 각)은 그대로 두고, 점만 **무대 앞쪽**에 찍는다(§16).
+  //   `aimMix` 가 0 이면 LED 벽, 1 이면 객석 첫 줄 쪽이다. 거리만 바뀌고 각도는 그대로다.
+  const aimZ = led.depth + (aud.z0 - led.depth) * clamp(s.aimMix, 0, 1);
+  let tDist = clamp(Math.abs(z - aimZ), 1.5, Math.max(1.5, dzWall));
+  const maxDist = Math.tan(pitch) > 1e-6 ? (eye - WALL_MARGIN) / Math.tan(pitch) : tDist;
+  tDist = Math.max(1.5, Math.min(tDist, maxDist));
+  const targetY = Math.min(eye - eyeAboveTargetFor(tDist), eye - tDist * Math.tan(pitch));
+  const target = [
+    clamp(x + Math.sin(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN)),
+    clamp(targetY, 0.05, room.H - WALL_MARGIN),
+    clamp(z + Math.cos(yaw) * tDist, WALL_MARGIN, Math.max(WALL_MARGIN, room.D - WALL_MARGIN)),
+  ];
+
+  const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+  const ceilingBand = +clamp((1 - Math.tan(eCeil + pitch) / tanV) / 2, 0, 1).toFixed(4);
+  const down = pitch + fov * DEG / 2;
+  const floorNear = down >= Math.PI / 2 - 1e-6 ? 0 : eye / Math.tan(Math.max(1e-6, down));
+  // 앞줄 좌석 등받이(0.96m)와 맨 뒷줄이 화면에 남는지 — **그림을 대신하지는 않는다.**
+  //   최종 판정은 렌더러 실측이다. 여기서는 회귀로 잡을 관측치를 남긴다.
+  const 줄점 = (z0, z1, h) => sampleShare(topSamples([{ x0: aud.x0, x1: aud.x1, z0, z1 }], h),
+    cam, yaw, pitch, tanH, tanV);
+
+  return Object.freeze({
+    position: [+x.toFixed(4), +eye.toFixed(4), +z.toFixed(4)],
+    target: target.map(v => +v.toFixed(4)),
+    fov: +fov.toFixed(3),
+    eye,
+    pitchDeg: +(pitch / DEG).toFixed(3),
+    yawDeg: +(yaw / DEG).toFixed(3),
+    ceilingBand,
+    floorNear: +floorNear.toFixed(4),
+    ledFullyVisible: sol.whole,
+    ledScreenShare: +sol.share.toFixed(4),
+    ledVisibleShare: +sol.visible.toFixed(4),
+    stageAimZ: +aimZ.toFixed(4),
+    frontRowShare: 줄점(aud.z0, aud.z0 + pitchZ, 0.96),
+    houseShare: 줄점(aud.z0, z, 0.96),
+    // ── 정책 관측치 ── 몇 번째 줄 뒤에 섰는지, 단이 얼마나 되는지, 앞으로 몇 줄 나왔는지.
+    row: sol.row,
+    rows: rows.length,
+    riserAtStand: +단높이(z).toFixed(4),
+    standEye: +standEye.toFixed(4),
+    advanced: 앞당김,
+    loweredTier: 눈낮춤,
+    rowsAhead: sol.row,
+    rowsBehind: 마지막 - sol.row,
+    rearClearance: +(aud.z1 - z).toFixed(4),
+    wallClearance: +Math.min(x, room.W - x, room.D - z, z).toFixed(4),
   });
 }

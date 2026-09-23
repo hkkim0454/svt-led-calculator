@@ -381,11 +381,11 @@ export const ROOM_DESIGNS = Object.freeze({
 
 /**
  * 강당 디자인 세 벌을 한 자리에서 찍어 낸다(소·중·대).
- *   PHASE 9-a 에서는 **전부 INHERIT / planned** 다. 앞 단계가 값을 채울 자리만 만든다.
+ *   PHASE 9-a 에서는 전부 INHERIT / planned 였고, 뒤 단계가 하나씩 값을 채워 왔다.
  *     furniture   INHERIT — 배치가 이미 `auditoriumChair` 를 세운다
- *     materials   INHERIT — PHASE 9-c 에서 무대 상판(지금 렌더러 상수 `#eef1f5`)을 여기로 옮긴다
- *     lighting    planned('auditoriumStage')    — PHASE 9-d.1
- *     camera      planned('auditoriumProposal') — PHASE 9-d.2
+ *     materials   INHERIT — 무대 마감은 `design-finish.js` 의 강당 표가 맡는다(PHASE 9-c)
+ *     lighting    'auditoriumStage'            — PHASE 9-d.1 에서 채웠다
+ *     camera      'auditoriumProposal'          — PHASE 9-d.2 에서 채웠다
  */
 function auditoriumDesigns() {
   const 크기 = [
@@ -411,9 +411,9 @@ function auditoriumDesigns() {
       // 조명 — PHASE 9-d.1 에서 실제로 만들었다(`design-lighting.js` 의 `auditoriumStage`).
       //   예약(`planned`)이 아니라 이름이므로 이제 화면까지 도달한다.
       lighting: 'auditoriumStage',
-      // 화각은 아직 예약이다 — 어느 단계가 채울지 코드에 남겨 둔다(PHASE 9-d.2).
-      //   해석기가 INHERIT 로 떨어뜨리므로 화면에는 도달하지 않는다.
-      camera: planned('auditoriumProposal'),
+      // 화각 — PHASE 9-d.2 에서 실제로 만들었다(`design-camera.js` 의 강당 계열).
+      //   예약(`planned`)이 아니라 이름이므로 이제 화면까지 도달한다.
+      camera: 'auditoriumProposal',
       accessories: INHERIT,
     });
   }

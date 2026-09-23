@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=451';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=451';
+import { floorFinishFor, moodFor } from './materials.js?v=452';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=452';
 
-import { cameraPlanForDesign } from './design-camera.js?v=451';
-import { controlWallPlan } from './control-walls.js?v=451';
+import { cameraPlanForDesign } from './design-camera.js?v=452';
+import { controlWallPlan } from './control-walls.js?v=452';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -183,6 +183,33 @@ function framingFields(items) {
       if (!collab && !high) return null;
       return Object.freeze({ collab, high,
         collabSpots: 자리('collabTable'), highSpots: 자리('highTable') });
+    })(),
+    // 강당 객석의 범위(PHASE 9-d.2). 강당은 **줄이 곧 깊이**라, 카메라가 '몇 번째 줄 뒤에
+    //   설지'를 정하려면 줄마다의 깊이와 줄 간격을 알아야 한다. 앞의 공간들처럼 감싸는 상자
+    //   하나만 주면 카메라가 설 수 있는 자리가 뒷벽 하나뿐이라 화면이 오늘처럼 굳는다.
+    //   `seat` 항목은 강당 배치에만 있어 다른 공간은 null 그대로다.
+    //   **배치를 여기서 정하지 않는다.** 이미 놓인 좌석과 단을 읽어 옮겨 적을 뿐이다.
+    auditorium: (() => {
+      const st = (items || []).filter(i => i && i.type === 'seat'
+        && Number.isFinite(i.x) && Number.isFinite(i.z));
+      if (!st.length) return null;
+      const 값들 = arr => Array.from(new Set(arr)).sort((a, b) => a - b);
+      const xs = 값들(st.map(i => i.x)), zs = 값들(st.map(i => i.z));
+      const 최소간격 = list => (list.length > 1
+        ? Math.min(...list.slice(1).map((v, i) => v - list[i])) : 0);
+      const pitchX = 최소간격(xs), pitchZ = 최소간격(zs);
+      // 객석 단 — 각 단은 그 단의 첫 줄 앞에서 맨 뒤까지 깔린 상자다(겹쳐 쌓인다).
+      //   어느 깊이의 바닥 높이인지는 그 깊이를 덮는 단 가운데 **가장 높은 것**이 정한다.
+      const risers = (items || []).filter(i => i && i.type === 'riser' && i.variant === 'auditorium'
+        && i.d > 0 && Number.isFinite(i.z))
+        .map(i => Object.freeze({ z0: u(i.z - i.d / 2), z1: u(i.z + i.d / 2), h: u(i.h || 0) }))
+        .sort((a, b) => a.z0 - b.z0);
+      return Object.freeze({
+        x0: u(xs[0]), x1: u(xs[xs.length - 1]), z0: u(zs[0]), z1: u(zs[zs.length - 1]),
+        rowZ: Object.freeze(zs.map(u)), pitchX: u(pitchX), pitchZ: u(pitchZ),
+        risers: risers.length ? Object.freeze(risers) : null,
+        rows: zs.length, perRow: xs.length, count: st.length,
+      });
     })(),
     prompter: one ? Object.freeze({ x: u(one.x), z: u(one.z) }) : null,
   });

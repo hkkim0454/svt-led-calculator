@@ -198,7 +198,10 @@ test('아이소·평면도 동결 — 이 계획이 손대지 않는다', () => 
 test('다른 공간 — 카메라가 한 값도 바뀌지 않는다', () => {
   const CAM = { corporateMeeting: 'corporateProposal', executiveBoardroom: 'executiveProposal',
     largeConference: 'conferenceProposal', controlRoom: 'controlProposal',
-    trainingRoom: 'trainingProposal', ideationRoom: 'ideationProposal' };
+    trainingRoom: 'trainingProposal', ideationRoom: 'ideationProposal',
+    // PHASE 9-d.2 에서 강당 세 크기가 전용 화각을 갖게 되었다. 나머지는 그대로 INHERIT 다.
+    auditoriumSmall: 'auditoriumProposal', auditoriumMedium: 'auditoriumProposal',
+    auditoriumLarge: 'auditoriumProposal' };
   for (const id of DESIGN_IDS) {
     if (CAM[id]) { assert.equal(resolveDesign(id).camera, CAM[id], id); continue; }
     assert.equal(resolveDesign(id).camera, INHERIT, `${id}: 화각을 적용하면 안 된다`);
