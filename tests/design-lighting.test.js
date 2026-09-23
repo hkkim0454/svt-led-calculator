@@ -28,7 +28,10 @@ test('조명 프리셋 — 대기업 회의실만 새 조명을 쓴다', () => {
 
 // ② 조명을 선언하지 않은 공간은 기존 조명 그대로 — 이 단계에서 가장 중요한 테스트
 const LIT = new Set(['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom',
-  'trainingRoom', 'ideationRoom']);   // PHASE 2-d.1 · 3-d.1 · 4-d.2 · 5-d.3 · 7-b · 8-2a
+  'trainingRoom', 'ideationRoom',
+  // PHASE 9-d.1 — 강당 셋이 전용 조명(`auditoriumStage`)을 함께 쓴다.
+  'auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge',
+]);   // PHASE 2-d.1 · 3-d.1 · 4-d.2 · 5-d.3 · 7-b · 8-2a · 9-d.1
 test('다른 공간 — 조명이 한 값도 바뀌지 않는다', () => {
   for (const id of DESIGN_IDS) {
     if (LIT.has(id)) continue;
@@ -154,10 +157,16 @@ test('그림자 — 만드는 조명은 하나뿐이고, 더 넓고 부드러워
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const casters = [...code.matchAll(/(\w+)\.castShadow\s*=\s*true/g)].map(m => m[1]);
   assert.deepEqual([...new Set(casters)], ['key'], `그림자 조명이 늘었다: ${casters.join(', ')}`);
-  // 조명 개수 자체도 그대로 — 새 Light를 만들지 않았다.
+  // 조명 구성 — 다섯 자리는 그대로이고, PHASE 9-d.1 이 **강당에서만 켜지는** 무대 워시
+  //   (SpotLight)를 하나 더했다. 그 광원은 강당 프리셋이 자리를 줄 때만 만들어지고
+  //   다른 공간에서는 아예 생기지 않는다(그래서 빛 개수가 늘지 않는다 — 검사 아래 줄 참고).
   const made = [...code.matchAll(/new THREE\.(\w*Light)\(/g)].map(m => m[1]);
   assert.deepEqual(made.sort(), ['DirectionalLight', 'DirectionalLight', 'DirectionalLight',
-    'HemisphereLight', 'PointLight'], `조명 구성이 바뀌었다: ${made.join(', ')}`);
+    'HemisphereLight', 'PointLight', 'SpotLight'], `조명 구성이 바뀌었다: ${made.join(', ')}`);
+  // 무대 워시는 **그림자를 만들지 않는다**(위 castShadow 목록에 들어가지 않는다).
+  assert.match(code, /stageWash\.castShadow = false;/);
+  // 그리고 강당 프리셋이 자리를 주지 않으면 광원을 떼어 낸다(다른 공간에 남지 않게).
+  assert.match(code, /} else if \(stageWash\) \{/);
 
   const sh = shadowSettingsForDesign('corporateMeeting');
   assert.ok(sh.radius > 4, `흐림 반경이 기본(4)보다 커야 부드러워진다 — 지금 ${sh.radius}`);

@@ -24,7 +24,7 @@
 // 디자인이 조명을 정하지 않았으면 **null**을 돌려준다. 렌더러는 그러면 지금 하던 그대로다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=450';
+import { roomDesign, isPlanned } from './room-design.js?v=451';
 
 /** 세기 배수가 붙는 조명 자리. 조명 **개수는 바꾸지 않는다** — 자리마다 역할이 정해져 있다. */
 export const LIGHT_ROLES = Object.freeze(['hemi', 'ceiling', 'key', 'fill', 'ledSpill']);
@@ -366,6 +366,70 @@ export const LIGHTING_PRESETS = Object.freeze({
       normalBias: 0.030,     // 가는 스툴 기둥·스탠드 폴에서 생기는 줄무늬를 막는다
     }),
   }),
+
+  /**
+   * **강당 조명 — 무대가 중심이 되고 객석은 한 단 낮게.** (PHASE 9-d.1)
+   *
+   * 고치려는 것 — PHASE 9-c 까지의 강당은 **면끼리 밝기가 거의 같았다**(대강당 실내 시점):
+   *   무대 상판 223.3 · 객석 220.9 · 정면벽 221.6 · 바닥 194.3. 무대와 객석과 벽이 한 덩어리로
+   *   읽혀 '강당'이 아니라 '의자를 많이 놓은 방'처럼 보였다.
+   *
+   * 어느 조명이 어느 면에 닿는지 **하나씩 꺼 가며 실측했다**(대강당 실내, 끄면 얼마나 어두워지나).
+   *                    hemi   ceiling    key    fill   ledSpill
+   *     무대 상판       46.8     16.6    26.8     3.5        0.0
+   *     객석(전체)      59.0     18.0    30.6     4.6        0.0
+   *     객석 단 상판    89.2      0.6     0.0    16.4        0.0
+   *     바닥            60.3     15.8    22.8     3.3        0.0
+   *     정면벽          72.8      0.0    41.3     4.3        0.0
+   *     LED 화면         0.0      0.0     0.0     0.0        0.0
+   *
+   *   읽는 법.
+   *     ① **환경광이 모든 면을 지배한다**(46~89) — 방 전체를 가라앉히는 유일한 큰 레버다.
+   *     ② 천장등은 수평면만(무대·객석·바닥 16~18, 벽 0.0).
+   *     ③ 주광은 세로면(정면벽 41.3 · 좌석 등판) — 줄과 줄 사이 그늘이 여기서 나온다.
+   *     ④ **LED 화면은 어떤 조명에도 반응하지 않는다**(전부 0.0 — 자체 발광 재질이다).
+   *        그래서 'LED 를 주인공으로'는 화면을 밝히는 문제가 아니라 **주변을 정리하는 문제**다.
+   *     ⑤ 다섯 광원 중 **무대만 골라 비추는 것이 하나도 없다** — 넷은 방 전체를 고르게 때린다.
+   *        무대를 강조하려면 무대만 비추는 자리가 하나 더 필요하다(아래 `stageWash`).
+   *
+   * 그래서 환경광을 22% 내려 방 전체를 가라앉히고(`hemi 0.78`), 수평면이 죽지 않게 천장등을
+   *   조금만 내리고(`ceiling 0.92`), 줄 사이 그늘이 살도록 주광을 조금 올리고(`key 1.10`),
+   *   그늘 속이 새까매지지 않게 보조광을 켠다(`fill 1.45` = 절대 0.58).
+   *
+   * **무대 워시(`stageWash`)는 무대 **바로 위에서 수직으로** 내린다.** 비스듬히 쏘아 봤더니
+   *   앞줄 좌석과 무대 위 사람의 **세로면**까지 때려 날림이 0% → 2.8~3.3% 로 튀었다(실측).
+   *   수직으로 내리면 빛을 받는 것은 무대 **윗면**뿐이라, 세기를 2.2 까지 올려도 날림이
+   *   0.00~0.21% 로 오히려 PHASE 9-c(0.63%)보다 낮다. 실제 강당의 천장 트러스 조명과도 같은 방향이다.
+   *
+   * 결과(실측) — 대강당 아이소 무대 174.6 → **186.7**(객석은 214.7 → 206.3 으로 내려간다),
+   *   18컷 최대 날림 0.63% → **0.21%**, 어두워서 뭉갠 화소는 늘지 않았다.
+   *   **무대가 객석보다 밝은 픽셀이 되지는 않는다** — 무대 마감(#a89e92, 반사율 0.63)이 좌석
+   *   천(0.87)보다 어둡기 때문이다. 같은 빛을 받아도 더 어둡게 보이는 것이 정상이고,
+   *   이 단계가 만든 것은 **무대에 빛이 가장 많이 떨어지는 상태**다(반사율로 나눈 조도 기준).
+   *
+   * **자리는 주광·보조광 모두 정하지 않았다** — 앞 단계들에서 배운 대로, 옮기면 천장등과 같은
+   *   일을 해 고치려던 것과 반대로 움직인다(실측에서도 벽이 221 → 165 로 무너졌다). 세기만 바꾼다.
+   */
+  auditoriumStage: Object.freeze({
+    id: 'auditoriumStage',
+    label: '강당 조명(무대 중심 · 객석은 한 단 낮게)',
+    scale: Object.freeze({ hemi: 0.78, ceiling: 0.92, key: 1.10, fill: 1.45, ledSpill: 1.00 }),
+    shadow: Object.freeze({
+      radius: 9,             // 흐림 반경 — 기본 4. 좌석이 수백 개 깔리는 방이라 또렷하면 얼룩이 된다.
+      bias: -0.00035,        // 40mm 얇은 무대 상판에서 자기 그림자(얼룩)가 생기지 않는 선
+      normalBias: 0.030,     // 가는 좌석 다리·단 모서리에서 생기는 줄무늬를 막는다
+    }),
+    /**
+     * 무대 워시 — **이 프리셋에만 있는 여섯 번째 광원**이다. 무대 바로 위에서 수직으로 내린다.
+     *   `heightRatio` 방 높이 대비 광원 높이. 방이 높을수록 비추는 원이 커져 무대에 비례한다.
+     *   `angle`·`penumbra` 원뿔 반각(rad)과 가장자리 흐림. 무대 가운데가 밝고 끝으로 갈수록 부드럽다.
+     *   `intensity` 2.2 = 이 저장소의 절대 상한(MAX_ABS_INTENSITY)과 같은 값이다.
+     *   그림자는 만들지 않는다 — 그림자 광원은 주광 하나뿐이라는 규칙(MAX_SHADOW_CASTERS)을 지킨다.
+     */
+    stageWash: Object.freeze({
+      intensity: 2.2, angle: 0.55, penumbra: 0.6, color: '#fff3e3', heightRatio: 0.90,
+    }),
+  }),
 });
 
 /** 조명 프리셋 이름 → 프리셋. 모르는 이름이면 null. */
@@ -432,6 +496,30 @@ export function fillLightPlacementForDesign(designId, room) {
   if (!p || !room || !p.fillPos || !p.fillTarget) return null;
   const at = f => ({ x: room.W * f.x, y: room.H * f.y, z: room.D * f.z });
   return Object.freeze({ position: at(p.fillPos), target: at(p.fillTarget) });
+}
+
+/**
+ * 강당 무대 워시의 실제 자리·세기. **강당 프리셋에만 있다** — 그 밖의 공간은 null 이고,
+ *   그러면 렌더러는 광원을 아예 만들지 않는다(광원 수가 달라지지 않아 그림도 흔들리지 않는다).
+ *
+ * @param designId 공간 디자인 id
+ * @param room     { W, H, D } (단위 m — 렌더러가 쓰는 단위 그대로)
+ * @param stage    무대 { x, z, w, d, h } (단위 m). 무대가 없으면 null → 워시도 없다.
+ */
+export function stageWashForDesign(designId, room, stage) {
+  const p = lightingForDesign(designId);
+  if (!p || !p.stageWash || !room || !stage) return null;
+  const w = p.stageWash;
+  const y = room.H * w.heightRatio;
+  return Object.freeze({
+    color: w.color,
+    intensity: Math.min(w.intensity, MAX_ABS_INTENSITY),
+    angle: w.angle,
+    penumbra: w.penumbra,
+    // 무대 한가운데 바로 위에서 수직으로 내린다(비스듬히 쏘면 앞줄 좌석·사람이 날아간다).
+    position: Object.freeze({ x: stage.x, y, z: stage.z }),
+    target: Object.freeze({ x: stage.x, y: stage.h, z: stage.z }),
+  });
 }
 
 /** 주광이 전체 빛에서 차지하는 비중 = 그림자의 진하기(검증용). */

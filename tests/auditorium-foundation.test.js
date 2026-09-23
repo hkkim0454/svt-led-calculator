@@ -22,7 +22,10 @@ import { DIMS, FURNITURE_COLORS } from '../src/furniture-assets.js';
 import { auditoriumSurfaceFinish, AUDITORIUM_SURFACE_PARTS } from '../src/design-finish.js';
 import { buildGLModel, presetPose, FOV_DEG } from '../src/gl-model.js';
 import { cameraPlanForDesign } from '../src/design-camera.js';
-import { LIGHTING_PRESETS } from '../src/design-lighting.js';
+import { LIGHTING_PRESETS, LIGHT_ROLES, SCALE_RANGE, MAX_ABS_INTENSITY, MAX_SHADOW_CASTERS,
+  lightingForDesign, applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
+  fillLightPlacementForDesign, stageWashForDesign } from '../src/design-lighting.js';
+import { LIGHTS } from '../src/gl-model.js';
 import { MATERIAL_IDS } from '../src/materials.js';
 
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
@@ -84,31 +87,32 @@ test('③ 상태는 planned 다 — 릴리스 게이트(PHASE 9-f) 전에는 rea
 
 // ── ② 이 단계의 핵심 안전장치 — 붙였지만 화면에는 아무 값도 도달하지 않는다 ──
 
-test('④ 강당 디자인은 화면에 값을 하나도 보내지 않는다(전부 INHERIT/planned)', () => {
-  // 이것이 PHASE 9-a 의 전부다. 여기서 한 항목이라도 실제 값으로 바뀌면 강당 그림이
-  //   조용히 달라지고, 그 변화가 어느 단계의 것인지 따질 수 없게 된다.
-  const 표현항목 = ['furniture', 'palette', 'materials', 'wallTreatment', 'lighting',
-    'camera', 'accessories'];
+test('④ 강당 디자인이 화면에 보내는 것은 조명뿐이다 (PHASE 9-d.1 에서 갱신)', () => {
+  // **바뀐 이유.** PHASE 9-a 는 자리만 만들었고(일곱 항목 전부 INHERIT/planned), PHASE 9-d.1 이
+  //   그중 **조명 한 항목**을 실제로 채웠다. 나머지 여섯은 여전히 '디자인 없음'과 한 값도
+  //   다르지 않다 — 한 항목이라도 더 새어 나가면 그 변화가 어느 단계의 것인지 따질 수 없게 된다.
+  const 그대로 = ['furniture', 'palette', 'materials', 'wallTreatment', 'camera', 'accessories'];
   for (const [, id] of 강당) {
     const 해석 = resolveDesign(id);
-    for (const f of 표현항목) {
-      assert.equal(해석[f], NEUTRAL_DESIGN[f],
-        `${id}.${f} 가 화면에 값을 보낸다 — PHASE 9-a 의 범위를 넘었다`);
+    for (const f of 그대로) {
+      assert.equal(해석[f], NEUTRAL_DESIGN[f], `${id}.${f} 가 화면에 값을 보낸다`);
     }
-    // 선언 쪽도 확인한다 — 조명·화각만 `planned(...)` 로 예약해 두고 나머지는 INHERIT 다.
+    assert.equal(해석.lighting, 'auditoriumStage', `${id}: 조명이 강당 전용이 아니다`);
+    // 선언 쪽도 확인한다 — 화각만 `planned(...)` 로 남아 있다(PHASE 9-d.2 의 몫).
     const d = ROOM_DESIGNS[id];
     for (const f of ['furniture', 'palette', 'materials', 'wallTreatment', 'accessories']) {
       assert.equal(d[f], INHERIT, `${id}.${f} 는 INHERIT 여야 한다`);
     }
-    assert.deepEqual(d.lighting, { planned: 'auditoriumStage' }, `${id}: 조명 예약 이름`);
+    assert.equal(d.lighting, 'auditoriumStage', `${id}: 조명 이름`);
     assert.deepEqual(d.camera, { planned: 'auditoriumProposal' }, `${id}: 화각 예약 이름`);
-    assert.ok(isPlanned(d.lighting) && isPlanned(d.camera), `${id}: 예약 표시가 아니다`);
+    assert.equal(isPlanned(d.lighting), false, `${id}: 조명이 아직 예약 상태다`);
+    assert.ok(isPlanned(d.camera), `${id}: 화각은 예약 표시여야 한다`);
   }
-  // 아직 강당 전용 조명 프리셋을 만들지 않았다(PHASE 9-d.1 의 몫).
+  // 조명 프리셋은 일곱 벌이고 강당 것이 맨 뒤다(기존 여섯 벌은 이름·순서 그대로).
   assert.deepEqual(Object.keys(LIGHTING_PRESETS),
     ['corporateSoft', 'executiveSoft', 'conferenceSoft', 'trainingSoft', 'controlTechnical',
-      'ideationSoft']);
-  // 정식 재질도 13종 그대로다(PHASE 9-c 가 늘릴 수 있다).
+      'ideationSoft', 'auditoriumStage']);
+  // 정식 재질은 13종 그대로다 — 조명 단계가 재질을 늘리지 않았다.
   assert.equal(MATERIAL_IDS.length, 13);
 });
 
@@ -863,5 +867,117 @@ test('㉛ PHASE 9-b 좌석·단차가 한 값도 바뀌지 않았다 (무대·LE
     assert.equal(r.placed.rearEmpty, e.rear, `${t}: 뒤 여유`);
     assert.equal(r.placed.tiers, e.tiers, `${t}: 단 수`);
     assert.deepEqual(r.items.filter(i => i.type === 'riser').map(i => i.h), e.risers, `${t}: 단 높이`);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHASE 9-d.1 — 강당 조명 계약 (DEC-144)
+// ─────────────────────────────────────────────────────────────────────────────
+// 조명만 다루는 단계다. 좌석·무대·LED·재질은 앞 단계 값 그대로여야 하고(㉛·㉕ 가 지킨다),
+// 여기서는 ① 강당에만 붙는가 ② 다른 공간이 흔들리지 않는가 ③ 무대 워시가 안전한가를 본다.
+
+test('㉜ 강당 조명 — 세 크기가 같은 전용 프리셋을 쓰고, 다른 공간에는 붙지 않는다', () => {
+  for (const [, id] of 강당) {
+    const p = lightingForDesign(id);
+    assert.ok(p, `${id}: 조명이 없다`);
+    assert.equal(p.id, 'auditoriumStage', `${id}: 강당 전용 프리셋이 아니다`);
+    // 배수는 안전 범위 안이고, 절대 세기도 상한을 넘지 않는다.
+    for (const role of LIGHT_ROLES) {
+      const k = p.scale[role];
+      assert.ok(k >= SCALE_RANGE.min && k <= SCALE_RANGE.max, `${id}.${role}: 배수 ${k}`);
+      assert.ok(LIGHTS[role] * k <= MAX_ABS_INTENSITY, `${id}.${role}: 절대 세기가 상한을 넘는다`);
+    }
+    // 그림자 설정은 있으나 **그림자를 만드는 광원을 늘리지는 않는다**.
+    assert.ok(p.shadow.radius > 4 && p.shadow.radius <= 16, `${id}: 흐림 반경 ${p.shadow.radius}`);
+    // 무대 워시도 **적어 둔 값 자체가** 상한 안이어야 한다. 해석기가 잘라 주기는 하지만,
+    //   표에 상한을 넘는 수가 남아 있으면 다음 사람이 그 수를 진짜 값으로 읽는다.
+    assert.ok(p.stageWash.intensity > 0 && p.stageWash.intensity <= MAX_ABS_INTENSITY,
+      `${id}: 무대 워시 세기 ${p.stageWash.intensity} 가 상한(${MAX_ABS_INTENSITY})을 넘는다`);
+    assert.ok(p.stageWash.angle > 0 && p.stageWash.angle < Math.PI / 2, `${id}: 원뿔 반각`);
+    assert.ok(p.stageWash.heightRatio > 0.5 && p.stageWash.heightRatio <= 1,
+      `${id}: 광원 높이 비율 ${p.stageWash.heightRatio}`);
+    // 주광·보조광 자리는 정하지 않았다(옮기면 천장등과 같은 일을 해 역효과가 난다).
+    assert.equal(keyLightPlacementForDesign(id, { W: 24, H: 8, D: 28 }), null, `${id}: 주광 자리를 옮겼다`);
+    assert.equal(fillLightPlacementForDesign(id, { W: 24, H: 8, D: 28 }), null, `${id}: 보조광 자리를 옮겼다`);
+  }
+  // 강당이 아닌 공간은 예전 프리셋 그대로다.
+  const 기대 = { corporateMeeting: 'corporateSoft', executiveBoardroom: 'executiveSoft',
+    largeConference: 'conferenceSoft', trainingRoom: 'trainingSoft', controlRoom: 'controlTechnical',
+    ideationRoom: 'ideationSoft' };
+  for (const [id, preset] of Object.entries(기대)) {
+    assert.equal(lightingForDesign(id).id, preset, `${id}: 조명 프리셋이 바뀌었다`);
+  }
+  for (const id of [null, undefined, '', '없는디자인']) {
+    assert.equal(lightingForDesign(id), null, String(id));
+  }
+});
+
+test('㉝ 비강당 조명 프리셋의 값이 한 값도 바뀌지 않았다', () => {
+  // 강당 조명을 만들면서 기존 여섯 벌을 건드리면 릴리스된 공간이 전부 함께 움직인다.
+  const 기준 = {
+    corporateSoft: { hemi: 0.82, ceiling: 0.36, key: 0.88, fill: 1.90, ledSpill: 1.00 },
+    executiveSoft: { hemi: 1.05, ceiling: 0.30, key: 1.00, fill: 2.00, ledSpill: 1.00 },
+    conferenceSoft: { hemi: 1.18, ceiling: 0.28, key: 0.92, fill: 1.30, ledSpill: 1.00 },
+    trainingSoft: { hemi: 0.88, ceiling: 1.08, key: 1.05, fill: 1.50, ledSpill: 1.00 },
+    controlTechnical: { hemi: 0.58, ceiling: 0.22, key: 0.98, fill: 2.00, ledSpill: 1.00 },
+    ideationSoft: { hemi: 0.84, ceiling: 1.00, key: 1.05, fill: 1.60, ledSpill: 1.00 },
+  };
+  for (const [id, scale] of Object.entries(기준)) {
+    assert.deepEqual({ ...LIGHTING_PRESETS[id].scale }, scale, `${id}: 조명 배수가 바뀌었다`);
+  }
+  // 기준 세기(LIGHTS)도 그대로다 — 여기를 바꾸면 모든 공간이 함께 움직인다.
+  assert.deepEqual({ ...LIGHTS }, { hemi: 1.85, ceiling: 1.15, key: 1.15, fill: 0.40, ledSpill: 0.55 });
+  assert.deepEqual([...LIGHT_ROLES], ['hemi', 'ceiling', 'key', 'fill', 'ledSpill']);
+  assert.equal(MAX_SHADOW_CASTERS, 1);
+});
+
+test('㉞ 무대 워시 — 강당에만, 무대 바로 위에서 수직으로, 그림자 없이', () => {
+  const room = { W: 24, H: 8, D: 28 };
+  const stage = { x: 12, z: 1.6, w: 13.9, d: 3.2, h: 0.6 };
+  for (const [, id] of 강당) {
+    const w = stageWashForDesign(id, room, stage);
+    assert.ok(w, `${id}: 무대 워시가 없다`);
+    // 무대 한가운데 **바로 위**다 — 비스듬히 쏘면 앞줄 좌석과 사람의 세로면이 날아간다(실측).
+    assert.equal(w.position.x, stage.x, `${id}: 무대 가운데가 아니다`);
+    assert.equal(w.position.z, stage.z, `${id}: 무대 가운데가 아니다`);
+    assert.equal(w.target.x, w.position.x, `${id}: 수직이 아니다`);
+    assert.equal(w.target.z, w.position.z, `${id}: 수직이 아니다`);
+    assert.ok(w.position.y > stage.h + 2, `${id}: 광원이 무대에 너무 가깝다`);
+    assert.ok(w.position.y <= room.H, `${id}: 광원이 천장을 뚫었다`);
+    // 세기는 이 저장소의 절대 상한을 넘지 않는다.
+    assert.ok(w.intensity > 0 && w.intensity <= MAX_ABS_INTENSITY, `${id}: 세기 ${w.intensity}`);
+    // 원뿔이 무대를 벗어나 객석을 덮지 않는다(반각 × 높이 ≈ 비추는 반지름).
+    const 반지름 = Math.tan(w.angle) * (w.position.y - stage.h);
+    assert.ok(반지름 <= stage.w / 2 + 0.5, `${id}: 빛이 무대(폭 ${stage.w}m)를 넘는다 — 반지름 ${반지름.toFixed(1)}m`);
+    assert.ok(w.penumbra > 0.3, `${id}: 가장자리가 또렷하면 무대에 테두리가 생긴다`);
+  }
+  // 무대가 없으면(무대 옵션을 끈 방) 워시도 없다.
+  assert.equal(stageWashForDesign('auditoriumLarge', room, null), null, '무대 없이 워시가 생겼다');
+  // 강당이 아닌 공간에는 아예 붙지 않는다 — 여기서 값이 나오면 다른 방에 스포트라이트가 생긴다.
+  for (const id of [...동결, null, undefined, '없는디자인']) {
+    assert.equal(stageWashForDesign(id, room, stage), null, `${id}: 무대 워시가 새어 나갔다`);
+  }
+  // 그리는 쪽 — 그림자를 만들지 않고, 자리를 받지 못하면 광원을 떼어 낸다.
+  const gl = src('render3d-gl.js');
+  assert.match(gl, /stageWash\.castShadow = false;/);
+  assert.match(gl, /} else if \(stageWash\) \{[\s\S]*?scene\.remove\(stageWash\);/);
+  // 그림자를 만드는 광원은 여전히 주광 하나뿐이다.
+  const casters = [...gl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    .matchAll(/(\w+)\.castShadow\s*=\s*true/g)].map(m => m[1]);
+  assert.deepEqual([...new Set(casters)], ['key'], `그림자 광원이 늘었다: ${casters.join(', ')}`);
+});
+
+test('㊲ 조명 계산은 결정적이다 — 같은 입력을 세 번 물어도 같은 값이다', () => {
+  const room = { W: 18, H: 6, D: 20 };
+  const stage = { x: 9, z: 1.4, w: 11.5, d: 2.8, h: 0.45 };
+  const base = { hemi: 1.85, ceiling: 1.15, key: 1.15, fill: 0.40, ledSpill: 0.55 };
+  for (const [, id] of 강당) {
+    const a = [1, 2, 3].map(() => JSON.stringify({
+      세기: applyDesignLighting(base, id),
+      워시: stageWashForDesign(id, room, stage),
+      그림자: shadowSettingsForDesign(id),
+    }));
+    assert.equal(a[0], a[1], `${id}: 두 번째가 다르다`);
+    assert.equal(a[1], a[2], `${id}: 세 번째가 다르다`);
   }
 });

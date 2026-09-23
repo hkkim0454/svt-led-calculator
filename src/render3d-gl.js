@@ -18,16 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=450';
-import { createMaterialLibrary } from './materials-gl.js?v=450';
-import { MOODS } from './materials.js?v=450';
-import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=450';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=451';
+import { createMaterialLibrary } from './materials-gl.js?v=451';
+import { MOODS } from './materials.js?v=451';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=451';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
-} from './design-lighting.js?v=450';
-import { ledImageFit } from './led-image.js?v=450';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=450';
+  stageWashForDesign,
+} from './design-lighting.js?v=451';
+import { ledImageFit } from './led-image.js?v=451';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=451';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -36,7 +37,7 @@ import {
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
   CONTROLS_MAX_POLAR,
-} from './gl-model.js?v=450';
+} from './gl-model.js?v=451';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -705,6 +706,10 @@ export function createViewerGL(canvas, { onError } = {}) {
   const ledSpill = new THREE.PointLight(new THREE.Color(GL_PALETTE.ledGlow), LIGHTS.ledSpill, 0, 2);
   ledSpill.name = 'ledSpill';
   scene.add(ledSpill);
+  // ⑥ 무대 워시 — **강당에서만** 만든다(PHASE 9-d.1). 다른 공간에서는 광원 자체가 없어야
+  //   빛 개수가 그대로이고, 그러면 셰이더도 그림도 한 픽셀 흔들리지 않는다.
+  //   그림자는 만들지 않는다 — 그림자 광원은 주광 하나라는 규칙을 지킨다.
+  let stageWash = null;
 
   // ── 시점 조작(OrbitControls) ──
   // 프리셋으로 자리를 잡고, 사용자는 거기서 자유롭게 돌려 볼 수 있다.
@@ -987,6 +992,29 @@ export function createViewerGL(canvas, { onError } = {}) {
     key.shadow.bias = sh.bias;
     key.shadow.normalBias = sh.normalBias;
     scene.add(key.target);
+    // 무대 워시 — 강당 프리셋이 정한 자리·세기. 정하지 않은 공간은 null 이라 광원을 만들지 않고,
+    //   이미 만들어 둔 것이 있으면 떼어 낸다(공간 타입을 바꿔 가며 볼 때 남지 않게).
+    const sw = stageWashForDesign(model?.design, room, model?.stage);
+    if (sw) {
+      if (!stageWash) {
+        stageWash = new THREE.SpotLight(0xffffff, 0, 0, sw.angle, sw.penumbra, 0);
+        stageWash.name = 'stageWash';
+        stageWash.castShadow = false;
+        scene.add(stageWash);
+        scene.add(stageWash.target);
+      }
+      stageWash.color.set(sw.color);
+      stageWash.intensity = sw.intensity;
+      stageWash.angle = sw.angle;
+      stageWash.penumbra = sw.penumbra;
+      stageWash.position.set(sw.position.x, sw.position.y, sw.position.z);
+      stageWash.target.position.set(sw.target.x, sw.target.y, sw.target.z);
+      stageWash.target.updateMatrixWorld();
+    } else if (stageWash) {
+      scene.remove(stageWash.target);
+      scene.remove(stageWash);
+      stageWash = null;
+    }
     // 보조광 — 디자인이 자리를 정했으면 그 자리로, 아니면 기존 자리로(다른 공간은 그대로다).
     const fp = fillLightPlacementForDesign(model?.design, room);
     if (fp) {
