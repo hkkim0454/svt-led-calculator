@@ -382,6 +382,7 @@ export const ROOM_DESIGNS = Object.freeze({
 /**
  * 강당 디자인 세 벌을 한 자리에서 찍어 낸다(소·중·대).
  *   PHASE 9-a 에서는 전부 INHERIT / planned 였고, 뒤 단계가 하나씩 값을 채워 왔다.
+ *   PHASE 9-f 에서 셋 다 **RELEASED / FROZEN**(status `ready`)이 되었다.
  *     furniture   INHERIT — 배치가 이미 `auditoriumChair` 를 세운다
  *     materials   INHERIT — 무대 마감은 `design-finish.js` 의 강당 표가 맡는다(PHASE 9-c)
  *     lighting    'auditoriumStage'            — PHASE 9-d.1 에서 채웠다
@@ -397,8 +398,10 @@ function auditoriumDesigns() {
   for (const [id, label, roomType, layoutVariant] of 크기) {
     out[id] = Object.freeze({
       id, label, roomType, layoutVariant,
-      // PHASE 9-f 릴리스 게이트를 통과하기 전에는 `ready` 로 올리지 않는다.
-      status: DESIGN_STATUS.PLANNED,
+      // PHASE 9-e 릴리스 게이트를 통과해 PHASE 9-f 에서 `ready` 로 올렸다(DEC-146).
+      //   **이 값은 화면에 도달하지 않는다** — 디자인 목록은 `id`·`label`·`roomType` 만 읽는다.
+      //   그래서 승격 전후의 그림은 한 픽셀도 다르지 않다(정규 19컷 해시 차이 0 으로 증명).
+      status: DESIGN_STATUS.READY,
       phase: 9,
       furniture: INHERIT,
       palette: INHERIT,

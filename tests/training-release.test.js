@@ -26,8 +26,9 @@ import { MODELS } from '../src/models.js';
 import { computeConfig } from '../src/engine.js';
 
 const TR = 'trainingRoom';
+// PHASE 9-f 에서 강당 셋이 더해져 릴리스한 공간은 **아홉 벌**이다(DEC-146).
 const 릴리스 = ['corporateMeeting', 'executiveBoardroom', 'largeConference', 'controlRoom', TR,
-  'ideationRoom'];
+  'ideationRoom', 'auditoriumSmall', 'auditoriumMedium', 'auditoriumLarge'];
 const ASP = 574 / 563;   // 실제 캔버스 비율
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
 const code = f => src(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -43,7 +44,7 @@ function 모델(W, H, D) {
 
 // ── ① 승급 ──────────────────────────────────────────────────────────────────
 
-test('① 교육장이 ready 로 승급했고, 릴리스한 다섯 공간만 ready 다', () => {
+test('① 교육장이 ready 로 승급했고, 릴리스한 공간만 ready 다', () => {
   assert.equal(ROOM_DESIGNS[TR].status, DESIGN_STATUS.READY, '교육장이 아직 ready 가 아니다');
   for (const id of 릴리스) assert.equal(ROOM_DESIGNS[id].status, DESIGN_STATUS.READY, `${id}: ready 가 아니다`);
   for (const id of DESIGN_IDS) {
