@@ -131,7 +131,9 @@ test('⑥ 조명 `trainingSoft` 가 승인값 그대로이고, 그림자를 만�
 test('⑦ 화각 `trainingProposal` — 하드 게이트 44° 와 기준값이 그대로다', () => {
   assert.deepEqual({ ...TRAINING_FOV_RANGE }, { min: 36, max: 44 });
   assert.deepEqual(JSON.parse(JSON.stringify(TRAINING_CAMERA_PLANS)), {
-    interior: { eye: 1.66, fov: 42, band: 0.14, xRatio: 0.50, aimMix: 0.16 },
+    // PHASE 10-d 에서 실내만 바꿨다 — 서는 자리 0.50 → 0.40 · 천장 띠 0.14 → 0.18.
+    //   화면 아래 띠를 맨바닥이 71.6% 독점하던 것을 47.4% 로 내렸다(근거는 표 옆 주석).
+    interior: { eye: 1.66, fov: 42, band: 0.18, xRatio: 0.40, aimMix: 0.16 },
     'corner-l': { eye: 1.70, fov: 43, band: 0.12, xRatio: 0.26, aimMix: 0.30 },
     'corner-r': { eye: 1.70, fov: 43, band: 0.12, xRatio: 0.74, aimMix: 0.30 },
   });
