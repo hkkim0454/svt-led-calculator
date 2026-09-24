@@ -12,12 +12,35 @@
 - 상태는 `docs/aidlc-state.md`, 이력은 `docs/audit.md`에 기록한다. **의미 있는 결정·승인·검증이 생기면 audit.md에 항목을 추가**하고 state.md의 해당 필드를 갱신할 것.
 - **코드보다 SPEC이 먼저다.** SPEC에 없는 계산 규칙을 임의로 만들지 말 것. 애매하면 진행을 멈추고 오너에게 질문한다.
 
-## 현재 위치
+## 현재 위치 (2026-09-24 기준)
 
-- Phase: **INCEPTION 후반** (프로토타입 v0.2 존재, SPEC 초안 작성됨)
-- 방향 A 채택(2026-07-23, DEC-004): 본 프로젝트 유지 + DISPLAY FIT 우수 요소 흡수. dataStatus 3단계·모델별 typical·MP008F 검증전력 반영. 단위는 mm/meter만.
-- S-Box 규칙(2026-07-24, DEC-006): 영역 타일 `ceil(resW/3840)×ceil(resH/2160)`·이중화 ×2, CS4B(=CS4BPGS)·SNOWAAE 공통 4K. IFR/IEA 용량 반영, Outdoor(IB) 단종 삭제, 슈퍼와이드 16:9 최대해상도 산출. (DEC-005 대체)
+- Phase: **PHASE 10 — 제품 전체 시각 통일**. PHASE 9(강당 V1)까지 **완료**했고, PHASE 10-0 감사로 다음 트랙을 골랐다.
+- `main` 기준: **`9450b5c`** · 화면 버전 **v453** · `npm test` **1154/1154** · 작업 트리 clean.
+- **RELEASED / FROZEN 디자인 아홉 벌** — 대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
+  아이디에이션 · 소강당 · 중강당 · 대강당. 전부 `status: ready` 다.
+- 계산 쪽 결정은 그대로다 — 방향 A(2026-07-23, DEC-004: DISPLAY FIT 우수 요소 흡수 · 단위는 mm/meter),
+  S-Box 규칙(2026-07-24, DEC-006: 영역 타일 `ceil(resW/3840)×ceil(resH/2160)`·이중화 ×2 · CS4B·SNOWAAE 공통 4K).
 - 남은 미확정: `docs/SPEC.md` §4 Q1(세로 충진 규칙) / Q2(범위: 일체형·Video Wall 포함 여부) / 스페어율·Jig 규칙.
+
+### 동결된 아홉 공간을 지키는 원칙
+
+이 아홉 벌은 **Golden Reference** 다. 근거 없이 건드리지 않는다.
+
+- 한 공간을 고칠 때도 나머지 여덟은 **픽셀·타일 해시 차이 0** 으로 증명한다(`qa/capture.mjs`).
+- 좌석·통로·단차·무대·LED 권장 크기·마감·조명·화각 값은 각 공간의 계약 검사가 못박고 있다.
+  그 숫자를 바꾸려면 검사를 **의도적으로** 다시 쓰고 근거를 `docs/audit.md` 에 남긴다.
+- 공용 코드(`render3d-gl.js`, `design-camera.js` 의 공용 도구, `room-presets.js` 의 `chairAt`·`fitCount`)는
+  아홉 공간이 함께 쓴다. 여기를 고치면 아홉이 동시에 움직인다 — 가능하면 공간별 표만 고친다.
+
+### 다음 로드맵 (PHASE 10-0 감사, 오너 승인 대기)
+
+| 단계 | 할 일 |
+|---|---|
+| **10-a** | 문서·배포 기준 정리(이 작업) |
+| 10-b | 상황실 제안 카메라 재설계 — 바닥 30.7% · 화면 아래 띠 92.3% 를 강당 기준(≤55%)으로 |
+| 10-c | 아이디에이션 제안 카메라와 밝은 면 — LED 30.09% 를 낮추고 흰색 날림 1.366% 를 없앤다 |
+| 10-d | 대회의실·교육장 화면 아래 띠 교정(66.9% · 71.2%) |
+| 10-e | 제품 전체 시각 QA / 릴리스 게이트 — 아홉 공간 27컷을 한 잣대로 재판정하고 다시 동결 |
 
 ## 저장소 구조
 
@@ -29,7 +52,7 @@ src/index.html  마크업. src/styles.css.
 
 3D(아이소메트릭) 미리보기 — 03 카드의 '3D 뷰'. 스펙 계산은 하지 않고 engine 결과를 좌표로만 바꾼다.
 src/scene3d.js      카메라·정사투영·큐브 시점·기본 입체도형(상자/기둥)·컷어웨이 벽. DOM 없음.
-src/room-presets.js 공간 타입(회의실·강의실·소중대강당·상황실)과 가구 '배치' 계산. DOM 없음.
+src/room-presets.js 공간 타입(회의실·강의실·소중대강당·상황실·아이디에이션)과 가구 '배치' 계산. DOM 없음.
 src/furniture3d.js  배치 → 실제 가구 입체도형(의자·테이블·책상·콘솔·무대·러그·화분). DOM 없음.
 src/render3d.js     캔버스 그리기 + 시점 조작 + PNG 내보내기. 유일하게 DOM을 쓰는 3D 파일.
 tests/          node:test. 삼성 검증 수치를 고정하는 회귀 테스트.
@@ -41,6 +64,25 @@ docs/           SPEC.md, aidlc-state.md, audit.md.
 - 테스트: `npm test` (= `node --test tests/`). **커밋 전 반드시 green.**
 - 로컬 실행: `npm run dev` 후 브라우저에서 `http://localhost:5173`.
   (ESM import 때문에 `file://` 직접 열기는 브라우저에 따라 차단됨 — 반드시 서버로 띄울 것.)
+- **배포(Production) 기준 주소 — GitHub Pages.** 오너가 실제 화면을 확인하는 곳이다.
+  `main` 에 병합하면 이 주소에 반영된다(별도 배포 작업 없음).
+
+  ```
+  https://hkkim0454.github.io/svt-led-calculator/src/index.html
+  ```
+
+  - 과거 주소 `https://hkkim0454.github.io/Samsung-led-calculator/src/index.html` 는
+    **더 이상 기준이 아니다.** 저장소 이름을 `Samsung-led-calculator` → `svt-led-calculator`
+    로 바꿨는데, GitHub 은 저장소 주소만 자동으로 연결해 주고 **Pages 주소는 옮겨 주지
+    않는다.** 그래서 옛 주소는 갱신이 멈춘 옛 화면을 계속 보여 준다(2026-09-23 확인).
+  - 화면이 최신인지 보는 법: 페이지 아래쪽 `화면 버전 vNNN` 이 `src/index.html` 의 값과
+    같은지 확인한다. 다르면 **Ctrl+Shift+R** 로 캐시를 비우고 다시 본다.
+    지금 기준값은 **v453** 이다.
+  - **배포 구조** — `.github/workflows` 가 **없다**(GitHub Actions 0개). Pages 가 브랜치 내용을
+    그대로 서비스하고, 저장소 루트의 `index.html` 이 `/src/index.html` 로 자동으로 보낸다.
+    그래서 `main` 에 병합하는 것이 곧 배포다.
+  - **캐시 규칙** — 모듈 주소 뒤의 `?v=NNN`(59줄)과 화면에 적히는 `화면 버전 vNNN`(1줄)을
+    **같은 값으로 함께** 올린다. 제품 소스를 바꾸는 단계마다 최신 `main` 값 +1 이다.
 
 ## 규칙 (반드시 준수)
 
