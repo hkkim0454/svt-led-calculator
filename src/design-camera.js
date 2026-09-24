@@ -1443,7 +1443,8 @@ export const IDEATION_STANDOFF = 1.10;
  * **상한을 18% 로 둔 까닭.** 릴리스 기준은 실내 20% 인데, 이 규칙은 상한 아래로 내려오는
  *   **첫 자리**에서 멈추므로 결과가 늘 상한에 붙는다. 상한을 20% 로 두면 여유가 0.3%p 밖에
  *   남지 않아, 2%p 를 남기려고 18% 로 정했다. 하한 10% 는 '너무 작다'는 기준 8% 위에
- *   같은 방식으로 여유를 둔 값이다.
+ *   같은 방식으로 여유를 둔 값이다. **`min` 은 풀이 안에서 가지를 만들지 않는다** — 결과가
+ *   지켜야 할 바닥을 적어 둔 값이고, 지켜지는지는 계약 검사가 확인한다(아래 물러섬 절 참고).
  */
 export const IDEATION_LED_SHARE = Object.freeze({ min: 0.10, max: 0.18 });
 
@@ -1636,18 +1637,22 @@ export function ideationCameraPlanWith(room, led, s, aspect = 16 / 9, fields = n
 
   // ── 얼마나 물러설까 ── **LED 가 원하는 넓이 구간에 들어올 만큼만** 물러선다.
   //   가까운 쪽부터 한 칸씩 물러서 보다가 구간 상한 아래로 내려오면 거기서 멈춘다. 첫 칸에서
-  //   이미 충분히 작으면(깊은 방) 한 발도 물러서지 않는다. 한 칸 더 가면 하한 아래로
-  //   떨어지겠다 싶으면 직전 자리를 지킨다 — 'LED 가 너무 작다'는 반대쪽 실패를 막는다.
-  //   뒷벽이 먼저 막는 작은 방은 맨 끝 칸에서 멈춘다(그 방은 애초에 물러설 곳이 없다).
+  //   이미 충분히 작으면(깊은 방) 한 발도 물러서지 않는다. 뒷벽이 먼저 막는 작은 방은 맨 끝
+  //   칸에서 멈춘다(그 방은 애초에 물러설 곳이 없다).
+  //
+  // **하한은 왜 따로 지키지 않는가.** 상한 아래로 내려오자마자 멈추므로, 하한을 밟으려면
+  //   한 칸 만에 상한 위에서 하한 아래까지 뛰어내려야 한다. 그 폭은 8.0%p 인데, 방 75종 ×
+  //   시점 3종 × 화면비 4종의 후보 3,938칸을 실제로 재어 보니 **한 칸 최대 낙폭이 1.243%p**
+  //   였다(8×5.6m 실내, 36.13 → 34.89%). 여섯 배 넘는 여유라 뛰어넘을 수 없다. 그래서
+  //   검사로 닿지 않는 방어 코드를 두는 대신 하한은 **결과로** 지킨다 — 계약 ⑲-3 과 ㉟ 가
+  //   고른 자리의 LED 점유가 하한 아래로 내려가지 않았음을 확인한다.
   const 물러섬후보 = Number.isFinite(s.standoff) ? [s.standoff]
     : Array.from({ length: IDEATION_STANDOFF_STEPS + 1 }, (_, i) => IDEATION_STANDOFF
       + (IDEATION_STANDOFF_MAX - IDEATION_STANDOFF) * (i / IDEATION_STANDOFF_STEPS));
   let 자리 = null;
   for (const 물러섬 of 물러섬후보) {
-    const 후보 = 자리잡기(물러섬);
-    if (자리 && 후보.ledScreenShare < IDEATION_LED_SHARE.min) break;
-    자리 = 후보;
-    if (후보.ledScreenShare <= IDEATION_LED_SHARE.max) break;
+    자리 = 자리잡기(물러섬);
+    if (자리.ledScreenShare <= IDEATION_LED_SHARE.max) break;
   }
   const { standoff, standZ, dzWall, sol, stage, ledScreenShare } = 자리;
 

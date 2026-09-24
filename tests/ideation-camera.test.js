@@ -23,7 +23,7 @@ import {
 } from '../src/gl-model.js';
 import {
   IDEATION_CAMERA_PRESETS, IDEATION_CAMERA_PLANS, IDEATION_FOV_RANGE, IDEATION_EYE_RANGE,
-  IDEATION_STANDOFF, IDEATION_STANDOFF_MAX, IDEATION_LED_SHARE,
+  IDEATION_STANDOFF, IDEATION_STANDOFF_MAX, IDEATION_STANDOFF_STEPS, IDEATION_LED_SHARE,
   ideationCameraPlanId, ideationCameraPresets, ideationCameraPlan,
   ideationCameraPlanWith, cameraPlanForDesign, WALL_MARGIN, eyeAboveTargetFor,
   CAMERA_PLANS, EXECUTIVE_CAMERA_PLANS, CONFERENCE_CAMERA_PLANS, CONTROL_CAMERA_PLANS,
@@ -394,6 +394,41 @@ test('⑲-2 물러서는 잣대는 LED 화면 점유다 — 구간 안이면 멈
   // 세 갈래가 모두 실제로 일어난다 — 하나라도 0 이면 그 갈래를 지워도 아무도 모른다.
   assert.ok(안물러섬 > 0 && 중간 > 0 && 끝까지 > 0,
     `갈래별 컷 수 — 그대로 ${안물러섬} · 중간 ${중간} · 끝까지 ${끝까지}`);
+});
+
+test('⑲-4 물러서다가 하한을 밟지 않는다 — 한 칸 낙폭이 구간 폭보다 훨씬 작다', () => {
+  // **왜 계약으로 두는가.** 풀이에는 하한을 지키는 가지가 없다. 상한 아래로 내려오자마자
+  //   멈추므로, 하한을 밟으려면 한 칸 만에 상한(18%) 위에서 하한(10%) 아래로 뛰어내려야
+  //   하는데 그럴 수 없기 때문이다. 그 '그럴 수 없음' 을 여기서 숫자로 확인한다 —
+  //   방·시점·화면비를 두루 훑어 ① 한 칸 낙폭이 구간 폭(8%p)의 절반을 넘지 않고,
+  //   ② 물러선 컷의 결과가 하한 아래로 내려가지 않았음을 본다.
+  const 구간폭 = IDEATION_LED_SHARE.max - IDEATION_LED_SHARE.min;
+  let 최대낙폭 = 0, 물러선컷 = 0;
+  for (const [이름, W, H, D] of [...ROOMS, ...EXTRA]) {
+    const m = 제품모형(W, H, D);
+    for (const v of IDEATION_CAMERA_PRESETS) {
+      for (const a of ASPECTS) {
+        const p = cameraPlanForDesign(ID, v, m, a);
+        if (p.standoff > IDEATION_STANDOFF + 1e-6) {
+          물러선컷++;
+          // 뒷벽이 막아 더 못 물러선 방은 결과가 하한 아래일 수 있다 — 그 방은 예외다.
+          const 붙음 = p.position[2] >= D / 1000 - WALL_MARGIN - 1e-6;
+          assert.ok(p.ledScreenShare >= IDEATION_LED_SHARE.min - 1e-9 || 붙음,
+            `${이름}/${v}/${a.toFixed(2)}: 물러서다가 LED 가 ${p.ledScreenShare} 까지 작아졌다`);
+        }
+        // 한 칸 낙폭 — 고른 자리와 그 직전 자리의 차이.
+        const 한칸 = (IDEATION_STANDOFF_MAX - IDEATION_STANDOFF) / IDEATION_STANDOFF_STEPS;
+        if (p.standoff - 한칸 >= IDEATION_STANDOFF - 1e-9) {
+          const 직전 = ideationCameraPlanWith(m.room, m.led,
+            { ...IDEATION_CAMERA_PLANS[v], standoff: p.standoff - 한칸 }, a, m.fields);
+          최대낙폭 = Math.max(최대낙폭, 직전.ledScreenShare - p.ledScreenShare);
+        }
+      }
+    }
+  }
+  assert.ok(물러선컷 > 0, '한 컷도 물러서지 않았다 — 검사가 헛돈다');
+  assert.ok(최대낙폭 < 구간폭 / 2,
+    `한 칸 낙폭이 ${(최대낙폭 * 100).toFixed(3)}%p 로 구간 폭 ${(구간폭 * 100).toFixed(1)}%p 에 비해 크다`);
 });
 
 test('⑲-3 물러서다가 LED 를 너무 작게 만들지 않는다 — 깊은 방이 기준선 그대로다', () => {
