@@ -21,7 +21,7 @@
 // 디자인이 화각을 정하지 않았으면 **null**을 돌려준다. 그러면 기존 계산이 그대로 쓰인다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=454';
+import { roomDesign, isPlanned } from './room-design.js?v=455';
 
 /** 이 파일이 다루는 시점. 아이소·평면도는 **손대지 않는다**(오너 지침 §12). */
 export const CORPORATE_CAMERA_PRESETS = Object.freeze(['interior', 'corner-l', 'corner-r', 'rear']);
@@ -1426,6 +1426,35 @@ export const IDEATION_EYE_RANGE = Object.freeze({ min: 1.62, max: 1.78 });
 export const IDEATION_STANDOFF = 1.10;
 
 /**
+ * **LED 가 화면에서 차지하기를 바라는 넓이.** 물러서는 거리를 숫자로 못박는 대신, 이 구간에
+ *   들어올 만큼만 물러선다(PHASE 10-c).
+ *
+ * **왜 거리가 아니라 넓이인가.** PHASE 10-0 감사에서 아이디에이션 실내 컷의 LED 점유가
+ *   30.06% 로 아홉 공간 중 가장 컸다. 거리를 1.10m 에서 2.60m 로 늘리면 9×8m 방은
+ *   19.67% 로 내려오지만, **같은 거리를 깊은 방에도 적용하면 반대쪽이 무너진다** — 실측으로
+ *   10×18m 방의 좌코너가 9.29% 에서 7.13% 로, 20×12m 방이 9.58% 에서 7.99% 로 내려가
+ *   'LED 가 너무 작다'는 반대쪽 하한(8%)을 깼다. 깊은 방은 내용물이 이미 멀어서 처음부터
+ *   LED 가 작게 보이는데, 거기서 또 물러서게 만든 것이 원인이었다.
+ *
+ * 그래서 규칙을 **결과 기준**으로 바꾼다. 가장 가까운 자리에서 이미 구간 안이면 한 발도
+ *   물러서지 않고(깊은 방), 아직 크면 구간에 들어올 때까지만 물러선다(보통 방). 방이 작아
+ *   뒷벽이 먼저 막으면 거기서 멈춘다(그 방은 애초에 물러설 곳이 없다).
+ *
+ * **상한을 18% 로 둔 까닭.** 릴리스 기준은 실내 20% 인데, 이 규칙은 상한 아래로 내려오는
+ *   **첫 자리**에서 멈추므로 결과가 늘 상한에 붙는다. 상한을 20% 로 두면 여유가 0.3%p 밖에
+ *   남지 않아, 2%p 를 남기려고 18% 로 정했다. 하한 10% 는 '너무 작다'는 기준 8% 위에
+ *   같은 방식으로 여유를 둔 값이다.
+ */
+export const IDEATION_LED_SHARE = Object.freeze({ min: 0.10, max: 0.18 });
+
+/** 물러설 수 있는 가장 먼 거리(m)와 몇 칸으로 나눠 볼지. 뒷벽이 먼저 오면 뒷벽이 한계다. */
+export const IDEATION_STANDOFF_MAX = 3.60;
+export const IDEATION_STANDOFF_STEPS = 25;
+
+/** 천장 띠를 표에 적힌 값 그대로 줄 수 있는 **눈 위 여유**(m). 이보다 낮으면 비례해 줄인다. */
+export const IDEATION_HEADROOM = 1.34;
+
+/**
  * 시점 기준값. 전부 **비율이거나 사람 치수**다.
  *   eye     눈높이(m)
  *   fov     기준 화각(°) — 여기서 시작해 LED 가 들어갈 만큼만 넓히고 44°에서 멈춘다
@@ -1434,9 +1463,20 @@ export const IDEATION_STANDOFF = 1.10;
  *   turn    LED 가 허락하는 한계까지 협업 덩이 쪽으로 얼마나 돌아서는가(0 이면 LED 정면)
  */
 export const IDEATION_CAMERA_PLANS = Object.freeze({
-  interior: Object.freeze({ eye: 1.66, fov: 42, band: 0.11, xRatio: 0.30, turn: 1.00 }),
-  'corner-l': Object.freeze({ eye: 1.66, fov: 43, band: 0.11, xRatio: 0.21, turn: 1.00 }),
-  'corner-r': Object.freeze({ eye: 1.66, fov: 43, band: 0.11, xRatio: 0.79, turn: 1.00 }),
+  // 천장 띠를 0.11 에서 올린 것은 **실측 때문이다**(PHASE 10-c). 물러서면 러그가 카메라
+  //   발밑에 깔려 화면 아래 띠를 독점한다. 같은 자리에서 띠만 올려 시선을 들면
+  //   (실내 / 좌코너 / 우코너 아래 띠 최대) 52.7 / 70.2 / 35.2% 가 0.15 에서
+  //   37.8 / 53.1 / 30.8% 로 내려온다. 0.20 까지 올리면 좌코너가 56.4% 로 되레 나빠지고
+  //   빈 곳이 5.4% 까지 늘어, 코너는 0.15 에서 멈췄다.
+  //
+  // **실내만 0.17 인 까닭.** 실내 시점이 셋 중 가장 많이 물러선다(9×8m 방에서 3.00m 대
+  //   2.40 / 2.30m). 그만큼 러그가 발밑에 더 깔려, 같은 0.15 에서도 아래 띠가 53.95% 로
+  //   상한 55% 에 1.1%p 까지 붙었다. 0.17 로 올리면 47.83% 가 되어 여유가 7.2%p 로 늘고,
+  //   대가인 빈 곳은 1.46 → 1.61% 로 0.15%p 만 늘어난다(0.18 은 44.77% / 1.79%).
+  //   세 값 모두 계약 ⑯ 의 상한 0.20 안이다.
+  interior: Object.freeze({ eye: 1.66, fov: 42, band: 0.17, xRatio: 0.30, turn: 1.00 }),
+  'corner-l': Object.freeze({ eye: 1.66, fov: 43, band: 0.15, xRatio: 0.21, turn: 1.00 }),
+  'corner-r': Object.freeze({ eye: 1.66, fov: 43, band: 0.15, xRatio: 0.79, turn: 1.00 }),
 });
 
 /** 이 디자인·시점이 아이디에이션 화각을 쓰는가. 아니면 null(= 기존 공용 시점 그대로). */
@@ -1481,94 +1521,135 @@ export function ideationCameraPlanWith(room, led, s, aspect = 16 / 9, fields = n
   const eye = clamp(s.eye, IDEATION_EYE_RANGE.min,
     Math.min(IDEATION_EYE_RANGE.max, Math.max(IDEATION_EYE_RANGE.min, room.H - WALL_MARGIN - 0.2)));
 
-  // ── 서는 자리(앞뒤) ── 맨 뒤 내용물에서 정해진 만큼만 물러선다. 뒷벽이 한계다.
-  const backLimit = Math.max(WALL_MARGIN, room.D - WALL_MARGIN);
-  const standoff = Number.isFinite(s.standoff) ? s.standoff : IDEATION_STANDOFF;
-  const standZ = clamp(content.z1 + standoff, Math.min(backLimit, led.depth + 1.2), backLimit);
-  const dzWall = Math.max(0.5, standZ - led.depth);
+  // ── 천장 띠 ── **위에 내줄 천장이 있을 때만 띠를 준다**(PHASE 10-c).
+  //   띠를 키우는 것은 시선을 드는 일이라, 천장이 낮으면 천장선 위의 '잘라 낸 빈 곳'이
+  //   화면에 드러난다. 6×6.9m·천장 2.7m 방에서 실측하면 빈 곳이 6.52 → 9.66% 로 늘고
+  //   화면 아래 띠도 49.98 → 61.64% 로 되레 나빠졌다. 그래서 눈 위 여유가 기준
+  //   (`IDEATION_HEADROOM` = 3.00m 천장 − 1.66m 눈높이 ≈ 1.34m)보다 적으면 그 비율만큼
+  //   띠를 줄인다. 기준 이상인 방(천장 3.0m 이상)에서는 표에 적힌 값 그대로다.
+  const 천장띠 = clamp(s.band, 0, 0.30)
+    * clamp((room.H - eye) / IDEATION_HEADROOM, 0, 1);
 
   const ledPts = [[led.x, led.y, led.depth], [led.x + led.w, led.y, led.depth],
     [led.x, led.y + led.h, led.depth], [led.x + led.w, led.y + led.h, led.depth]];
 
-  // 방위각 — **정면(-z 방향)이 0**, +x 쪽이 양수. 카메라가 늘 앞을 보므로 이 기준이 편하다.
-  const bear = (px, pz, xAt) => Math.atan2(px - xAt, Math.max(1e-6, standZ - pz));
-  // 협업 덩이는 방마다 두 곳으로 흩어진다. **선 자리에서 가까운 쪽**을 주인공으로 삼는다.
-  const nearSpot = (xAt) => {
-    const list = (zones && zones.collabSpots) || null;
-    if (!list || !list.length) return { x: contentCx, z: contentCz };
-    let best = list[0], bd = Infinity;
-    for (const p of list) {
-      const d = Math.hypot(p.x - xAt, p.z - standZ);
-      if (d < bd) { bd = d; best = p; }
-    }
-    return best;
-  };
+  // ── 서는 자리(앞뒤) ── 뒷벽이 한계다. **얼마나** 물러설지는 아래에서 결과를 보고 고른다.
+  const backLimit = Math.max(WALL_MARGIN, room.D - WALL_MARGIN);
 
   /**
-   * 한 자리에서의 해. 화각과 방위각이 서로를 물고 있어 다섯 번 되풀이해 수렴시킨다.
-   * @param xAt  설 자리(가로)
-   * @param turn LED 가 허락하는 한계까지 협업 덩이 쪽으로 도는 정도(0~1)
+   * 물러섬 하나를 실제로 세워 보고, 그 자리의 자세와 **LED 화면 점유**를 함께 돌려준다.
+   *   점유를 여기서 같이 재는 까닭은, 물러설 거리를 숫자로 못박는 대신 **원하는 넓이에
+   *   들어왔는지**로 멈출 자리를 정하기 때문이다(`IDEATION_LED_SHARE` 설명 참고).
    */
-  function solveAt(xAt, turn) {
-    const cam = [xAt, eye, standZ];
-    const k = nearSpot(xAt);
-    const bK = bear(k.x, k.z, xAt);
-    const bL = bear(led.x, led.depth, xAt);
-    const bR = bear(led.x + led.w, led.depth, xAt);
-    const bC = (bL + bR) / 2;
-    let fov = clamp(s.fov, IDEATION_FOV_RANGE.min, IDEATION_FOV_RANGE.max);
-    let b = bC, pitch = Math.atan(POLAR_GAP_PER_DIST), lo = bC, hi = bC;
-    for (let it = 0; it < 5; it++) {
-      const halfV = fov * DEG / 2;
-      // LED 두 세로 모서리가 다 들어오는 방위각 구간. 여유(LED_EDGE_MARGIN_DEG)를 둔다.
-      const aH = Math.atan(Math.tan(hFovDeg(fov, a) * DEG / 2)) - LED_EDGE_MARGIN_DEG * DEG;
-      lo = bR - aH; hi = bL + aH;
-      if (lo > hi) { const m = (lo + hi) / 2; lo = m; hi = m; }   // 화각이 모자라면 가운데
-      // **구간 안에서 협업 덩이에 가장 가까운 방위각.** 이것이 이 단계의 핵심 규칙이다.
-      b = clamp(bC + (clamp(bK, lo, hi) - bC) * clamp(turn, 0, 1), lo, hi);
-      // 내려본 각 — 천장 띠에서 역산한다. 시선은 **언제나 눈보다 낮다**.
-      const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
-      pitch = Math.max(Math.atan((1 - 2 * clamp(s.band, 0, 0.30)) * Math.tan(halfV)) - eCeil,
-        Math.atan(POLAR_GAP_PER_DIST));
-      // LED 가 다 들어오는 최소 화각. 기준보다 넓혀야 하면 넓히되 **44°를 넘지 않는다.**
-      let needV = 0, needH = 0;
-      for (const p of ledPts) {
-        const q = toView(p, cam, Math.PI - b, pitch);
-        if (!q) continue;
-        needV = Math.max(needV, Math.abs(q.v)); needH = Math.max(needH, Math.abs(q.u));
+  function 자리잡기(물러섬) {
+    // 받은 만큼 물러선 자리. 뒷벽을 넘지는 않는다.
+    const standZ = clamp(content.z1 + 물러섬, Math.min(backLimit, led.depth + 1.2), backLimit);
+    const dzWall = Math.max(0.5, standZ - led.depth);
+
+    // 방위각 — **정면(-z 방향)이 0**, +x 쪽이 양수. 카메라가 늘 앞을 보므로 이 기준이 편하다.
+    const bear = (px, pz, xAt) => Math.atan2(px - xAt, Math.max(1e-6, standZ - pz));
+    // 협업 덩이는 방마다 두 곳으로 흩어진다. **선 자리에서 가까운 쪽**을 주인공으로 삼는다.
+    const nearSpot = (xAt) => {
+      const list = (zones && zones.collabSpots) || null;
+      if (!list || !list.length) return { x: contentCx, z: contentCz };
+      let best = list[0], bd = Infinity;
+      for (const p of list) {
+        const d = Math.hypot(p.x - xAt, p.z - standZ);
+        if (d < bd) { bd = d; best = p; }
       }
-      const m = Math.tan(LED_EDGE_MARGIN_DEG * DEG);
-      const wantV = 2 * Math.atan(Math.max(needV + m, (needH + m) / a)) / DEG;
-      fov = clamp(Math.max(s.fov, wantV), IDEATION_FOV_RANGE.min, IDEATION_FOV_RANGE.max);
+      return best;
+    };
+
+    /**
+     * 한 자리에서의 해. 화각과 방위각이 서로를 물고 있어 다섯 번 되풀이해 수렴시킨다.
+     * @param xAt  설 자리(가로)
+     * @param turn LED 가 허락하는 한계까지 협업 덩이 쪽으로 도는 정도(0~1)
+     */
+    function solveAt(xAt, turn) {
+      const cam = [xAt, eye, standZ];
+      const k = nearSpot(xAt);
+      const bK = bear(k.x, k.z, xAt);
+      const bL = bear(led.x, led.depth, xAt);
+      const bR = bear(led.x + led.w, led.depth, xAt);
+      const bC = (bL + bR) / 2;
+      let fov = clamp(s.fov, IDEATION_FOV_RANGE.min, IDEATION_FOV_RANGE.max);
+      let b = bC, pitch = Math.atan(POLAR_GAP_PER_DIST), lo = bC, hi = bC;
+      for (let it = 0; it < 5; it++) {
+        const halfV = fov * DEG / 2;
+        // LED 두 세로 모서리가 다 들어오는 방위각 구간. 여유(LED_EDGE_MARGIN_DEG)를 둔다.
+        const aH = Math.atan(Math.tan(hFovDeg(fov, a) * DEG / 2)) - LED_EDGE_MARGIN_DEG * DEG;
+        lo = bR - aH; hi = bL + aH;
+        if (lo > hi) { const m = (lo + hi) / 2; lo = m; hi = m; }   // 화각이 모자라면 가운데
+        // **구간 안에서 협업 덩이에 가장 가까운 방위각.** 이것이 이 단계의 핵심 규칙이다.
+        b = clamp(bC + (clamp(bK, lo, hi) - bC) * clamp(turn, 0, 1), lo, hi);
+        // 내려본 각 — 천장 띠에서 역산한다. 시선은 **언제나 눈보다 낮다**.
+        const eCeil = Math.atan(Math.max(0, room.H - eye) / dzWall);
+        pitch = Math.max(Math.atan((1 - 2 * 천장띠) * Math.tan(halfV)) - eCeil,
+          Math.atan(POLAR_GAP_PER_DIST));
+        // LED 가 다 들어오는 최소 화각. 기준보다 넓혀야 하면 넓히되 **44°를 넘지 않는다.**
+        let needV = 0, needH = 0;
+        for (const p of ledPts) {
+          const q = toView(p, cam, Math.PI - b, pitch);
+          if (!q) continue;
+          needV = Math.max(needV, Math.abs(q.v)); needH = Math.max(needH, Math.abs(q.u));
+        }
+        const m = Math.tan(LED_EDGE_MARGIN_DEG * DEG);
+        const wantV = 2 * Math.atan(Math.max(needV + m, (needH + m) / a)) / DEG;
+        fov = clamp(Math.max(s.fov, wantV), IDEATION_FOV_RANGE.min, IDEATION_FOV_RANGE.max);
+      }
+      const yaw = Math.PI - b;
+      const tV = Math.tan(fov * DEG / 2);
+      const tH = Math.tan(hFovDeg(fov, a) * DEG / 2);
+      const q = ledPts.map(t => toView(t, cam, yaw, pitch)).filter(Boolean);
+      const whole = q.length === 4 && q.every(t => Math.abs(t.u) <= tH + 1e-9 && Math.abs(t.v) <= tV + 1e-9);
+      return { x: xAt, turn, spot: k, bearing: b, span: [lo, hi], fov, pitch, yaw,
+        tanV: tV, tanH: tH, whole, share: ledAreaShare(q, tH, tV) };
     }
-    const yaw = Math.PI - b;
-    const tV = Math.tan(fov * DEG / 2);
-    const tH = Math.tan(hFovDeg(fov, a) * DEG / 2);
-    const q = ledPts.map(t => toView(t, cam, yaw, pitch)).filter(Boolean);
-    const whole = q.length === 4 && q.every(t => Math.abs(t.u) <= tH + 1e-9 && Math.abs(t.v) <= tV + 1e-9);
-    return { x: xAt, turn, spot: k, bearing: b, span: [lo, hi], fov, pitch, yaw,
-      tanV: tV, tanH: tH, whole, share: ledAreaShare(q, tH, tV) };
+
+    // ── LED 가 그래도 다 안 들어올 때의 **수단 순서** ────────────────────────────
+    //   물러서기는 내용물이 정해 버렸고, 방위각은 이미 'LED 가 허락하는 구간' 안에서 고른다.
+    //   남은 수단은 **좌우로 가운데에 다가서기** 하나다(멀리 설수록 LED 가 넓게 보인다).
+    //   **화각은 이미 상한(44°)이라 열지 않는다.** 승인된 자리에서 들어오면 한 번도 돌지 않는다.
+    const mid = room.W / 2;
+    const x0 = clamp(room.W * s.xRatio, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN));
+    const side = Math.sign(x0 - mid);
+    const limit = mid + side * room.W * MIN_CORNER_OFFSET;
+    const canMoveSide = side !== 0 && Math.abs(limit - mid) < Math.abs(x0 - mid);
+
+    let sol = null, stage = 'base';
+    const consider = (cand, name) => {
+      if (!sol || cand.share > sol.share + 1e-9) { sol = cand; stage = name; }
+      return cand.whole;
+    };
+    let done = consider(solveAt(x0, s.turn), 'base');
+    for (let k = 1; k <= LATERAL_RELAX_STEPS && !done && canMoveSide; k++) {
+      done = consider(solveAt(x0 + (limit - x0) * (k / LATERAL_RELAX_STEPS), s.turn), 'lateral');
+    }
+
+
+    const 고른 = sol;
+    const 네귀 = [ledPts[0], ledPts[1], ledPts[3], ledPts[2]]
+      .map(t => toView(t, [고른.x, eye, standZ], 고른.yaw, 고른.pitch));
+    return { standoff: 물러섬, standZ, dzWall, sol: 고른, stage,
+      ledScreenShare: 네귀.every(Boolean) ? screenAreaShare(네귀, 고른.tanH, 고른.tanV) : 1 };
   }
 
-  // ── LED 가 그래도 다 안 들어올 때의 **수단 순서** ────────────────────────────
-  //   물러서기는 내용물이 정해 버렸고, 방위각은 이미 'LED 가 허락하는 구간' 안에서 고른다.
-  //   남은 수단은 **좌우로 가운데에 다가서기** 하나다(멀리 설수록 LED 가 넓게 보인다).
-  //   **화각은 이미 상한(44°)이라 열지 않는다.** 승인된 자리에서 들어오면 한 번도 돌지 않는다.
-  const mid = room.W / 2;
-  const x0 = clamp(room.W * s.xRatio, WALL_MARGIN, Math.max(WALL_MARGIN, room.W - WALL_MARGIN));
-  const side = Math.sign(x0 - mid);
-  const limit = mid + side * room.W * MIN_CORNER_OFFSET;
-  const canMoveSide = side !== 0 && Math.abs(limit - mid) < Math.abs(x0 - mid);
-
-  let sol = null, stage = 'base';
-  const consider = (cand, name) => {
-    if (!sol || cand.share > sol.share + 1e-9) { sol = cand; stage = name; }
-    return cand.whole;
-  };
-  let done = consider(solveAt(x0, s.turn), 'base');
-  for (let k = 1; k <= LATERAL_RELAX_STEPS && !done && canMoveSide; k++) {
-    done = consider(solveAt(x0 + (limit - x0) * (k / LATERAL_RELAX_STEPS), s.turn), 'lateral');
+  // ── 얼마나 물러설까 ── **LED 가 원하는 넓이 구간에 들어올 만큼만** 물러선다.
+  //   가까운 쪽부터 한 칸씩 물러서 보다가 구간 상한 아래로 내려오면 거기서 멈춘다. 첫 칸에서
+  //   이미 충분히 작으면(깊은 방) 한 발도 물러서지 않는다. 한 칸 더 가면 하한 아래로
+  //   떨어지겠다 싶으면 직전 자리를 지킨다 — 'LED 가 너무 작다'는 반대쪽 실패를 막는다.
+  //   뒷벽이 먼저 막는 작은 방은 맨 끝 칸에서 멈춘다(그 방은 애초에 물러설 곳이 없다).
+  const 물러섬후보 = Number.isFinite(s.standoff) ? [s.standoff]
+    : Array.from({ length: IDEATION_STANDOFF_STEPS + 1 }, (_, i) => IDEATION_STANDOFF
+      + (IDEATION_STANDOFF_MAX - IDEATION_STANDOFF) * (i / IDEATION_STANDOFF_STEPS));
+  let 자리 = null;
+  for (const 물러섬 of 물러섬후보) {
+    const 후보 = 자리잡기(물러섬);
+    if (자리 && 후보.ledScreenShare < IDEATION_LED_SHARE.min) break;
+    자리 = 후보;
+    if (후보.ledScreenShare <= IDEATION_LED_SHARE.max) break;
   }
+  const { standoff, standZ, dzWall, sol, stage, ledScreenShare } = 자리;
 
   const { x, fov, pitch, yaw, tanV, tanH, whole: ledFullyVisible, spot } = sol;
   const cam = [x, eye, standZ];
@@ -1617,6 +1698,9 @@ export function ideationCameraPlanWith(room, led, s, aspect = 16 / 9, fields = n
     floorNear: +floorNear.toFixed(4),
     ledFullyVisible,
     ledVisibleShare,
+    // LED 가 **화면 전체**에서 차지하는 넓이(0~1). 위의 ledVisibleShare 는 'LED 중 몇 %가
+    //   화면 안에 들어왔나'라 뜻이 다르다 — 물러설 자리를 고른 잣대가 이 값이다(PHASE 10-c).
+    ledScreenShare: +ledScreenShare.toFixed(5),
     collabShare: zoneShare(zones && zones.collab, 0.82),
     collabSpotShare: spotShare,
     highShare: zoneShare(zones && zones.high, 1.05),

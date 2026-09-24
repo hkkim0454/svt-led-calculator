@@ -15,12 +15,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=454';
-import { createMaterialLibrary } from './materials-gl.js?v=454';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=454';
-import { GRADE_COLORS } from './viewangle.js?v=454';
-import { createGeometryCache } from './geometry-gl.js?v=454';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=454';
+import { u } from './gl-model.js?v=455';
+import { createMaterialLibrary } from './materials-gl.js?v=455';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=455';
+import { GRADE_COLORS } from './viewangle.js?v=455';
+import { createGeometryCache } from './geometry-gl.js?v=455';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=455';
 import {
   credenzaFinishForDesign,
   avFinishForDesign,
@@ -29,13 +29,14 @@ import {
   consoleFinishForDesign,
   trainingFinishForDesign,
   auditoriumSurfaceFinish,
-} from './design-finish.js?v=454';
+  ideationSurfaceFinish,
+} from './design-finish.js?v=455';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=454';
+} from './furniture-assets.js?v=455';
 
 const DEG = Math.PI / 180;
 
@@ -435,7 +436,7 @@ export function buildFurnitureGroup(items, opts = {}) {
   for (const fin of [credenzaFinishForDesign(designId), floorPartFinishForDesign(designId),
     tablePartFinishForDesign(designId), avFinishForDesign(designId),
     consoleFinishForDesign(designId), trainingFinishForDesign(designId),
-    auditoriumSurfaceFinish(designId)]) {
+    auditoriumSurfaceFinish(designId), ideationSurfaceFinish(designId)]) {
     if (!fin) continue;
     for (const [part, f] of Object.entries(fin)) {
       // 거칠기·금속성은 **부품 마감표가 정한 값을 그대로 나른다**(design-finish가 실어 보낸다).

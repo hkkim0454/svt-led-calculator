@@ -23,7 +23,8 @@ import {
 } from '../src/gl-model.js';
 import {
   IDEATION_CAMERA_PRESETS, IDEATION_CAMERA_PLANS, IDEATION_FOV_RANGE, IDEATION_EYE_RANGE,
-  IDEATION_STANDOFF, ideationCameraPlanId, ideationCameraPresets, ideationCameraPlan,
+  IDEATION_STANDOFF, IDEATION_STANDOFF_MAX, IDEATION_LED_SHARE,
+  ideationCameraPlanId, ideationCameraPresets, ideationCameraPlan,
   ideationCameraPlanWith, cameraPlanForDesign, WALL_MARGIN, eyeAboveTargetFor,
   CAMERA_PLANS, EXECUTIVE_CAMERA_PLANS, CONFERENCE_CAMERA_PLANS, CONTROL_CAMERA_PLANS,
   TRAINING_CAMERA_PLANS, MIN_CORNER_OFFSET, LED_EDGE_MARGIN_DEG,
@@ -33,6 +34,7 @@ import { layoutRoom, defaultOptions } from '../src/room-presets.js';
 import { LIGHTING_PRESETS } from '../src/design-lighting.js';
 import { MATERIAL_IDS } from '../src/materials.js';
 import { FURNITURE_COLORS } from '../src/furniture-assets.js';
+import { ideationSurfaceFinish, IDEATION_SURFACE_PARTS } from '../src/design-finish.js';
 
 const ID = 'ideationRoom';
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
@@ -56,6 +58,25 @@ const EXTRA = Object.freeze([
   // 좁고 깊은 방에서는 그 수단이 **여러 칸** 움직인다. 코너 하한이 없으면 가운데를 넘어선다.
   ['좁고 깊은 방', 6000, 3200, 8500],
 ]);
+
+/**
+ * **제품이 실제로 그리는 모형.** `app.js` 는 engine 이 캐비닛으로 맞춘 크기(`actualW`/`actualH`)
+ *   를 넘기므로, 4.0×2.3m 를 요청해도 MP012F 4×4 로 맞춰지면 화면에 서는 LED 는
+ *   3.2256×1.8144m 다(CLAUDE.md 「3D 구도를 잴 때의 기준」). **숫자 문턱을 다루는 계약은
+ *   반드시 이 모형을 쓴다** — 아래 `modelOf` 는 요청 크기를 그대로 쓰므로 LED 가 실제보다 크다.
+ */
+const 제품LED = Object.freeze({ w: 3.2256, h: 1.8144, depth: 0.0494, cols: 4, rows: 4 });
+function 제품모형(W, H, D, opt = {}) {
+  const lay = layoutRoom('ideation', { ...defaultOptions('ideation'), ...opt },
+    { W, D, design: ID, ledW: 제품LED.w * 1000 });
+  return buildGLModel({
+    space: { W, H, D },
+    led: { marginW: Math.max(0, (W - 제품LED.w * 1000) / 2), mount: 1000,
+      w: 제품LED.w * 1000, h: 제품LED.h * 1000, depth: 제품LED.depth * 1000,
+      cols: 제품LED.cols, rows: 제품LED.rows },
+    items: lay.items, roomType: 'ideation', design: ID,
+  });
+}
 
 function modelOf(W, H, D, design = ID, opt = {}) {
   const lay = layoutRoom('ideation', { ...defaultOptions('ideation'), ...opt }, { W, D, design });
@@ -108,9 +129,11 @@ test('④ 기준값 세 벌을 통째로 고정한다 — 한 값만 바뀌어�
   // PHASE 8-2b.1 역검증에서 드러난 구멍을 메운다. 천장 띠(band) 처럼 **결과를 바꾸지만
   //   범위 검사는 통과하는** 값이 있었다. 세 벌을 통째로 비교해 두면 그런 값도 걸린다.
   assert.deepEqual(JSON.parse(JSON.stringify(IDEATION_CAMERA_PLANS)), {
-    interior: { eye: 1.66, fov: 42, band: 0.11, xRatio: 0.30, turn: 1.00 },
-    'corner-l': { eye: 1.66, fov: 43, band: 0.11, xRatio: 0.21, turn: 1.00 },
-    'corner-r': { eye: 1.66, fov: 43, band: 0.11, xRatio: 0.79, turn: 1.00 },
+    // 천장 띠는 PHASE 10-c 에서 0.11 → 0.15(코너) · 0.17(실내) 로 올렸다. 물러선 자리에서
+    //   러그가 화면 아래 띠를 독점하는 것을 시선을 들어 푼 값이고, 근거는 표 옆 주석에 있다.
+    interior: { eye: 1.66, fov: 42, band: 0.17, xRatio: 0.30, turn: 1.00 },
+    'corner-l': { eye: 1.66, fov: 43, band: 0.15, xRatio: 0.21, turn: 1.00 },
+    'corner-r': { eye: 1.66, fov: 43, band: 0.15, xRatio: 0.79, turn: 1.00 },
   });
   assert.equal(IDEATION_STANDOFF, 1.10);
 });
@@ -302,27 +325,93 @@ test('⑱ 방위각은 LED 가 허락하는 구간 안에서만 고른다', () =
 
 // ── ④ 내용물을 읽는가 — 값을 박아 두지 않았다 ───────────────────────────────
 
-test('⑲ 맨 뒤 내용물에서 정해진 만큼 물러선다 — 뒷벽이 한계다', () => {
+test('⑲ 물러서는 거리는 정해진 구간 안에서만 움직인다 — 뒷벽이 한계다', () => {
+  // **PHASE 10-c 에서 규칙이 바뀌었다.** 전에는 맨 뒤 내용물에서 `IDEATION_STANDOFF`(1.10m)
+  //   만큼 **고정으로** 물러섰다. 지금은 `IDEATION_LED_SHARE` 구간에 LED 가 들어올 만큼만
+  //   물러선다 — 그래서 방마다 물러선 거리가 다르다. 여기서는 그 거리가 **약속한 구간
+  //   [1.10m, 3.60m] 안에 있고, 뒷벽을 넘지 않는지**를 본다.
   assert.equal(IDEATION_STANDOFF, 1.10);
+  assert.equal(IDEATION_STANDOFF_MAX, 3.60);
   for (const [이름, W, H, D] of [...ROOMS, ...EXTRA]) {
     const m = modelOf(W, H, D);
     for (const v of IDEATION_CAMERA_PRESETS) {
       const p = cameraPlanForDesign(ID, v, m, 574 / 563);
       assert.ok(p.rearClearance > 0, `${이름}/${v}: 내용물 뒤로 물러서지 않았다`);
-      assert.ok(p.rearClearance <= IDEATION_STANDOFF + 1e-9 || p.position[2] >= D / 1000 - WALL_MARGIN - 1e-6,
-        `${이름}/${v}: 필요 이상으로 물러섰다(${p.rearClearance}m)`);
+      assert.ok(p.standoff >= IDEATION_STANDOFF - 1e-9 && p.standoff <= IDEATION_STANDOFF_MAX + 1e-9,
+        `${이름}/${v}: 물러선 거리 ${p.standoff}m 가 구간 밖이다`);
+      assert.ok(p.position[2] <= D / 1000 - WALL_MARGIN + 1e-6,
+        `${이름}/${v}: 뒷벽을 넘었다(${p.position[2]})`);
     }
   }
   // 큰 방에서는 뒷벽까지 가지 않는다 — 그것이 이 규칙을 넣은 까닭이다.
   const 큰 = planOf(14000, 4000, 13300, 'interior');
   assert.ok(큰.position[2] < 13.3 - WALL_MARGIN - 0.5, `대형 방에서 뒷벽에 붙었다(${큰.position[2]})`);
-  // **PHASE 8-2b.1 이후 맨 뒤 내용물은 하이 테이블 구역이다.** 협업 구역이 그 앞으로 내려갔기
-  //   때문이다. 그래서 기본 방에서도 카메라가 뒷벽이 아니라 하이 테이블 뒤 1.10m 에 선다.
-  const 작은 = planOf(9000, 3200, 8000, 'interior');
-  assert.ok(작은.position[2] < 8 - WALL_MARGIN - 1.0,
-    `기본 방에서 아직 뒷벽 쪽에 선다(${작은.position[2]})`);
-  assert.ok(Math.abs(작은.rearClearance - IDEATION_STANDOFF) < 1e-6,
-    `물러선 거리가 ${작은.rearClearance} 다`);
+  // **큰 방은 한 발도 물러서지 않는다.** 내용물이 이미 멀어 LED 가 처음부터 구간 안이다.
+  //   (제품이 실제로 그리는 LED 크기로 본다 — 위 `제품모형` 설명 참고.)
+  const 큰제품 = cameraPlanForDesign(ID, 'interior', 제품모형(14000, 4000, 13300), 574 / 563);
+  assert.equal(큰제품.standoff, IDEATION_STANDOFF,
+    `대형 방에서 필요 없이 물러섰다(${큰제품.standoff}m)`);
+  // 기본 방은 LED 가 커서 물러선다 — 그러나 뒷벽에 붙지는 않는다.
+  const 작은 = cameraPlanForDesign(ID, 'interior', 제품모형(9000, 3200, 8000), 574 / 563);
+  assert.ok(작은.position[2] < 8 - WALL_MARGIN - 0.4,
+    `기본 방에서 뒷벽에 붙었다(${작은.position[2]})`);
+  assert.ok(작은.standoff > IDEATION_STANDOFF + 1e-6,
+    `기본 방에서 LED 가 큰데도 물러서지 않았다(${작은.standoff}m)`);
+});
+
+test('⑲-2 물러서는 잣대는 LED 화면 점유다 — 구간 안이면 멈추고, 못 들어오면 끝까지 간다', () => {
+  // 이 단계(PHASE 10-c)의 핵심 규칙을 통째로 못박는다. **거리가 아니라 결과가 기준이다.**
+  //
+  // 세 가지를 함께 본다.
+  //   ① 멈춘 자리의 LED 점유가 상한 아래다(= 상한 아래로 내려오자마자 멈췄다).
+  //   ② 한 발도 물러서지 않은 컷은, 처음부터 상한 아래였던 컷뿐이다.
+  //   ③ 끝까지 물러선 컷은, 끝에서도 상한 위인 컷뿐이다(작은 방 — 물러설 곳이 없다).
+  let 안물러섬 = 0, 끝까지 = 0, 중간 = 0;
+  for (const [이름, W, H, D] of [...ROOMS, ...EXTRA]) {
+    const m = modelOf(W, H, D);
+    for (const v of IDEATION_CAMERA_PRESETS) {
+      const p = cameraPlanForDesign(ID, v, m, 574 / 563);
+      const 가까이 = ideationCameraPlanWith(m.room, m.led,
+        { ...IDEATION_CAMERA_PLANS[v], standoff: IDEATION_STANDOFF }, 574 / 563, m.fields);
+      const 끝 = ideationCameraPlanWith(m.room, m.led,
+        { ...IDEATION_CAMERA_PLANS[v], standoff: IDEATION_STANDOFF_MAX }, 574 / 563, m.fields);
+      const 붙음 = p.position[2] >= D / 1000 - WALL_MARGIN - 1e-6;
+      if (Math.abs(p.standoff - IDEATION_STANDOFF) < 1e-6) {
+        안물러섬++;
+        assert.ok(가까이.ledScreenShare <= IDEATION_LED_SHARE.max + 1e-9,
+          `${이름}/${v}: 가까운 자리에서 LED 가 ${가까이.ledScreenShare} 인데 물러서지 않았다`);
+      } else if (Math.abs(p.standoff - IDEATION_STANDOFF_MAX) < 1e-6) {
+        끝까지++;
+        assert.ok(끝.ledScreenShare > IDEATION_LED_SHARE.max - 1e-9 || 붙음,
+          `${이름}/${v}: 끝까지 물러설 까닭이 없다(${끝.ledScreenShare})`);
+      } else {
+        중간++;
+        assert.ok(p.ledScreenShare <= IDEATION_LED_SHARE.max + 1e-9 || 붙음,
+          `${이름}/${v}: 중간에 멈췄는데 LED 가 아직 ${p.ledScreenShare} 다`);
+      }
+    }
+  }
+  // 세 갈래가 모두 실제로 일어난다 — 하나라도 0 이면 그 갈래를 지워도 아무도 모른다.
+  assert.ok(안물러섬 > 0 && 중간 > 0 && 끝까지 > 0,
+    `갈래별 컷 수 — 그대로 ${안물러섬} · 중간 ${중간} · 끝까지 ${끝까지}`);
+});
+
+test('⑲-3 물러서다가 LED 를 너무 작게 만들지 않는다 — 깊은 방이 기준선 그대로다', () => {
+  // **이 검사가 잡는 회귀.** PHASE 10-c 후보 중 하나는 모든 방에서 2.60m 를 고정으로
+  //   물러섰다. 9×8m 방은 좋아졌지만 10×18m 방의 좌코너가 9.29% → 7.13%, 20×12m 방이
+  //   9.58% → 7.99% 로 떨어져 '너무 작다'는 반대쪽 기준(8%)을 깼다. 지금 규칙은 그런 방에서
+  //   한 발도 물러서지 않으므로 값이 그대로여야 한다.
+  for (const [이름, W, H, D] of [['아주 깊은', 10000, 3400, 18000], ['아주 넓은', 20000, 4600, 12000],
+    ['대형', 14000, 4000, 13300]]) {
+    const m = 제품모형(W, H, D);
+    for (const v of IDEATION_CAMERA_PRESETS) {
+      const p = cameraPlanForDesign(ID, v, m, 574 / 563);
+      assert.equal(p.standoff, IDEATION_STANDOFF,
+        `${이름}/${v}: 물러설 까닭이 없는 방에서 ${p.standoff}m 물러섰다`);
+      assert.ok(p.ledScreenShare >= 0.08,
+        `${이름}/${v}: LED 가 화면의 ${(p.ledScreenShare * 100).toFixed(2)}% 뿐이다`);
+    }
+  }
 });
 
 test('⑳ 방이 커지면 자세도 따라 커진다 — 좌표를 상수로 박지 않았다', () => {
@@ -346,12 +435,24 @@ test('㉑ 구역이 옮겨지면 구도가 따라간다 — 배치를 실제로 
   assert.notDeepEqual(다른.target, 기준.target, '구역을 옮겼는데 시선이 그대로다');
   // 방위각은 **LED 가 허락하는 구간에 갇힐 수 있다** — 그때는 시선점이 따라 움직이는 것으로
   //   반응을 확인한다. 구역을 앞뒤로도 옮겨 '물러서는 자리'가 따라가는지 함께 본다.
-  const 앞뒤 = { ...m, fields: { ...m.fields, ideationZones: { ...z,
-    collabSpots: z.collabSpots.map(p => ({ x: p.x, z: p.z + 2.5 })),
-    collab: { ...z.collab, z0: z.collab.z0 + 2.5, z1: z.collab.z1 + 2.5 } } } };
+  //
+  // **깊은 방에서 본다(PHASE 10-c).** 앞뒤 자리는 이제 두 가지가 함께 정한다 — 내용물 뒤
+  //   최소 1.10m 라는 **하한**과, LED 가 원하는 넓이에 들어오는 **거리**다. 9×8m 처럼 LED 가
+  //   커서 거리 쪽이 이기는 방에서는 구역을 뒤로 옮겨도 카메라가 그대로 있는 것이 **옳다**
+  //   (자리를 정한 것이 구역이 아니라 LED 이기 때문이다). 그래서 거리 쪽이 여유로워
+  //   **하한이 실제로 자리를 정하는 방**에서 '구역을 따라가는가'를 본다.
+  const 깊은 = 제품모형(10000, 3400, 18000);
+  const dz = 깊은.fields.ideationZones;
+  const 깊은기준 = cameraPlanForDesign(ID, 'interior', 깊은, 574 / 563);
+  //   맨 뒤 내용물은 방에 따라 협업 구역일 수도 하이 테이블 구역일 수도 있다(깊은 방에서는
+  //   하이 테이블이 뒤에 선다). 그래서 **두 구역을 함께** 뒤로 옮겨 본다.
+  const 앞뒤 = { ...깊은, fields: { ...깊은.fields, ideationZones: { ...dz,
+    collabSpots: dz.collabSpots.map(p => ({ x: p.x, z: p.z + 2.5 })),
+    collab: { ...dz.collab, z0: dz.collab.z0 + 2.5, z1: dz.collab.z1 + 2.5 },
+    high: { ...dz.high, z0: dz.high.z0 + 2.5, z1: dz.high.z1 + 2.5 } } } };
   const 뒤로 = cameraPlanForDesign(ID, 'interior', 앞뒤, 574 / 563);
-  assert.ok(뒤로.position[2] > 기준.position[2] + 1,
-    `구역을 2.5m 뒤로 옮겼는데 카메라가 따라오지 않았다(${기준.position[2]} → ${뒤로.position[2]})`);
+  assert.ok(뒤로.position[2] > 깊은기준.position[2] + 1,
+    `구역을 2.5m 뒤로 옮겼는데 카메라가 따라오지 않았다(${깊은기준.position[2]} → ${뒤로.position[2]})`);
 });
 
 test('㉒ 구역을 모르면 대체 범위로 풀되 약속은 그대로 지킨다', () => {
@@ -704,9 +805,18 @@ test('㉞-2 전경 점유 분포 — 정규 세 방 밖에서도 값이 이 단�
   //
   //   PHASE 8-2b.1 → PHASE 8-2c.1 변화(같은 잣대):
   //     45% 초과 컷  155 → 59,  60% 초과 컷  114 → 12,  최악  100% → 65.7%.
+  //   PHASE 8-2c.1 → PHASE 10-c 변화(카메라가 의도적으로 바뀌었다):
+  //     45% 초과 컷   59 → 49,  60% 초과 컷   12 → 11,  최악  65.7% → 67.7%.
   //
-  // **남은 한계(이 단계가 풀지 않은 것).** 60% 를 넘는 12컷은 모두 좁고 깊은 방(7m×8.05m
-  //   처럼 깊이비 1.15)과 6m 방에 몰려 있다. 그런 방은 카메라가 설 수 있는 거리 자체가 짧아
+  // **PHASE 10-c 에서 이 값을 다시 적은 까닭.** 이 단계는 LED 점유를 낮추려고 카메라를
+  //   물러세우고 천장 띠를 올렸다. 물러서면 넓은 상판이 멀어져 분포 전체가 좋아지지만
+  //   (49 / 11 로 줄었다), 좁은 방 몇 칸은 되레 나빠질 수 있다. 실제로 중간에 천장 띠를
+  //   낮은 천장에서도 그대로 올렸을 때는 최악이 **98.5%** 까지 갔다. 그래서 '천장이 낮으면
+  //   띠를 비례해 줄인다'는 규칙(`IDEATION_HEADROOM`)을 넣어 67.7% 로 되돌렸고, 남은
+  //   2.0%p 차이는 아래 '남은 한계' 로 기록한다.
+  //
+  // **남은 한계(이 단계가 풀지 않은 것).** 60% 를 넘는 11컷은 모두 좁고 깊은 방(7m×8.05m
+  //   처럼 깊이비 1.15)과 6m 방, 그리고 최대 구성(하이 3 · 협업 4)에 몰려 있다. 그런 방은 카메라가 설 수 있는 거리 자체가 짧아
   //   협업 테이블이 가깝게 잡힌다. 이번 단계의 대상인 일곱 컷과 정규 세 방은 모두 기준 안에
   //   들어왔고, 좁고 깊은 방은 별도 과제로 남긴다.
   let 넘음45 = 0, 넘음60 = 0, 최악 = { v: 0, 이름: '', type: '' };
@@ -720,11 +830,86 @@ test('㉞-2 전경 점유 분포 — 정규 세 방 밖에서도 값이 이 단�
       }
     }
   }
-  assert.equal(넘음45, 59, `45% 초과 컷이 ${넘음45}개다(기준선 59 · PHASE 8-2b.1 은 155)`);
-  assert.equal(넘음60, 12, `60% 초과 컷이 ${넘음60}개다(기준선 12 · PHASE 8-2b.1 은 114)`);
-  assert.equal(최악.v, 65.7, `가장 심한 컷이 ${최악.v}% 다(기준선 65.7 · PHASE 8-2b.1 은 100)`);
-  assert.equal(최악.이름, '기본/7m/1.15/interior', `가장 심한 컷이 ${최악.이름} 로 옮겼다`);
-  assert.equal(최악.type, 'collabTable', `가장 심한 물건이 ${최악.type} 로 바뀌었다`);
+  assert.equal(넘음45, 49, `45% 초과 컷이 ${넘음45}개다(기준선 49 · PHASE 8-2c.1 은 59)`);
+  assert.equal(넘음60, 11, `60% 초과 컷이 ${넘음60}개다(기준선 11 · PHASE 8-2c.1 은 12)`);
+  assert.equal(최악.v, 67.7, `가장 심한 컷이 ${최악.v}% 다(기준선 67.7 · PHASE 8-2c.1 은 65.7)`);
+  assert.equal(최악.이름, '최대/10m/0.7/interior', `가장 심한 컷이 ${최악.이름} 로 옮겼다`);
+  assert.equal(최악.type, 'highTable', `가장 심한 물건이 ${최악.type} 로 바뀌었다`);
+});
+
+// ── ⑥ PHASE 10-c — LED 점유·밝은 면 ─────────────────────────────────────────
+
+test('㉟ 릴리스 문턱 — 제안 세 컷이 숫자 기준을 지킨다(제품이 그리는 LED 기준)', () => {
+  // PHASE 10-c 릴리스 기준을 **숫자 그대로** 못박는다. 여기서 쓰는 모형은 제품이 실제로
+  //   그리는 것과 같다(`제품모형` 설명 참고) — 요청 크기로 재면 LED 가 실제보다 커서
+  //   기준이 헛돈다. 브라우저 실측과 이 값은 0.2%p 안에서 맞았다(PHASE 10-c 대조).
+  //
+  //   9×8m 방 실측(렌더러, 574×563): 실내 17.75% · 좌코너 17.86% · 우코너 17.96%.
+  for (const [이름, W, H, D] of [['컴팩트', 8500, 3000, 7600], ['기본', 9000, 3200, 8000],
+    ['중형', 12000, 3600, 10000], ['대형', 14000, 4000, 13300]]) {
+    const m = 제품모형(W, H, D);
+    for (const v of IDEATION_CAMERA_PRESETS) {
+      const p = cameraPlanForDesign(ID, v, m, 574 / 563);
+      const 몫 = p.ledScreenShare * 100;
+      assert.ok(몫 <= 22, `${이름}/${v}: LED 가 화면의 ${몫.toFixed(2)}% 다(상한 22%)`);
+      if (v === 'interior') assert.ok(몫 <= 20, `${이름}/실내: LED ${몫.toFixed(2)}%(상한 20%)`);
+      assert.ok(몫 >= 8, `${이름}/${v}: LED 가 ${몫.toFixed(2)}% 뿐이다(하한 8%)`);
+      assert.ok(p.fov <= 44 + 1e-9, `${이름}/${v}: 화각 ${p.fov}`);
+      assert.ok(p.eye <= 2.10 + 1e-9, `${이름}/${v}: 눈높이 ${p.eye}`);
+      assert.ok(p.ledFullyVisible, `${이름}/${v}: LED 가 잘렸다`);
+    }
+  }
+});
+
+test('㉟-2 이 단계가 고친 값이 실제로 내려갔다 — 고치기 전 값으로는 기준을 못 넘는다', () => {
+  // **검사가 헛돌지 않는다는 확인.** 고치기 전 기준값(천장 띠 0.11 · 물러섬 1.10m 고정)으로
+  //   풀면 같은 방에서 LED 가 상한을 넘는다. 즉 이 단계의 변경이 실제로 값을 움직였다.
+  const m = 제품모형(9000, 3200, 8000);
+  const 옛 = ideationCameraPlanWith(m.room, m.led,
+    { eye: 1.66, fov: 42, band: 0.11, xRatio: 0.30, turn: 1.00, standoff: IDEATION_STANDOFF },
+    574 / 563, m.fields);
+  assert.ok(옛.ledScreenShare * 100 > 22,
+    `고치기 전 실내 LED 가 ${(옛.ledScreenShare * 100).toFixed(2)}% 다 — 기준선이 틀렸다`);
+  const 지금 = cameraPlanForDesign(ID, 'interior', m, 574 / 563);
+  assert.ok(지금.ledScreenShare * 100 <= 20);
+});
+
+test('㊱ 라운지 좌석 마감 — 아이디에이션에서만 갈아 끼우고, 더 이상 흰색이 아니다', () => {
+  // 제안 두 컷의 흰색 날림(1.366% · 1.363%)은 **전부 이 물건 하나에서 나왔다.**
+  //   레이캐스트로 날림 픽셀의 주인을 세어 확인한 값이라 짐작이 아니다(§10).
+  const 밝기 = hex => {
+    const n = parseInt(hex.slice(1), 16);
+    return (((n >> 16) & 255) * 0.2126 + ((n >> 8) & 255) * 0.7152 + (n & 255) * 0.0722) / 255;
+  };
+  const fin = ideationSurfaceFinish(ID);
+  assert.ok(fin, '아이디에이션 마감이 없다');
+  for (const part of IDEATION_SURFACE_PARTS) {
+    const f = fin[part];
+    assert.ok(f && f.color && f.material, `${part}: 마감이 비었다`);
+    // 정식 재질을 새로 만들지 않는다 — 기존 13종 안에서 고른다(질감은 그대로, 색만 바꾼다).
+    assert.ok(MATERIAL_IDS.includes(f.material), `${part}: 모르는 재질 ${f.material}`);
+    assert.ok(밝기(f.color) <= 0.80, `${part}: 아직 너무 밝다(${f.color})`);
+    // 예전 값(#d5dfe6, 밝기 0.86)이 그대로 돌아오지 않았다.
+    assert.notEqual(f.color.toLowerCase(), '#d5dfe6', `${part}: 흰색 값이 돌아왔다`);
+  }
+  // 앉는 면과 등받이는 서로 다른 색이다 — 한 덩이로 뭉개지지 않는다.
+  assert.notEqual(fin.loungeSeat.color, fin.loungeBack.color);
+  // 자산의 공용 값은 그대로다 — 자산을 고쳤다면 이 값이 함께 움직였을 것이다.
+  assert.equal(FURNITURE_COLORS.loungeSeat, '#d5dfe6', '가구 자산의 공용 색이 바뀌었다');
+});
+
+test('㊱-2 마감이 다른 공간으로 새지 않는다 — 여덟 공간은 null 이다', () => {
+  for (const id of DESIGN_IDS.filter(t => t !== ID)) {
+    assert.equal(ideationSurfaceFinish(id), null, `${id}: 아이디에이션 마감이 새어 나갔다`);
+  }
+  for (const id of [null, undefined, '없는디자인', 0, '']) {
+    assert.equal(ideationSurfaceFinish(id), null, `${id}: 모르는 이름에 마감이 붙었다`);
+  }
+  // 갈아 끼우는 곳은 한 군데뿐이다 — 가구 조립기의 마감 목록에 이름이 한 번만 나온다.
+  const g = src('furniture-gl.js');
+  assert.equal((g.match(/ideationSurfaceFinish\(designId\)/g) || []).length, 1);
+  // 재질 종류는 늘지 않았다(질감을 새로 만들지 않았다는 뜻이다).
+  assert.equal(MATERIAL_IDS.length, 13, `재질이 ${MATERIAL_IDS.length} 종이 되었다`);
 });
 
 test('㉛ 순수 유지 — 계획기는 Three.js·DOM·조작기를 부르지 않는다', () => {

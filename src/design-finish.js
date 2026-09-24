@@ -18,8 +18,8 @@
 //   렌더러는 null을 받으면 지금 하던 그대로 그린다 — 그래서 다른 공간이 흔들리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { roomDesign, isPlanned } from './room-design.js?v=454';
-import { resolveMaterialId, finishForPart } from './materials.js?v=454';
+import { roomDesign, isPlanned } from './room-design.js?v=455';
+import { resolveMaterialId, finishForPart } from './materials.js?v=455';
 
 /**
  * 방 껍데기에서 마감이 붙는 자리.
@@ -531,6 +531,36 @@ export const AUDITORIUM_SURFACES = Object.freeze({
   auditoriumRiserTop: Object.freeze({ material: 'stageSurface', color: '#b7bdc6', roughness: 0.93 }),
   auditoriumRiserSide: Object.freeze({ material: 'stageSurface', color: '#949ba6', roughness: 0.93 }),
 });
+
+// ── 아이디에이션 라운지 좌석 마감 (PHASE 10-c) ─────────────────────────────
+// **왜 여기에 두는가.** 라운지 체어의 앉는 면·등받이 색(`FURNITURE_COLORS.loungeSeat =
+//   `#d5dfe6`)이 거의 흰색이라, 이 방의 밝은 조명(`ideationSoft` 는 보조광 배수가 1.60 으로
+//   제품에서 가장 높다)을 받으면 그대로 날아갔다. 레이캐스트로 날림 픽셀의 주인을 하나씩
+//   따져 보니 **제안 두 컷의 날림이 전부 이 물건 하나에서 나왔다**(실내 1.375%p / 1.366%p,
+//   좌코너 1.359%p / 1.363%p — 사실상 100%). 우코너는 이 의자가 화면에 없어 날림도 0% 였다.
+//   짐작이 아니라 이 측정이 고칠 대상을 정했다.
+//
+// **자산 색을 직접 바꾸지 않는다.** `loungeSeat` 은 가구 자산의 값이라 그 자산을 쓰는 곳이
+//   함께 움직인다. 그래서 강당 전면부와 같은 방식으로, **아이디에이션 디자인에서만** 갈아
+//   끼우는 표를 여기에 둔다. 질감은 기존 `fabricChair` 를 그대로 쓰고 **색만** 정하므로
+//   `MATERIAL_IDS` 는 13종 그대로다.
+export const IDEATION_SURFACE_PARTS = Object.freeze(['loungeSeat', 'loungeBack']);
+
+/** 라운지 좌석 색. 협업 공간다운 부드러운 천 느낌은 남기고, 날아가지 않을 만큼 내린다. */
+export const IDEATION_SURFACES = Object.freeze({
+  loungeSeat: Object.freeze({ material: 'fabricChair', color: '#aab6c4' }),
+  loungeBack: Object.freeze({ material: 'fabricChair', color: '#a2aebd' }),
+});
+
+/**
+ * 아이디에이션 라운지 좌석 마감. **아이디에이션 디자인에서만** 값을 돌려준다(그 밖에는 null).
+ *   null 이면 가구는 지금 하던 그대로 그린다 — 다른 여덟 공간이 한 픽셀도 흔들리지 않는 이유다.
+ */
+export function ideationSurfaceFinish(designId) {
+  const d = roomDesign(designId);
+  if (!d || d.id !== 'ideationRoom') return null;
+  return IDEATION_SURFACES;
+}
 
 /**
  * 강당 전면부·객석 단 마감. **강당 디자인에서만** 값을 돌려준다(그 밖에는 null).
