@@ -9,17 +9,17 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=453';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=454';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=453';
-import { createViewerGL } from './render3d-gl.js?v=453';
-import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=453';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=453';
-import { normalizeDesign, designsFor } from './room-design.js?v=453';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=453';
-import { sideMonitorLayout } from './monitors.js?v=453';
-import { ledImageFit } from './led-image.js?v=453';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=453';
+} from './room-presets.js?v=454';
+import { createViewerGL } from './render3d-gl.js?v=454';
+import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=454';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=454';
+import { normalizeDesign, designsFor } from './room-design.js?v=454';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=454';
+import { sideMonitorLayout } from './monitors.js?v=454';
+import { ledImageFit } from './led-image.js?v=454';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=454';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.

@@ -6,10 +6,12 @@
 - **Project Type**: Greenfield
 - **Start Date**: 2026-07-23
 - **Current Phase**: **PHASE 10 — 제품 전체 시각 통일**(계산기 본체는 CONSTRUCTION, 3D 공간은 릴리스 운용 단계)
-- **Current Stage**: PHASE 9(강당 V1) **완료 · 릴리스 · 동결** → PHASE 10-0 감사 완료 → 다음 트랙 오너 승인 대기
+- **Current Stage**: PHASE 9(강당 V1) **완료 · 릴리스 · 동결** → PHASE 10-0 감사 완료 →
+  10-a 문서·배포 기준 **완료·병합**(PR #109) → **10-b 상황실 제안 카메라 재설계 작업 중**(오너 검토 대기)
 - **Released / Frozen 디자인**: **아홉 벌**(대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
-- **기준선**: `main` `9450b5c` · 화면 버전 **v453** · `npm test` **1154/1154** · 작업 트리 clean
+- **기준선**: `main` `c28e817` · 화면 버전 **v453** · `npm test` **1154/1154** · 작업 트리 clean
+- **작업 가지**: `claude/phase10b-control-camera` — 화면 버전 **v454** · `npm test` **1160/1160**
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
   (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · `.github/workflows` 없음 — `main` 병합이 곧 배포)
 - **다음 트랙 후보**(PHASE 10-0, 승인 대기): Track A 제품 전체 시각 통일(추천) ·

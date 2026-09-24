@@ -437,7 +437,10 @@ test('㉘ 다섯 공간의 카메라 기준값이 한 값도 바뀌지 않았다
   assert.equal(EXECUTIVE_CAMERA_PLANS.interior.eye, 1.60);
   assert.equal(CONFERENCE_CAMERA_PLANS.interior.fov, 44);
   assert.equal(CONFERENCE_CAMERA_PLANS['corner-l'].eye, 1.74);
-  assert.equal(CONTROL_CAMERA_PLANS.interior.eye, 1.66);
+  // 상황실 실내 시점의 눈높이는 PHASE 10-b 에서 1.66 → 1.70 으로 바꾸었다(DEC-148).
+  //   여기서 지키려는 것은 '아이디에이션 작업이 남의 공간을 건드리지 않았다'는 사실이므로,
+  //   상황실 자신의 단계가 바꾼 값은 그 단계의 계약(control-camera.test.js ④)이 지킨다.
+  assert.equal(CONTROL_CAMERA_PLANS.interior.eye, 1.70);
   assert.equal(TRAINING_CAMERA_PLANS.interior.eye, 1.66);
   assert.deepEqual(Object.keys(TRAINING_CAMERA_PLANS), ['interior', 'corner-l', 'corner-r']);
   // 다른 다섯 공간의 실내 컷이 아이디에이션 때문에 움직이지 않았다.

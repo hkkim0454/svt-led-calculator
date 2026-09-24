@@ -295,8 +295,11 @@ test('⑫ 릴리스된 네 공간의 화각 기준값이 그대로다', () => {
     { aim: 'frameTop', eye: 1.60, fov: 40, rearRatio: 0.04, xRatio: 0.5 });
   assert.equal(CONFERENCE_CAMERA_PLANS.interior.eye, 1.66);
   assert.equal(CONFERENCE_CAMERA_PLANS.interior.fov, 44);
-  assert.equal(CONTROL_CAMERA_PLANS.interior.eye, 1.66);
-  assert.equal(CONTROL_CAMERA_PLANS.interior.fov, 43);
+  // 상황실 실내 시점은 PHASE 10-b 가 의도적으로 바꾼 자리다(DEC-148: 눈 1.66 → 1.70,
+  //   화각 43 → 42). 이 검사가 지키는 것은 '교육장 작업이 남의 공간을 밀지 않았다'이므로
+  //   상황실의 최신 값을 그대로 적는다 — 그 값 자체는 control-camera.test.js ④ 가 지킨다.
+  assert.equal(CONTROL_CAMERA_PLANS.interior.eye, 1.70);
+  assert.equal(CONTROL_CAMERA_PLANS.interior.fov, 42);
   assert.equal(POLAR_GAP_PER_DIST, 0.025, '안전 여유를 줄이면 깊은 방에서 카메라가 떠오른다');
   // 교육장 눈높이도 그 범위 안이다(사람 눈높이).
   assert.ok(TRAINING_CAMERA_PLANS.interior.eye >= 1.6 && TRAINING_CAMERA_PLANS.interior.eye <= 1.75);
