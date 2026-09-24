@@ -160,7 +160,9 @@ test('⑥ 사람 눈높이 · 제안 원근 하드 게이트 44° · LED 온전'
 
 test('⑦ 기준값을 고정한다 — 값이 흔들리면 구도가 흔들린다', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(TRAINING_CAMERA_PLANS)), {
-    interior: { eye: 1.66, fov: 42, band: 0.14, xRatio: 0.50, aimMix: 0.16 },
+    // PHASE 10-d 에서 실내만 바꿨다 — 서는 자리 0.50 → 0.40 · 천장 띠 0.14 → 0.18.
+    //   화면 아래 띠를 맨바닥이 71.6% 독점하던 것을 47.4% 로 내렸다(근거는 표 옆 주석).
+    interior: { eye: 1.66, fov: 42, band: 0.18, xRatio: 0.40, aimMix: 0.16 },
     'corner-l': { eye: 1.70, fov: 43, band: 0.12, xRatio: 0.26, aimMix: 0.30 },
     'corner-r': { eye: 1.70, fov: 43, band: 0.12, xRatio: 0.74, aimMix: 0.30 },
   });
@@ -216,8 +218,10 @@ test('⑧ 교육장 화각은 **책상 배열**을 읽는다 — 의자 범위�
     '컴팩트/interior': 0.8776, '컴팩트/corner-l': 0.9388, '컴팩트/corner-r': 0.9388,
     '기본/interior': 0.8367, '기본/corner-l': 0.8980, '기본/corner-r': 0.8980,
     '대형/interior': 0.8367, '대형/corner-l': 0.8980, '대형/corner-r': 0.8980,
-    '깊은 방/interior': 0.9592, '깊은 방/corner-l': 0.9796, '깊은 방/corner-r': 0.9796,
-    '높은 천장/interior': 0.6939, '높은 천장/corner-l': 0.8367, '높은 천장/corner-r': 0.8367,
+    // PHASE 10-d: 실내가 통로에서 비켜서면서 책상이 더 많이 잡힌다(0.9592 → 0.9796).
+    '깊은 방/interior': 0.9796, '깊은 방/corner-l': 0.9796, '깊은 방/corner-r': 0.9796,
+    // PHASE 10-d: 같은 까닭으로 좋아졌다(0.6939 → 0.7143).
+    '높은 천장/interior': 0.7143, '높은 천장/corner-l': 0.8367, '높은 천장/corner-r': 0.8367,
   };
   for (const [tag, W, H, D, opt] of ROOMS) {
     const mm = modelOf(W, H, D, opt);
@@ -445,6 +449,54 @@ test('⑰ 대표 화면의 화각 행렬을 고정한다 — 컴팩트·기본·
   }
 });
 
+test('⑲ 실내 시점은 가운데 통로에 서지 않는다 — 맨바닥이 화면 아래를 독점하지 못한다', () => {
+  // **이 단계(PHASE 10-d)가 고친 것을 못박는다.** 교육장 실내 컷은 방 한가운데(가로 50%)에
+  //   서서 가운데 통로를 정면으로 보았고, 그 통로 바닥이 화면 아래 띠의 71.6% 를 덮었다.
+  //   좌·우 코너(0.26 / 0.74)는 책상 격자를 비스듬히 봐서 34.6 / 34.7% 로 이미 기준 안이었다.
+  //   그래서 실내도 통로에서 비켜세웠다. 여기서는 그 약속 세 가지를 확인한다.
+  //     ① 실내가 방 한가운데에 서지 않는다.
+  //     ② 그러면서도 코너와 충분히 떨어져 **서로 다른 그림**으로 남는다.
+  //     ③ 통로를 완전히 등지지는 않는다 — 교실의 깊이가 읽혀야 한다(§14).
+  const 실내 = TRAINING_CAMERA_PLANS.interior;
+  assert.ok(Math.abs(실내.xRatio - 0.5) >= 0.08,
+    `실내가 가운데 통로에 서 있다(xRatio ${실내.xRatio})`);
+  assert.ok(Math.abs(실내.xRatio - 0.5) <= 0.20,
+    `실내가 통로에서 너무 멀어졌다 — 교실 깊이가 읽히지 않는다(xRatio ${실내.xRatio})`);
+  for (const 코너 of ['corner-l', 'corner-r']) {
+    assert.ok(Math.abs(실내.xRatio - TRAINING_CAMERA_PLANS[코너].xRatio) >= 0.10,
+      `실내와 ${코너} 가 같은 자리다`);
+  }
+  // 실제 방에서도 자리가 벌어져 있는지 본다(비율이 아니라 미터로).
+  for (const [이름, W, H, D, opt] of ROOMS) {
+    const m = modelOf(W, H, D, opt);
+    const i = cameraPlanForDesign(TR, 'interior', m, 574 / 563);
+    const l = cameraPlanForDesign(TR, 'corner-l', m, 574 / 563);
+    const r = cameraPlanForDesign(TR, 'corner-r', m, 574 / 563);
+    assert.ok(Math.abs(i.position[0] - W / 2000) > 0.5,
+      `${이름}: 실내가 방 한가운데에 서 있다(x ${i.position[0]})`);
+    assert.ok(Math.abs(i.position[0] - l.position[0]) > 0.8,
+      `${이름}: 실내와 좌코너가 같은 자리다(${i.position[0]} vs ${l.position[0]})`);
+    assert.ok(l.position[0] < r.position[0], `${이름}: 좌·우 코너가 뒤집혔다`);
+  }
+});
+
+test('⑳ 실내 천장 띠가 상한에 있다 — 시선을 들어 바닥을 깎은 값이다', () => {
+  // 띠 0.18 은 `TRAINING_BAND_MAX` 와 같다. **상한에 붙여 둔 것은 의도다** — 자리를 옮기는
+  //   것만으로는 57.4% 였고(가로 0.44 실측), 띠를 상한까지 올려 47.4% 로 내렸다.
+  //   상한 자체는 이 단계에서 올리지 않았다(공용 값은 건드리지 않는다).
+  assert.equal(TRAINING_CAMERA_PLANS.interior.band, TRAINING_BAND_MAX);
+  assert.equal(TRAINING_BAND_MAX, 0.18);
+  // 실제로 계산된 천장 띠도 상한을 넘지 않는다.
+  for (const [이름, W, H, D, opt] of ROOMS) {
+    const m = modelOf(W, H, D, opt);
+    for (const v of TRAINING_CAMERA_PRESETS) {
+      const p = cameraPlanForDesign(TR, v, m, 574 / 563);
+      assert.ok(p.ceilingBand <= TRAINING_BAND_MAX + 1e-6,
+        `${이름}/${v}: 천장 띠 ${p.ceilingBand}`);
+    }
+  }
+});
+
 test('⑱ 수단 네 가지가 **각각 실제로 쓰이는 칸**을 고정한다 — 하나를 빼면 여기서 드러난다', () => {
   // 값은 v441 에서 실제로 잰 것이다. 각 칸은 그 수단이 아니면 풀리지 않는 자리다.
   const 칸 = [
@@ -455,7 +507,9 @@ test('⑱ 수단 네 가지가 **각각 실제로 쓰이는 칸**을 고정한�
     ['시선 조정', 7000, 4200, 9000, 6650, 2850, 'corner-l',
       { remedy: 'aim', fov: 43, retreat: 1, aimMix: 0, led: 1, x: 1.82, z: 8.75 }],
     ['화각(마지막)', 7000, 4200, 6000, 3850, 2888, 'interior',
-      { remedy: 'fov', fov: 44, retreat: 1, aimMix: 0, led: 0.9674, x: 3.5, z: 5.75 }],
+      // PHASE 10-d: 실내가 0.40 으로 비켜서면서 이 극단 칸(7×4.2×6m 에 6.65m LED)의
+      //   LED 담김이 0.9674 → 0.9421 로 조금 나빠졌다. 정규 방에서는 1.00 그대로다(P2 기록).
+      { remedy: 'fov', fov: 44, retreat: 1, aimMix: 0, led: 0.9421, x: 2.8, z: 5.75 }],
   ];
   for (const [tag, W, H, D, ledW, ledH, v, want] of 칸) {
     const lay = layoutRoom('classroom', defaultOptions('classroom'), { W, D, design: TR });
