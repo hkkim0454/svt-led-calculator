@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import {
   CONTROL_CAMERA_PRESETS, CONTROL_CAMERA_PLANS, CONTROL_FOV_RANGE, CONTROL_BAND_MAX,
   CONTROL_STANDOFF, CAMERA_GLASS_CLEAR, controlCameraPlanId, controlCameraPresets,
-  controlCameraPlan, controlFeaturePoints, cameraPlanForDesign,
+  controlCameraPlan, controlFeaturePoints, cameraPlanForDesign, CONTROL_LED_FRAME_MARGIN,
   CONFERENCE_CAMERA_PLANS, CONFERENCE_FOV_RANGE, CAMERA_PLANS, EXECUTIVE_CAMERA_PLANS,
   EYE_RANGE,
 } from '../src/design-camera.js';
@@ -76,12 +76,18 @@ test('③ 아이소·평면도·정면은 이 계열이 건드리지 않는다',
 
 test('④ 시점 기준값이 고정돼 있다', () => {
   assert.deepEqual(Object.keys(CONTROL_CAMERA_PLANS), ['interior', 'corner-l', 'corner-r', 'rear']);
+  // **PHASE 10-b 에서 세 제안 시점의 값을 의도적으로 바꾸었다.** 근거는 docs/audit.md 의
+  //   DEC-148 에 적었다 — 실내 시점이 유리까지 맡느라 LED 가 화면 왼쪽 끝에 붙고(여백 2.4%)
+  //   화각이 상한 46° 까지 벌어지고 바닥이 화면의 30.7% 를 먹던 구도를 고친 값들이다.
   assert.deepEqual({ ...CONTROL_CAMERA_PLANS.interior },
-    { eye: 1.66, fov: 43, band: 0.10, xRatio: 0.34, feature: 'glass', featureMix: 0.30 });
+    { eye: 1.70, fov: 42, band: 0.15, xRatio: 0.50,
+      feature: null, featureMix: 0, fovCap: 44, standoffMax: 1.8 });
   assert.deepEqual({ ...CONTROL_CAMERA_PLANS['corner-l'] },
-    { eye: 1.72, fov: 44, band: 0.12, xRatio: 0.15, feature: 'glass', featureMix: 0.42 });
+    { eye: 1.74, fov: 43, band: 0.15, xRatio: 0.18,
+      feature: 'glass', featureMix: 0.42, fovCap: 43 });
   assert.deepEqual({ ...CONTROL_CAMERA_PLANS['corner-r'] },
-    { eye: 1.72, fov: 44, band: 0.12, xRatio: 0.85, feature: 'acoustic', featureMix: 0.42 });
+    { eye: 1.74, fov: 43, band: 0.18, xRatio: 0.82,
+      feature: 'acoustic', featureMix: 0.42, fovCap: 43 });
   assert.deepEqual({ ...CONTROL_CAMERA_PLANS.rear },
     { eye: 1.62, fov: 41, band: 0.09, xRatio: 0.50, feature: null, featureMix: 0 });
   // **제안서 원근의 하드 게이트**다. 값이 아니라 탐색의 상한이 46 이어야 한다(오너 검토).
@@ -308,6 +314,24 @@ const everyCase = fn => {
     for (const v of SHIPPED) fn(`${name}/${v}`, cameraPlanForDesign(CR, v, m, A), m, v);
   }
 };
+// **제품이 실제로 맞추는 LED** — 요청 4000×2300 을 MP012F 4×4 캐비닛으로 맞추면
+//   3225.6×1814.4 가 된다(engine 의 actualW/actualH). 이 파일의 makeModel 이 쓰는
+//   6000×2160 은 '작은 방에 아주 큰 LED' 라는 극단 구성이라, 화면에 나오는 그림을
+//   재려면 이쪽으로 봐야 한다.
+const 제품LED = { w: 3225.6, h: 1814.4, depth: 49.4 };
+const makeShippedModel = (W, H, D, extra = {}) => buildGLModel({
+  space: { W, H, D },
+  led: { marginW: (W - 제품LED.w) / 2, mount: 1000, ...제품LED, cols: 4, rows: 4 },
+  items: layoutRoom('control', { ...BASE, ...extra }, { W, D, design: CR }).items,
+  design: CR, roomType: 'control',
+});
+/** 같은 훑기를 다른 화면비로. 제품 캔버스(574×563)처럼 거의 정사각인 비율을 볼 때 쓴다. */
+const everyCaseAt = (aspect, fn) => {
+  for (const [name, W, H, D, extra] of MATRIX) {
+    const m = makeModel(W, H, D, extra);
+    for (const v of SHIPPED) fn(`${name}/${v}`, cameraPlanForDesign(CR, v, m, aspect), m, v);
+  }
+};
 
 test('㉑ 솔버의 화각 상한 자체가 46 이다 — 값이 아니라 규칙을 고정한다', () => {
   assert.equal(CONTROL_FOV_RANGE.max, 46, '탐색 상한이 46 이 아니다');
@@ -353,6 +377,13 @@ test('㉔ 46°로 좁혀도 LED 는 여전히 온전히 담긴다', () => {
 test('㉕ 46°로 좁혀도 담당 벽이 읽힌다 — 없는 유리는 없다고 말한다', () => {
   everyCase((tag, p, m, v) => {
     const feature = CONTROL_CAMERA_PLANS[v].feature;
+    if (feature === null) {
+      // **맡은 벽이 없는 시점이다**(실내·후방). 모르는 것이 아니라 맡지 않았다는 뜻이므로
+      //   null 이어야 한다. 0 이면 '맡았는데 안 보인다'는 뜻이 되어 거짓말이 된다.
+      assert.equal(p.featureVisibleShare, null, `${tag}: 맡지 않은 벽을 쟀다`);
+      assert.equal(p.featureVisible, null, tag);
+      return;
+    }
     const hasGlass = (m.partitions || []).some(q => q.role === 'partition');
     if (feature === 'glass' && !hasGlass) {
       // **유리를 세우지 못한 방이다.** 안 보이는 것이 아니라 대상이 없는 것이다.
@@ -405,4 +436,132 @@ test('㉙ rear 는 화면에 내보내지 않는다 — 버튼이 없는 시점�
     'rear 에 화면 버튼이 생겼다 — 그러면 46° 게이트 검증 대상에 넣어야 한다');
   // 계산은 되지만(계열이 알고 있다) 제품 경로로는 나가지 않는다.
   assert.ok(CONTROL_CAMERA_PLANS.rear);
+});
+
+// ── ⑤ PHASE 10-b — LED 를 프레임 안쪽에 세우는 규칙 ────────────────────────────
+// 여기서 지키는 것.
+//   ⓐ LED 는 테두리에 '닿지 않는' 것이 아니라 **여유를 두고** 담긴다.
+//   ⓑ 실내 시점은 벽면을 맡지 않는다 — 그래서 LED 가 가장 크게 나온다.
+//   ⓒ 시점별 화각 상한·물러섬 상한이 실제로 듣는다. 다만 **LED 를 자르지는 못한다.**
+//   ⓓ 기준 방(16×14)의 제안 3컷이 오너가 정한 수치 문턱을 넘는다.
+
+test('㉚ LED 는 화면 테두리에서 여유를 두고 담긴다', () => {
+  assert.equal(CONTROL_LED_FRAME_MARGIN, 0.05);
+  // ① **제품이 실제로 맞추는 LED** 로는 어떤 방·어떤 화면비에서도 규칙이 지켜진다.
+  //    상한을 풀어야 했던 구성도 하나 없다.
+  for (const aspect of [1280 / 900, 574 / 563]) {
+    for (const [name, W, H, D, extra] of MATRIX) {
+      const m = makeShippedModel(W, H, D, extra);
+      for (const v of SHIPPED) {
+        const p = cameraPlanForDesign(CR, v, m, aspect);
+        const tag = `${name}/${v}/화면비 ${aspect.toFixed(3)}`;
+        assert.equal(p.capsReleased, false, `${tag}: 상한을 풀어야 했다`);
+        assert.equal(p.ledFullyVisible, true, `${tag}: LED 가 잘렸다`);
+        assert.ok(p.ledFrameMargin >= CONTROL_LED_FRAME_MARGIN - 1e-6,
+          `${tag}: LED 가 테두리에 붙었다(여백 ${p.ledFrameMargin})`);
+      }
+    }
+  }
+  // ② **작은 방에 아주 큰 LED(6m)** 를 거는 극단 구성에서는 상한을 푸는 방이 있다.
+  //    그때도 LED 는 잘리지 않아야 하고, 상한을 풀지 않은 컷은 규칙을 지켜야 한다.
+  everyCase((tag, p) => {
+    assert.equal(p.ledFullyVisible, true, `${tag}: LED 가 잘렸다`);
+    if (p.capsReleased) return;
+    assert.ok(p.ledFrameMargin >= CONTROL_LED_FRAME_MARGIN - 1e-6,
+      `${tag}: LED 가 테두리에 붙었다(여백 ${p.ledFrameMargin})`);
+  });
+  everyCaseAt(574 / 563, (tag, p) => {
+    if (p.capsReleased) return;
+    assert.ok(p.ledFrameMargin >= CONTROL_LED_FRAME_MARGIN - 1e-6,
+      `${tag}: 여백 ${p.ledFrameMargin}`);
+  });
+});
+
+test('㉛ 실내 시점은 벽면을 맡지 않는다 — 그래서 LED 가 가장 크다', () => {
+  assert.equal(CONTROL_CAMERA_PLANS.interior.feature, null);
+  assert.equal(CONTROL_CAMERA_PLANS.interior.featureMix, 0);
+  for (const [name, W, H, D, extra] of MATRIX) {
+    const m = makeModel(W, H, D, extra);
+    const p = Object.fromEntries(SHIPPED.map(v => [v, cameraPlanForDesign(CR, v, m, A)]));
+    assert.equal(p.interior.featureVisibleShare, null, `${name}: 실내가 벽을 맡았다`);
+    assert.ok(p.interior.ledScreenShare > p['corner-l'].ledScreenShare, `${name}: 좌코너보다 작다`);
+    assert.ok(p.interior.ledScreenShare > p['corner-r'].ledScreenShare, `${name}: 우코너보다 작다`);
+  }
+});
+
+test('㉜ 시점이 적은 화각 상한이 실제로 듣는다', () => {
+  const 상한 = { interior: 44, 'corner-l': 43, 'corner-r': 43 };
+  for (const [v, cap] of Object.entries(상한)) assert.equal(CONTROL_CAMERA_PLANS[v].fovCap, cap, v);
+  // 제품 LED 로는 어디서나 상한 안에 든다.
+  for (const [name, W, H, D, extra] of MATRIX) {
+    const m = makeShippedModel(W, H, D, extra);
+    for (const v of SHIPPED) {
+      const p = cameraPlanForDesign(CR, v, m, A);
+      assert.ok(p.fov <= 상한[v] + 1e-9, `${name}/${v}: ${p.fov}° 가 상한 ${상한[v]}° 를 넘었다`);
+    }
+  }
+  // 상한을 푼 방에서도 **계열 상한 46° 는** 지킨다 — 그 위로는 어떤 경우에도 가지 않는다.
+  for (const 훑 of [everyCase, f => everyCaseAt(574 / 563, f)]) {
+    훑((tag, p, m, v) => {
+      const 한계 = p.capsReleased ? CONTROL_FOV_RANGE.max : 상한[v];
+      assert.ok(p.fov <= 한계 + 1e-9, `${tag}: ${p.fov}° 가 ${한계}° 를 넘었다`);
+    });
+  }
+  // 상한을 적지 않은 시점(rear)은 계열 상한 46 을 그대로 쓴다.
+  assert.equal(CONTROL_CAMERA_PLANS.rear.fovCap, undefined);
+});
+
+test('㉝ 물러섬 상한은 구도만 다듬는다 — LED 를 자르지는 못한다', () => {
+  assert.equal(CONTROL_CAMERA_PLANS.interior.standoffMax, 1.8);
+  assert.equal(CONTROL_CAMERA_PLANS['corner-l'].standoffMax, undefined);
+  // 상한 안에서 담기면 그 안에 선다.
+  const 대형 = cameraPlanForDesign(CR, 'interior', makeModel(16000, 3900, 14000), A);
+  assert.ok(대형.standOff <= 1.8 + 1e-9, `대형 실내가 상한을 넘었다(${대형.standOff})`);
+  // **담기지 않으면 상한을 푼다.** LED 6m 를 쓰는 12m 방이 그 경우다(실측).
+  const 중형 = cameraPlanForDesign(CR, 'interior', makeModel(12000, 3600, 10000), A);
+  assert.equal(중형.ledFullyVisible, true, '상한 때문에 LED 를 잘랐다');
+  assert.ok(중형.standOff > 1.8, `상한을 풀지 않았다(${중형.standOff})`);
+  // 어떤 구성에서도 '상한을 지키느라 잘린' 컷은 없다.
+  everyCase((tag, p) => assert.equal(p.ledFullyVisible, true, tag));
+});
+
+test('㉞ 기준 방(16×14)의 제안 3컷이 수치 문턱을 넘는다', () => {
+  // 오너가 PHASE 10-b 에서 정한 문턱이다. 화면비는 제품 캔버스(574×563)를 쓰고,
+  //   LED 도 **제품이 실제로 맞추는 크기**(요청 4000×2300 → MP012F 4×4 캐비닛
+  //   3226×1814)를 쓴다. 이 파일의 makeModel 은 6000×2160 이라 화면에 나오는 그림과
+  //   다르다 — 게이트는 화면에 나오는 쪽으로 재야 한다.
+  const m = makeShippedModel(16000, 3900, 14000);
+  const 문턱 = { interior: 0.09, 'corner-l': 0.08, 'corner-r': 0.08 };
+  for (const v of SHIPPED) {
+    const p = cameraPlanForDesign(CR, v, m, 574 / 563);
+    assert.ok(p.ledScreenShare >= 문턱[v], `${v}: LED 넓이 ${(p.ledScreenShare * 100).toFixed(2)}%`);
+    assert.ok(p.fov <= 44 + 1e-9, `${v}: 화각 ${p.fov}°`);
+    assert.ok(p.eye >= 1.65 && p.eye <= 2.10, `${v}: 눈높이 ${p.eye}m`);
+    assert.ok(p.emptyFloor <= 1.5, `${v}: 카메라 앞 빈 바닥 ${p.emptyFloor}m`);
+  }
+  // 담당 벽이 있는 두 코너는 그 벽이 실제로 읽힌다.
+  for (const v of ['corner-l', 'corner-r']) {
+    const p = cameraPlanForDesign(CR, v, m, 574 / 563);
+    assert.ok(p.featureVisibleShare > 0, `${v}: 담당 벽이 사라졌다`);
+  }
+});
+
+test('㉟ PHASE 10-b 는 상황실 밖으로 새지 않았다', () => {
+  // 다른 계열 표는 한 값도 건드리지 않았다.
+  assert.equal(CAMERA_PLANS.interior.eye, 1.65);
+  assert.equal(CAMERA_PLANS.interior.fov, 41);
+  assert.equal(EXECUTIVE_CAMERA_PLANS.interior.eye, 1.60);
+  assert.equal(EXECUTIVE_CAMERA_PLANS.interior.fov, 40);
+  assert.equal(CONFERENCE_CAMERA_PLANS.interior.fov, 44);
+  assert.equal(CONFERENCE_CAMERA_PLANS['corner-l'].eye, 1.74);
+  // 새 칸(fovCap·standoffMax)과 새 규칙은 **상황실 표에만** 있다.
+  for (const 표 of [CAMERA_PLANS, EXECUTIVE_CAMERA_PLANS, CONFERENCE_CAMERA_PLANS]) {
+    for (const [v, s] of Object.entries(표)) {
+      assert.equal(s.fovCap, undefined, `${v}: 다른 계열에 화각 상한이 생겼다`);
+      assert.equal(s.standoffMax, undefined, `${v}: 다른 계열에 물러섬 상한이 생겼다`);
+    }
+  }
+  // 공용 도구의 값도 그대로다 — 여기를 고치면 아홉 공간이 함께 움직인다.
+  assert.equal(EYE_RANGE.min, 1.45);
+  assert.equal(CONTROL_STANDOFF.max, 12.0);
 });
