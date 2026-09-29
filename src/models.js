@@ -82,7 +82,8 @@ export const MODELS = [
     pitch: 1.5, cabW: 960, cabH: 540, depth: 79.5, resW: 640, resH: 360,
     brightnessPeak: 1000, brightnessReduced: 500, refreshHz: 3840, ovd_m: 5.2,
     weight: 11.8, maxPower: 190, typicalPower: 105, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-SNOWJMU', cabinetPart: 'LH015IEACLS', dataStatus: 'verified' },
+    sbox: 'SBB-SNOWJMU', cabinetPart: 'LH015IEACLS', dataStatus: 'verified',
+    lifecycle: 'discontinued' }, // 단종(통합 LED 사양서 2026-09-29) — 후속은 IE015A-E. 기본 목록에서 숨김, '+ 기존 모델 추가'로 불러올 수 있음
   // IE020A: 삼성 IEA 브로셔(2022) 실측 — 무게 12.4, 최대 190W/평균 105W, 1000/500 nit.
   { id: 'IE020A', name: 'IE020A', category: 'Indoor', series: 'IE',
     pitch: 2.0, cabW: 960, cabH: 540, depth: 79.5, resW: 480, resH: 270,
@@ -131,14 +132,16 @@ export const MODELS = [
     pitch: 1.25, cabW: 600, cabH: 337.5, depth: 49.8, resW: 480, resH: 270,
     brightnessPeak: 600, brightnessReduced: null, refreshHz: 3840, ovd_m: 4.3,
     weight: 5.1, maxPower: 92.8, typicalPower: 41.5, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH012MMFRGS', dataStatus: 'verified' }, // export 8x8: 326.4kg/64, 5939.2W, typ 2656W
+    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH012MMFRGS', dataStatus: 'verified',
+    lifecycle: 'discontinued' }, // export 8x8: 326.4kg/64, 5939.2W, typ 2656W. 단종(통합 LED 사양서) — 후속은 MM012F-S. 기본 목록에서 숨김
 
   // CONFIRMED via Samsung datasheet QZ-MM015F (The Wall M / MMF), controller CS4B.
   { id: 'MM015F', name: 'MM015F', category: 'Indoor', series: 'MM',
     pitch: 1.5625, cabW: 600, cabH: 337.5, depth: 49.8, resW: 384, resH: 216,
     brightnessPeak: 600, brightnessReduced: null, refreshHz: 3840, ovd_m: 5.4,
     weight: 5.1, maxPower: 94.6, typicalPower: 37, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH015MMFRGS', dataStatus: 'verified' }, // cross-checked vs Samsung export (10x10)
+    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH015MMFRGS', dataStatus: 'verified',
+    lifecycle: 'discontinued' }, // cross-checked vs Samsung export (10x10). 단종(통합 LED 사양서) — 후속은 MM015F-S. 기본 목록에서 숨김
 
   // ---- MMF-S (MMF 후속, cabinet 600 x 337.5 x 49.5) — MMF 라인(series 'MM')에 포함, 컨트롤러 CS4B(광). ----
   //   2026-09-29 통합 LED 사양서 MMF 시트 '신규 운영'. 밝기 800/600nit(Peak/Max), Visual Refresh 7,680Hz.
