@@ -74,7 +74,7 @@ export const MODELS = [
     pitch: 1.5, cabW: 960, cabH: 540, depth: 79.5, resW: 640, resH: 360,
     brightnessPeak: 1700, brightnessReduced: 1000, refreshHz: 3840, ovd_m: 5.2,
     weight: 11.8, maxPower: 190, typicalPower: 105, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH015IFRILS', dataStatus: 'verified' }, // 190W/105W, 1700/1000nit, MIP1010. 기본 CS4F(동선)/광선택시 CS4B (기존 IFR 대비 저전력·고휘도)
+    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH015IFRILS', dataStatus: 'verified', lifecycle: 'new' }, // 190W/105W, 1700/1000nit, MIP1010. 기본 CS4F(동선)/광선택시 CS4B (기존 IFR 대비 저전력·고휘도)
 
   // ---- IE series (indoor, cabinet 960 x 540) — IEA. 기본 컨트롤러 SBB-SNOWJMU(주 설계), 필요시 SBB-CS4B ----
   // IE015A CONFIRMED via full Samsung datasheet: 11.8kg, max 190W (367 W/m²), typ 105W (203 W/m²), 1000/500 nit.
@@ -111,12 +111,12 @@ export const MODELS = [
     pitch: 1.5, cabW: 960, cabH: 540, depth: 79.5, resW: 640, resH: 360,
     brightnessPeak: null, brightnessReduced: 600, refreshHz: 3840, ovd_m: 5.2,
     weight: 12.4, maxPower: 190, typicalPower: 127, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH015IEAELS', dataStatus: 'derived' }, // IEA-E. 367/244 W/m². CS4F 동선 컨트롤러
+    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH015IEAELS', dataStatus: 'derived', lifecycle: 'new' }, // IEA-E. 367/244 W/m². CS4F 동선 컨트롤러
   { id: 'IE020AE', name: 'IE020A-E', category: 'Indoor', series: 'IEE',
     pitch: 2.0, cabW: 960, cabH: 540, depth: 79.5, resW: 480, resH: 270,
     brightnessPeak: null, brightnessReduced: 600, refreshHz: 3840, ovd_m: 7.0,
     weight: 12.4, maxPower: 177, typicalPower: 118, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH020IEAELS', dataStatus: 'derived' }, // IEA-E. 341/228 W/m², SMD 1515 GOB. CS4F 동선 컨트롤러
+    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH020IEAELS', dataStatus: 'derived', lifecycle: 'new' }, // IEA-E. 341/228 W/m², SMD 1515 GOB. CS4F 동선 컨트롤러
 
   // ---- MM series (MMF, cabinet 600 x 337.5) ----
   // MM009F/012F/015F CONFIRMED via Samsung configurator export (2026-07-24) — 밝기 최대 600 nit.
@@ -150,12 +150,12 @@ export const MODELS = [
     pitch: 1.25, cabW: 600, cabH: 337.5, depth: 49.5, resW: 480, resH: 270,
     brightnessPeak: 800, brightnessReduced: 600, refreshHz: 3840, ovd_m: 4.3,
     weight: 5.2, maxPower: 89, typicalPower: 59, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH012MMFYGS', dataStatus: 'derived' }, // 439/291 W/m²
+    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH012MMFYGS', dataStatus: 'derived', lifecycle: 'new' }, // 439/291 W/m²
   { id: 'MM015FS', name: 'MM015F-S', category: 'Indoor', series: 'MM',
     pitch: 1.5625, cabW: 600, cabH: 337.5, depth: 49.5, resW: 384, resH: 216,
     brightnessPeak: 800, brightnessReduced: 600, refreshHz: 3840, ovd_m: 5.4,
     weight: 5.2, maxPower: 83, typicalPower: 55, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH015MMFYGS', dataStatus: 'derived' }, // 408/271 W/m²
+    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH015MMFYGS', dataStatus: 'derived', lifecycle: 'new' }, // 408/271 W/m²
 
   // (Outdoor IB series removed 2026-07-24 — discontinued by Samsung.)
 ];

@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=459';
+import { MODELS } from './models.js?v=460';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -124,6 +124,8 @@ function statusBadge(m) {
   if (m.dataStatus === 'needs-verification') return '<span class="todo">확인 필요</span>';
   return '<span class="derived">파생</span>';
 }
+// 신규 운영 모델(lifecycle 'new', 통합 LED 사양서 기준) 표시 — 오너 선택 A안(2026-09-29).
+const newBadge = m => m.lifecycle === 'new' ? '<span class="newTag">NEW</span>' : '';
 
 function sboxText(v) { return v == null ? '—' : (v === 0 ? '내장' : fmt(v)); }
 
@@ -237,7 +239,7 @@ function renderModelList() {
         <button class="tiny ghost mv" data-act="down" data-id="${m.id}" title="아래로"${i === vis.length - 1 ? ' disabled' : ''}>▼</button>
       </div>
       <div class="minfo">
-        <div class="mname">${esc(m.name)} ${statusBadge(m)}</div>
+        <div class="mname">${esc(m.name)} ${statusBadge(m)}${newBadge(m)}</div>
         <div class="mmeta">${esc(lineLabel(m.series))} · ${fmt(m.cabW,1)}×${fmt(m.cabH,1)}mm · P${fmtPitch(m.pitch)}</div>
       </div>
       <div class="acts">
@@ -3070,7 +3072,7 @@ function renderLoadList() {
   el.innerHTML = hidden.map(m => `
     <div class="loadRow" data-load="${m.id}" title="눌러서 추가">
       <div class="minfo">
-        <div class="mname">${esc(m.name)} ${statusBadge(m)}</div>
+        <div class="mname">${esc(m.name)} ${statusBadge(m)}${newBadge(m)}</div>
         <div class="mmeta">${esc(lineLabel(m.series))} · ${fmt(m.cabW, 1)}×${fmt(m.cabH, 1)}mm · P${fmtPitch(m.pitch)}</div>
       </div>
       <button class="tiny primary" data-load="${m.id}">추가</button>

@@ -611,3 +611,11 @@ test('IF015R-M (IFR-M 신규): 스펙·기본 CS4F(동선, Gbic 없음)·광선�
   // 예비율 5%(IFM)
   assert.equal(computeConfig(M, 0, 0, { mode: 'manual', cols: 10, rows: 10 }).spares, 5);
 });
+
+// 통합 LED 사양서(2026-09-29) 운영 상태 — 'new' = 신규 운영(NEW 표시), 'discontinued' = 단종(기본 목록에서 숨김).
+test('lifecycle: 신규 운영 / 단종 모델 표시 (DEC-152 · DEC-153 · DEC-154)', () => {
+  const ids = v => MODELS.filter(m => m.lifecycle === v).map(m => m.id).sort();
+  assert.deepEqual(ids('new'), ['IE015AE', 'IE020AE', 'IF015RM', 'MM012FS', 'MM015FS']);
+  assert.deepEqual(ids('discontinued'), ['IE015A', 'IF015R', 'MM012F', 'MM015F']);
+  for (const m of MODELS) assert.ok([undefined, 'new', 'discontinued'].includes(m.lifecycle), m.id);
+});

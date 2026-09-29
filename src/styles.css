@@ -465,6 +465,7 @@ tr.nofit td{color:var(--muted)}
 .chk{font-family:var(--sans);font-size:10px;font-weight:700;color:var(--ok);margin-left:5px}
 .todo{font-family:var(--sans);font-size:10px;font-weight:700;color:var(--warn);margin-left:5px}
 .derived{font-family:var(--sans);font-size:10px;font-weight:700;color:var(--muted);margin-left:5px}
+.newTag{display:inline-block;vertical-align:1px;font-family:var(--sans);font-size:9.5px;font-weight:800;letter-spacing:.04em;line-height:1;padding:3px 7px;border-radius:var(--r-pill);color:#fff;background:linear-gradient(135deg,#FF6B3D,#FF2D55);box-shadow:0 1px 4px rgba(255,45,85,.35);margin-left:6px}
 
 /* ---- Edit dialog (iOS sheet) ---- */
 .editGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 14px;margin-top:6px}
