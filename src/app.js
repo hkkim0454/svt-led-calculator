@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=457';
+import { MODELS } from './models.js?v=458';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -97,8 +97,9 @@ let spareModelId = null;   // 모델 전환 감지(전환 시 자동 모드로 �
 const MIN_PITCH = 0.8;
 const MAX_PITCH = 1.8;
 const pitchOk = m => m.pitch >= MIN_PITCH - 1e-9 && m.pitch <= MAX_PITCH + 1e-9;
-// 화면 노출 대상: 판매범위(P0.8~1.8) 안이거나, 사용자가 라이브러리에서 불러온/직접 추가한 모델(_show).
-const shown = m => pitchOk(m) || m._show === true;
+// 화면 노출 대상: 판매범위(P0.8~1.8) 안이면서 단종이 아닌 모델, 또는 사용자가 라이브러리에서 불러온/직접 추가한 모델(_show).
+//   단종(lifecycle 'discontinued')은 기본 목록에서 숨기고 '+ 기존 모델 추가'에서 불러올 수 있게 둔다(오너 2026-09-29).
+const shown = m => (pitchOk(m) && m.lifecycle !== 'discontinued') || m._show === true;
 let visibleLines = new Set(SALES_LINES);
 
 const $ = s => document.querySelector(s);
