@@ -404,21 +404,24 @@ test('brightnessMax uses operating "최대" (reduced when present, else peak)', 
   assert.equal(computeConfig(MM015F, 6000, 3400, { mode: 'fill' }).brightnessMax, 600);
 });
 
-test('MMF P0.9375 / P1.25 verified against Samsung configurator export', () => {
+test('MMF P0.9375 (사양서 기준) / P1.25 (configurator export)', () => {
   const MM009F = MODELS.find(m => m.id === 'MM009F');
   const MM012F = MODELS.find(m => m.id === 'MM012F');
   // geometry / resolution (cabinet 600x337.5, pitch-derived) — matches Samsung export.
   assert.deepEqual({ p: MM009F.pitch, w: MM009F.resW, h: MM009F.resH }, { p: 0.9375, w: 640, h: 360 });
   assert.deepEqual({ p: MM012F.pitch, w: MM012F.resW, h: MM012F.resH }, { p: 1.25, w: 480, h: 270 });
-  // per-cabinet figures from the official export (weight 5.1kg 공통).
-  assert.deepEqual({ w: MM009F.weight, max: MM009F.maxPower, typ: MM009F.typicalPower }, { w: 5.1, max: 94.6, typ: 37 });
+  // per-cabinet figures (weight 5.1kg 공통). MM009F 전력은 오너 결정(2026-09-29, DEC-152)으로
+  //   통합 LED 사양서 값 85.8/55W를 쓴다 — configurator export(94.6/37W)와 의도적으로 다르다.
+  assert.deepEqual({ w: MM009F.weight, max: MM009F.maxPower, typ: MM009F.typicalPower }, { w: 5.1, max: 85.8, typ: 55 });
+  assert.equal(MM009F.dataStatus, 'derived', 'configurator와 다른 값이므로 검증(verified) 표시를 달지 않는다');
   assert.deepEqual({ w: MM012F.weight, max: MM012F.maxPower, typ: MM012F.typicalPower }, { w: 5.1, max: 92.8, typ: 41.5 });
 
-  // MM009F 12x6 export: 367.2 kg, 6811.2 W max, 2664 W typ, 2 S-Box (7680x2160).
+  // MM009F 12x6: 367.2 kg(export 동일), 최대 85.8×72 = 6177.6 W, 평균 55×72 = 3960 W, 2 S-Box (7680x2160).
+  //   (configurator export는 6811.2 W / 2664 W — DEC-152로 사양서 값을 채택)
   const a = computeConfig(MM009F, 7200, 2025, { mode: 'manual', cols: 12, rows: 6 });
   assert.ok(Math.abs(a.weightKg - 367.2) < 0.1, `weight=${a.weightKg}`);
-  assert.ok(Math.abs(a.maxW - 6811.2) < 0.1, `max=${a.maxW}`);
-  assert.ok(Math.abs(a.typW - 2664) < 0.1, `typ=${a.typW}`);
+  assert.ok(Math.abs(a.maxW - 6177.6) < 0.1, `max=${a.maxW}`);
+  assert.ok(Math.abs(a.typW - 3960) < 0.1, `typ=${a.typW}`);
   assert.equal(a.sbox, 2);
   assert.equal(a.brightnessMax, 600);
 

@@ -46,7 +46,8 @@ export const MODELS = [
     pitch: 1.5, cabW: 960, cabH: 540, depth: 79.5, resW: 640, resH: 360,
     brightnessPeak: 1600, brightnessReduced: 800, refreshHz: 3840, ovd_m: 5.2,
     weight: 11.8, maxPower: 360, typicalPower: 117, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-SNOWJMU', cabinetPart: 'LH015IFRCLS', dataStatus: 'verified' }, // IFR 기본 컨트롤러 SNOWJMU (필요시 CS4B)
+    sbox: 'SBB-SNOWJMU', cabinetPart: 'LH015IFRCLS', dataStatus: 'verified',
+    lifecycle: 'discontinued' }, // IFR 기본 컨트롤러 SNOWJMU (필요시 CS4B). 단종 — 후속은 IF015R-M(오너 2026-09-29). 기본 목록에서 숨김, '+ 기존 모델 추가'로 불러올 수 있음
   // IF020R 전력·부품번호: IFR 브로셔(2022) 기준(최대 260W/평균 87W). 무게는 null 유지 —
   //   IFR 브로셔가 전 모델을 12.4kg로 일괄표기(IF015R 실측 11.8과 불일치)라 신뢰 낮음, 실측 확보 시 입력.
   { id: 'IF020R', name: 'IF020R', category: 'Indoor', series: 'IF',
@@ -118,13 +119,14 @@ export const MODELS = [
 
   // ---- MM series (MMF, cabinet 600 x 337.5) ----
   // MM009F/012F/015F CONFIRMED via Samsung configurator export (2026-07-24) — 밝기 최대 600 nit.
-  //   무게 5.1kg/캐비닛 공통. 최대전력/평균전력(W/캐비닛): 009F 94.6/37, 012F 92.8/41.5, 015F 94.6/37.
-  //   (주의: 이전 세일즈 시트의 009F 423.47 W/m^2 → 85.8W 는 오류였고, 공식 export 기준 94.6W 로 정정.)
+  //   무게 5.1kg/캐비닛 공통. 최대전력/평균전력(W/캐비닛): 009F 85.8/55, 012F 92.8/41.5, 015F 94.6/37.
+  //   MM009F 전력: 삼성 configurator export는 94.6/37W였으나, 오너 결정(2026-09-29, DEC-152)으로
+  //   통합 LED 사양서 값 85.8/55W(423.5/271.5 W/m²)를 기준으로 쓴다. configurator와 달라 'derived'.
   { id: 'MM009F', name: 'MM009F', category: 'Indoor', series: 'MM',
     pitch: 0.9375, cabW: 600, cabH: 337.5, depth: 49.8, resW: 640, resH: 360,
     brightnessPeak: 600, brightnessReduced: null, refreshHz: 3840, ovd_m: 3.2,
-    weight: 5.1, maxPower: 94.6, typicalPower: 37, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH009MMFRGS', dataStatus: 'verified' }, // export 12x6: 367.2kg/72, 6811.2W, typ 2664W
+    weight: 5.1, maxPower: 85.8, typicalPower: 55, maxInputW: 3840, maxInputH: 2160,
+    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH009MMFRGS', dataStatus: 'derived' }, // 사양서 기준. (참고: configurator export 12x6 = 6811.2W / typ 2664W)
   { id: 'MM012F', name: 'MM012F', category: 'Indoor', series: 'MM',
     pitch: 1.25, cabW: 600, cabH: 337.5, depth: 49.8, resW: 480, resH: 270,
     brightnessPeak: 600, brightnessReduced: null, refreshHz: 3840, ovd_m: 4.3,
