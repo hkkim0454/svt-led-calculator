@@ -103,11 +103,18 @@ export const MODELS = [
   // ---- IEA-E series (IEA 후속, cabinet 960 x 540) — 기본 컨트롤러 SBB-CS4FPGS(CS4F, 동선 전송). ----
   //   삼성 IEA-E 사양시트(2026-09-10, "Before finalizing spec"=잠정). IEA 대비 평균전력↑(127W)·명암비/HDR10+ 개선.
   //   밝기 Peak는 확정 전(-)→null, 상시(Max) 600nit. Visual Refresh N/A. 확정 시 dataStatus 'verified'로 갱신.
+  //   2026-09-29 통합 LED 사양서(IEA/IFR/MMF/MPF/S-Box 시트, '신규 운영') 반영: IE015A-E 무게 11.8→12.4kg,
+  //   IE020A-E 신규. 삼성 configurator 대조 전이므로 'derived' 유지. ovd_m은 같은 피치 IEA 값.
   { id: 'IE015AE', name: 'IE015A-E', category: 'Indoor', series: 'IEE',
     pitch: 1.5, cabW: 960, cabH: 540, depth: 79.5, resW: 640, resH: 360,
     brightnessPeak: null, brightnessReduced: 600, refreshHz: 3840, ovd_m: 5.2,
-    weight: 11.8, maxPower: 190, typicalPower: 127, maxInputW: 3840, maxInputH: 2160,
-    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH015IEAELS', dataStatus: 'derived' }, // IEA-E 잠정 사양(spec 확정 전). CS4F 동선 컨트롤러
+    weight: 12.4, maxPower: 190, typicalPower: 127, maxInputW: 3840, maxInputH: 2160,
+    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH015IEAELS', dataStatus: 'derived' }, // IEA-E. 367/244 W/m². CS4F 동선 컨트롤러
+  { id: 'IE020AE', name: 'IE020A-E', category: 'Indoor', series: 'IEE',
+    pitch: 2.0, cabW: 960, cabH: 540, depth: 79.5, resW: 480, resH: 270,
+    brightnessPeak: null, brightnessReduced: 600, refreshHz: 3840, ovd_m: 7.0,
+    weight: 12.4, maxPower: 177, typicalPower: 118, maxInputW: 3840, maxInputH: 2160,
+    sbox: 'SBB-CS4FPGS', cabinetPart: 'LH020IEAELS', dataStatus: 'derived' }, // IEA-E. 341/228 W/m², SMD 1515 GOB. CS4F 동선 컨트롤러
 
   // ---- MM series (MMF, cabinet 600 x 337.5) ----
   // MM009F/012F/015F CONFIRMED via Samsung configurator export (2026-07-24) — 밝기 최대 600 nit.
@@ -130,6 +137,20 @@ export const MODELS = [
     brightnessPeak: 600, brightnessReduced: null, refreshHz: 3840, ovd_m: 5.4,
     weight: 5.1, maxPower: 94.6, typicalPower: 37, maxInputW: 3840, maxInputH: 2160,
     sbox: 'SBB-CS4BPGS', cabinetPart: 'LH015MMFRGS', dataStatus: 'verified' }, // cross-checked vs Samsung export (10x10)
+
+  // ---- MMF-S (MMF 후속, cabinet 600 x 337.5 x 49.5) — MMF 라인(series 'MM')에 포함, 컨트롤러 CS4B(광). ----
+  //   2026-09-29 통합 LED 사양서 MMF 시트 '신규 운영'. 밝기 800/600nit(Peak/Max), Visual Refresh 7,680Hz.
+  //   같은 시트의 MM009F 전력이 configurator 검증값과 달라 이 시트는 미검증 → 'derived'. ovd_m은 같은 피치 MMF 값.
+  { id: 'MM012FS', name: 'MM012F-S', category: 'Indoor', series: 'MM',
+    pitch: 1.25, cabW: 600, cabH: 337.5, depth: 49.5, resW: 480, resH: 270,
+    brightnessPeak: 800, brightnessReduced: 600, refreshHz: 3840, ovd_m: 4.3,
+    weight: 5.2, maxPower: 89, typicalPower: 59, maxInputW: 3840, maxInputH: 2160,
+    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH012MMFYGS', dataStatus: 'derived' }, // 439/291 W/m²
+  { id: 'MM015FS', name: 'MM015F-S', category: 'Indoor', series: 'MM',
+    pitch: 1.5625, cabW: 600, cabH: 337.5, depth: 49.5, resW: 384, resH: 216,
+    brightnessPeak: 800, brightnessReduced: 600, refreshHz: 3840, ovd_m: 5.4,
+    weight: 5.2, maxPower: 83, typicalPower: 55, maxInputW: 3840, maxInputH: 2160,
+    sbox: 'SBB-CS4BPGS', cabinetPart: 'LH015MMFYGS', dataStatus: 'derived' }, // 408/271 W/m²
 
   // (Outdoor IB series removed 2026-07-24 — discontinued by Samsung.)
 ];

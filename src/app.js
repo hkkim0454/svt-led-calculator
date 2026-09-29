@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=276';
+import { MODELS } from './models.js?v=457';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
