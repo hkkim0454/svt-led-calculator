@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=460';
+import { MODELS } from './models.js?v=461';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -9,17 +9,17 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=456';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=461';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=456';
-import { createViewerGL } from './render3d-gl.js?v=456';
-import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=456';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=456';
-import { normalizeDesign, designsFor } from './room-design.js?v=456';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=456';
-import { sideMonitorLayout } from './monitors.js?v=456';
-import { ledImageFit } from './led-image.js?v=456';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=456';
+} from './room-presets.js?v=461';
+import { createViewerGL } from './render3d-gl.js?v=461';
+import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=461';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=461';
+import { normalizeDesign, designsFor } from './room-design.js?v=461';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=461';
+import { sideMonitorLayout } from './monitors.js?v=461';
+import { ledImageFit } from './led-image.js?v=461';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=461';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -289,6 +289,7 @@ let view3dOpts = { fov: FOV_RANGE.default, topPerspective: true };
 let render3dMode = DEFAULT_RENDER_MODE;
 const pv3dShow = {
   person: true, dims: true, grid: true, accentWall: true, ceiling: false, viewAngle: false,
+  seats: true, desks: true,   // 좌석 · 책상(테이블) 그림 표시 — 끄면 그림에서만 뺀다(오너 2026-10-01)
   // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 2면 —
   //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
   walls: { front: true, back: false, left: true, right: false },
@@ -1126,7 +1127,7 @@ function buildInspector() {
   s3.body.appendChild(buildWallToggles());
   for (const sel of ['[data-t3d="person"]', '#person3dSel', '[data-t3d="dims"]',
                      '[data-t3d="grid"]', '[data-t3d="accentWall"]', '[data-t3d="ceiling"]',
-                     '[data-t3d="viewAngle"]']) {
+                     '[data-t3d="viewAngle"]', '[data-t3d="seats"]', '[data-t3d="desks"]']) {
     const el = bar?.querySelector(sel);
     if (el) s3.body.appendChild(el);
   }

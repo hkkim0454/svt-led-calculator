@@ -18,17 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=456';
-import { createMaterialLibrary } from './materials-gl.js?v=456';
-import { MOODS } from './materials.js?v=456';
-import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=456';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=461';
+import { createMaterialLibrary } from './materials-gl.js?v=461';
+import { MOODS } from './materials.js?v=461';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=461';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
   stageWashForDesign,
-} from './design-lighting.js?v=456';
-import { ledImageFit } from './led-image.js?v=456';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=456';
+} from './design-lighting.js?v=461';
+import { ledImageFit } from './led-image.js?v=461';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=461';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -36,8 +36,8 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-  CONTROLS_MAX_POLAR,
-} from './gl-model.js?v=456';
+  CONTROLS_MAX_POLAR, drawnItems,
+} from './gl-model.js?v=461';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -187,7 +187,7 @@ function buildRoomGroup(model, shared) {
   const { room, led, stage } = model;
   // 가구(좌석·통로·테이블 등)는 room-presets 배치를 그대로 세운다 — 여기서 새로 계산하지 않는다.
   const rmode = renderMode(model.renderMode);
-  const furniture = buildFurnitureGroup(model.items, { textureScale: rmode.texture, designId: model.design });
+  const furniture = buildFurnitureGroup(drawnItems(model), { textureScale: rmode.texture, designId: model.design });
   const ownedTex = [];   // 이 Group만 쓰는 텍스처(공용 텍스처와 달리 여기서 반납한다)
   const g = new THREE.Group();
   g.name = 'roomGroup';
@@ -716,6 +716,7 @@ export function createViewerGL(canvas, { onError } = {}) {
   //   '맞춤'이나 프리셋을 다시 고르면 프리셋 자리로 돌아온다.
   let controls = null;
   let userMoved = false;   // 사용자가 직접 돌렸는지 — 리사이즈 때 시점을 지켜 주기 위해
+  let customPose = false;  // 저장해 둔 시점(applyPose)을 보고 있는지 — 방 크기가 바뀌어도 그 시점을 지킨다
 
   function makeControls(cam) {
     const c = new OrbitControls(cam, canvas);
@@ -1075,6 +1076,7 @@ export function createViewerGL(canvas, { onError } = {}) {
     };
     applyControlLimits(p.id);
     userMoved = false;
+    customPose = false;
 
     if (!animate) { finishPreset(to); return; }
     tween = { t0: (typeof performance !== 'undefined' ? performance.now() : Date.now()), dur: TRANSITION_MS, from: snapshot(), to };
@@ -1225,8 +1227,11 @@ export function createViewerGL(canvas, { onError } = {}) {
       renderer.shadowMap.enabled = renderMode(model.renderMode).shadows;
       // 장면이 새로 지어졌으니 그림자를 한 번만 다시 굽는다(매 프레임이 아니다).
       renderer.shadowMap.needsUpdate = true;
-      // 방이나 LED가 달라졌으면 카메라를 다시 앉힌다(같으면 보던 시점을 지킨다).
-      if (first || !sameRoom) applyPreset(presetId, { animate: !first });
+      // 방이나 LED가 달라졌을 때(오너 2026-10-01):
+      //   직접 돌려 둔 시점이나 저장한 시점을 보고 있으면 **그대로 둔다** — 숫자를 고칠 때마다
+      //   화면이 정면으로 되돌아가지 않게. 손대지 않았으면 새 크기에 맞춰 **움직임 없이** 다시 맞춘다.
+      //   어긋나 보이면 '맞춤'(fitView)이 지금 프리셋 자리로 다시 앉힌다.
+      if (first || (!sameRoom && !userMoved && !customPose)) applyPreset(presetId, { animate: false });
       needsRender = true;
       const { w, h } = size();
       labels.update(model, camera, w, h);
@@ -1295,6 +1300,7 @@ export function createViewerGL(canvas, { onError } = {}) {
       // 저장한 시점은 방 밖·위에서 본 것일 수 있으므로 회전 제한을 풀어 둔다.
       applyControlLimits('iso');
       userMoved = false;
+      customPose = true;
       if (!animate) { finishPreset(to); return; }
       tween = {
         t0: (typeof performance !== 'undefined' ? performance.now() : Date.now()),

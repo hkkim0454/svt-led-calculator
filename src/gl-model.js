@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=456';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=456';
+import { floorFinishFor, moodFor } from './materials.js?v=461';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=461';
 
-import { cameraPlanForDesign } from './design-camera.js?v=456';
-import { controlWallPlan } from './control-walls.js?v=456';
+import { cameraPlanForDesign } from './design-camera.js?v=461';
+import { controlWallPlan } from './control-walls.js?v=461';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -258,6 +258,9 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
       accentWall: show?.accentWall !== false,
       // 천장 — 꺼 두면 실내 시점에서도 감춘다(켜도 아이소·평면도에는 생기지 않는다).
       ceiling: show?.ceiling !== false,
+      // 좌석 · 책상(테이블) — 꺼 두면 그림에서만 뺀다. 배치·좌석 수·카메라 구도는 그대로다(오너 2026-10-01).
+      seats: show?.seats !== false,
+      desks: show?.desks !== false,
       // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 벽 2면만 —
       //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
       walls: {
@@ -305,6 +308,8 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
     stage: stageItem ? {
       x: u(stageItem.x), z: u(stageItem.z),
       w: u(stageItem.w), d: u(stageItem.d), h: u(stageItem.h || 280),
+      // 무대 계단 켜기·끄기(공간 옵션 '무대 계단'). 빠뜨리면 렌더러가 늘 계단을 세운다.
+      step: stageItem.step !== false,
     } : null,
   };
 }
@@ -322,6 +327,19 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
 //   '카메라에서 보이는 옆벽'에 칠하면 시점을 돌릴 때 벽이 좌↔우로 옮겨 다닌다.
 //   실제로 칠해 둔 벽은 그럴 수 없다. 이 값은 카메라와 무관한 상수다.
 export const ACCENT_WALL_SIDE = 'left';
+
+// 표시 토글 '좌석' · '책상'이 가리는 가구 종류. 앉은 사람(seated)은 좌석과 함께 사라진다.
+//   책상 위의 개인 모니터·키보드도 책상과 함께 뺀다(허공에 뜨지 않게).
+export const SEAT_ITEM_TYPES = Object.freeze(new Set(['chair', 'seat', 'seated', 'stool', 'lounge']));
+export const DESK_ITEM_TYPES = Object.freeze(new Set(['table', 'desk', 'console', 'highTable', 'collabTable', 'monitor', 'keyboard']));
+
+/** 그릴 가구만 고른다. 배치(model.items)는 그대로 두고 그림에 넘길 목록만 거른다. */
+export function drawnItems(model) {
+  const items = model?.items || [];
+  const hideSeats = model?.show?.seats === false, hideDesks = model?.show?.desks === false;
+  if (!hideSeats && !hideDesks) return items;
+  return items.filter(it => !(hideSeats && SEAT_ITEM_TYPES.has(it?.type)) && !(hideDesks && DESK_ITEM_TYPES.has(it?.type)));
+}
 
 // ── 방 껍데기(Room Shell) 치수 ───────────────────────────────────────────────
 // 벽 두께는 화면에서 입력받는다(기본 100mm, config.js). 아래는 그에 딸린 부속 치수다.

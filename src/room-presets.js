@@ -54,9 +54,9 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=456';
-import { conferenceAVItems } from './conference-av.js?v=456';
-import { controlAVItems } from './control-av.js?v=456';
+import { isOccupied } from './viewangle.js?v=461';
+import { conferenceAVItems } from './conference-av.js?v=461';
+import { controlAVItems } from './control-av.js?v=461';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -144,9 +144,23 @@ export function auditoriumStageRule(typeId) {
  * @param ledBottom LED 화면 아래까지의 높이(mm). 무대는 이보다 낮아야 한다.
  * @returns {{w, d, h}} 또는 null(강당이 아닐 때)
  */
-export function auditoriumStageSize(typeId, W, ledW = 0, ledBottom = 1000) {
+export function auditoriumStageSize(typeId, W, ledW = 0, ledBottom = 1000, ask = {}) {
   const R = auditoriumStageRule(typeId);
   if (!R) return null;
+  const auto = autoStageSize(R, W, ledW, ledBottom);
+  // 사용자가 넣은 값(0 = 자동). 폭은 방 안에, 높이는 LED 화면 아래 여유(AUDITORIUM_STAGE_LED_CLEAR)
+  //   안에 들어오게만 자른다. 깊이는 방 깊이의 절반을 넘지 않게 한다(객석 자리를 남긴다).
+  const aw = int(ask.w, 0), ad = int(ask.d, 0), ah = int(ask.h, 0);
+  const bottom = Number.isFinite(ledBottom) ? ledBottom : 1000;
+  const D = Number(ask.D) > 0 ? Number(ask.D) : Infinity;
+  return {
+    w: aw > 0 ? clamp(aw, 1000, Math.max(1000, W)) : auto.w,
+    d: ad > 0 ? clamp(ad, 500, Math.max(500, Math.min(10000, D / 2))) : auto.d,
+    h: ah > 0 ? clamp(ah, 120, Math.max(120, bottom - AUDITORIUM_STAGE_LED_CLEAR)) : auto.h,
+  };
+}
+
+function autoStageSize(R, W, ledW, ledBottom) {
   const maxW = Math.max(1000, W - R.minSideMargin * 2);
   // LED 화면보다 좌우로 더 넓어야 한다. 방이 좁아 둘 다 만족할 수 없으면 벽 여백이 이긴다.
   const needW = ledW > 0 ? ledW + R.ledMargin * 2 : 0;
@@ -314,6 +328,8 @@ export const ROOM_TYPES = Object.freeze([
         ] },
       { key: 'rows', label: '책상 줄 수', type: 'number', default: 4, min: 1, max: 20 },
       { key: 'cols', label: '줄당 책상 수', type: 'number', default: 4, min: 1, max: 20 },
+      // 1열 거리 — LED 벽에서 첫 줄 의자 중심까지(mm). 0 = 자동(LED 앞 여유 frontClear 기준).
+      { key: 'firstRow', label: '1열 거리 (mm, 0=자동)', type: 'number', default: 0, min: 0, max: 30000 },
       { key: 'aisle', label: '가운데 통로', type: 'toggle', default: true },
       { key: 'podium', label: '강사 영역(교탁·강사석)', type: 'toggle', default: true },
       { key: 'plant', label: '화분', type: 'toggle', default: false },
@@ -368,8 +384,14 @@ function hallOptions(size, twoAisles) {
     { key: 'seatsPerRow', label: '줄당 좌석 수 (0=자동)', type: 'number', default: 0, min: 0, max: 60 },
     { key: 'aisles', label: '통로', type: 'select', default: twoAisles ? '2' : '1',
       choices: [{ value: '0', label: '없음' }, { value: '1', label: '가운데 1개' }, { value: '2', label: '양쪽 2개' }] },
+    // 1열 거리 — LED 벽에서 첫 줄 좌석 중심까지(mm). 0 = 자동(크기별 규칙 firstRowZ).
+    { key: 'firstRow', label: '1열 거리 (mm, 0=자동)', type: 'number', default: 0, min: 0, max: 30000 },
     { key: 'stage', label: '무대(단상)', type: 'toggle', default: true },
     { key: 'stageStep', label: '무대 계단', type: 'toggle', default: true },
+    // 무대 크기(mm). 0 = 자동(AUDITORIUM_STAGE 규칙). 높이는 LED 화면 아래 여유 안으로 잘린다.
+    { key: 'stageW', label: '무대 가로 (mm, 0=자동)', type: 'number', default: 0, min: 0, max: 60000 },
+    { key: 'stageD', label: '무대 깊이 (mm, 0=자동)', type: 'number', default: 0, min: 0, max: 10000 },
+    { key: 'stageH', label: '무대 높이 (mm, 0=자동)', type: 'number', default: 0, min: 0, max: 2000 },
     // 객석 단차(계단식 좌석). 단 수 1 = 평평한 바닥, **0 = 자동**(줄 수에 맞춰 정한다).
     //   뒷줄로 갈수록 한 단씩 올라가 앞사람 머리에 시야가 가리지 않게 한다.
     { key: 'tiers', label: '객석 단 수 (0=자동)', type: 'number', default: 0, min: 0, max: 20 },
@@ -690,6 +712,7 @@ function layoutLooseChairs(seats, W, D, items) {
 }
 
 // ── 강의실 ──────────────────────────────────────────────────────────────────
+const CLASS_CHAIR_BACK = 750;   // 책상 중심 → 의자 중심(mm)
 function layoutClassroom(o, W, D) {
   const F = FURNITURE;
   const items = [], notes = [];
@@ -700,8 +723,18 @@ function layoutClassroom(o, W, D) {
   const pitchX = twin ? F.deskPitchX2 : F.deskPitchX;
   const perDesk = twin ? 2 : 1;
 
+  // 첫 줄 책상 중심. 의자는 책상 뒤 750mm 에 앉으므로 '1열 거리(의자 중심)'에서 750 을 뺀다.
+  //   강사 영역이 있으면 LED 앞 여유(frontClear) 안으로는 당기지 않는다.
+  const autoDeskZ = F.frontClear + F.deskPitchZ / 2;
+  const askFirst = int(o.firstRow, 0);
+  const minDeskZ = o.podium ? F.frontClear : F.deskD / 2 + 600;
+  const maxDeskZ = Math.max(minDeskZ, D - F.wallClear - F.deskPitchZ / 2);
+  const deskZ0 = askFirst > 0 ? clamp(askFirst - CLASS_CHAIR_BACK, minDeskZ, maxDeskZ) : autoDeskZ;
+  if (askFirst > 0 && deskZ0 + CLASS_CHAIR_BACK !== askFirst) {
+    notes.push(`1열 거리를 방 크기·강사 영역에 맞춰 ${deskZ0 + CLASS_CHAIR_BACK}mm로 맞췄습니다.`);
+  }
   const maxCols = Math.max(1, fitCount(W - F.wallClear * 2 - aisle, pitchX));
-  const maxRows = Math.max(1, fitCount(D - F.frontClear - F.wallClear, F.deskPitchZ));
+  const maxRows = Math.max(1, fitCount(D - (deskZ0 - F.deskPitchZ / 2) - F.wallClear, F.deskPitchZ));
   const cols = clamp(o.cols, 1, maxCols), rows = clamp(o.rows, 1, maxRows);
   if (cols < o.cols || rows < o.rows) notes.push(`방 크기에 맞춰 ${cols}열 × ${rows}줄로 줄였습니다.`);
 
@@ -709,14 +742,14 @@ function layoutClassroom(o, W, D) {
   const x0 = W / 2 - blockW / 2 + pitchX / 2;
   const half = Math.ceil(cols / 2);
   for (let r = 0; r < rows; r++) {
-    const z = F.frontClear + F.deskPitchZ / 2 + r * F.deskPitchZ;
+    const z = deskZ0 + r * F.deskPitchZ;
     for (let c = 0; c < cols; c++) {
       const x = x0 + c * pitchX + (o.aisle && c >= half ? aisle : 0);
       items.push({ type: 'desk', x, z, rotY: 0, w: deskW, d: F.deskD });
       // 강의용 의자 — 가구 자산만 지정한다(좌표·개수 계산은 그대로).
       //   2인용이면 책상 한 대 뒤에 두 자리를 좌우로 벌려 앉힌다.
       const seats = twin ? [-F.deskSeatDx, F.deskSeatDx] : [0];
-      for (const dx of seats) items.push({ ...chairAt(x + dx, z + 750, x + dx, z), asset: 'trainingChair' });
+      for (const dx of seats) items.push({ ...chairAt(x + dx, z + CLASS_CHAIR_BACK, x + dx, z), asset: 'trainingChair' });
     }
   }
   // 강사 영역 — 교탁 + 강사석. 둘 다 수강생을 바라본다(rotY 180).
@@ -885,7 +918,8 @@ function layoutHall(o, W, D, typeId = 'hall_s') {
   const aisleTotal = nAisle * P.aisleW;
   // 무대 — 크기별 규칙(AUDITORIUM_STAGE)이 폭·깊이·높이를 정한다(PHASE 9-c).
   //   폭은 더 이상 방 폭 100% 가 아니고, 높이는 LED 화면 아래를 침범하지 않게 잘린다.
-  const 무대 = o.stage ? auditoriumStageSize(typeId, W, Math.max(0, int(o.ledW, 0)), int(o.ledBottom, 1000)) : null;
+  const 무대 = o.stage ? auditoriumStageSize(typeId, W, Math.max(0, int(o.ledW, 0)), int(o.ledBottom, 1000),
+    { w: o.stageW, d: o.stageD, h: o.stageH, D }) : null;
   const stageD = 무대 ? 무대.d : 0;
   // 좌석 계산은 깊이(stageD)만 쓴다. step은 계단을 붙일지 여부.
   if (무대) {
@@ -895,7 +929,12 @@ function layoutHall(o, W, D, typeId = 'hall_s') {
 
   // 첫 줄은 크기별 고정값이다. 무대가 깊어지면 '무대 뒷면 + 통행 거리'가 그 값을 밀어낼 때만
   //   뒤로 물러난다(기본 구성에서는 밀리지 않는다 — PHASE 9-b 좌석 위치가 그대로다).
-  const zStart = Math.max(P.firstRowZ, stageD + P.stageClear);
+  //   '1열 거리'를 넣으면 그 값이 크기별 고정값을 대신한다. 무대 뒤 통행 거리와 뒤 벽 한 줄 자리는 지킨다.
+  const askFirst = int(o.firstRow, 0);
+  const minFirst = stageD + P.stageClear;
+  const maxFirst = Math.max(minFirst, D - F.wallClear - P.pitchZ / 2);
+  const zStart = askFirst > 0 ? clamp(askFirst, minFirst, maxFirst) : Math.max(P.firstRowZ, minFirst);
+  if (askFirst > 0 && zStart !== askFirst) notes.push(`1열 거리를 방·무대 크기에 맞춰 ${zStart}mm로 맞췄습니다.`);
   const maxPerRow = Math.max(1, fitCount(W - F.wallClear * 2 - aisleTotal, P.pitchX));
   const maxRows = Math.max(1, fitCount(D - zStart - F.wallClear, P.pitchZ));
   // 0 = 자동. 줄 수는 뒤 여유 목표로, 줄당 좌석 수는 '자동 좌석 상한 ÷ 줄 수'로 정한다.
