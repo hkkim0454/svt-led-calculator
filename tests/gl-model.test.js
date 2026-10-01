@@ -348,14 +348,15 @@ test('프리셋 — 아주 작은 방·아주 깊은 강당에서도 카메라�
 
 // ── 벽 4면 표시 (오너 요청 2026-09-16) ──────────────────────────────────────
 
-test('벽면 — 기본은 LED 벽 + 왼쪽 2면만 켜진다', () => {
+test('벽면 — 기본은 LED 벽 + 오른쪽 2면만 켜진다 (DEC-156, 상황실 디자인만 왼쪽)', () => {
   const m = buildGLModel({
     space: { W: 10000, H: 3500, D: 10000 },
     led: { w: 3840, h: 2160, marginW: 3080, mount: 1000, cols: 4, rows: 4, depth: 79.5 },
     items: [],
   });
   // 카메라 쪽 벽이 없어야 방 안이 들여다보인다
-  assert.deepEqual(m.show.walls, { front: true, back: false, left: true, right: false });
+  assert.deepEqual(m.show.walls, { front: true, back: false, left: false, right: true });
+  assert.equal(m.accentSide, 'right');
 });
 
 test('벽면 — 4면을 각각 켜고 끌 수 있다', () => {
@@ -371,9 +372,9 @@ test('벽면 — 4면을 각각 켜고 끌 수 있다', () => {
   assert.deepEqual(make({ front: false, back: false, left: false, right: false }),
     { front: false, back: false, left: false, right: false });
   // 일부만 지정하면 나머지는 기본값
-  assert.deepEqual(make({ right: true }), { front: true, back: false, left: true, right: true });
+  assert.deepEqual(make({ left: true }), { front: true, back: false, left: true, right: true });
   // show 자체가 없어도 안전하다
-  assert.deepEqual(make(undefined), { front: true, back: false, left: true, right: false });
+  assert.deepEqual(make(undefined), { front: true, back: false, left: false, right: true });
 });
 
 

@@ -326,7 +326,11 @@ test('아이소·평면도 — 실제 좌표·화각이 PHASE 2-d.1 과 똑같�
   const m = modelFor(...ROOMS[1].slice(1));
   const iso = presetPose('iso', m, 1.24, {});
   assert.equal(iso.fov, 30);
-  assert.deepEqual(iso.position.map(v => +v.toFixed(3)), [18.47, 15.132, 23.795]);
+  //   2026-10-01(DEC-156): 기본 옆벽이 오른쪽이 되어 카메라가 **왼쪽 뒤**로 옮겼다(x 를 target 기준으로 뒤집은 값).
+  //   왼쪽 벽만 켜면 예전 자리 그대로다.
+  assert.deepEqual(iso.position.map(v => +v.toFixed(3)), [+(5 - (18.47 - 5)).toFixed(3), 15.132, 23.795]);
+  const leftWall = { ...m, show: { ...m.show, walls: { front: true, back: false, left: true, right: false } } };
+  assert.deepEqual(presetPose('iso', leftWall, 1.24, {}).position.map(v => +v.toFixed(3)), [18.47, 15.132, 23.795]);
   assert.deepEqual(iso.target.map(v => +v.toFixed(3)), [5, 1.225, 3.825]);
   const top = presetPose('top', m, 1.24, {});
   assert.equal(top.ortho, true);

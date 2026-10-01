@@ -18,17 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=461';
-import { createMaterialLibrary } from './materials-gl.js?v=461';
-import { MOODS } from './materials.js?v=461';
-import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=461';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=462';
+import { createMaterialLibrary } from './materials-gl.js?v=462';
+import { MOODS } from './materials.js?v=462';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=462';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
   stageWashForDesign,
-} from './design-lighting.js?v=461';
-import { ledImageFit } from './led-image.js?v=461';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=461';
+} from './design-lighting.js?v=462';
+import { ledImageFit } from './led-image.js?v=462';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=462';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -37,7 +37,7 @@ import {
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
   CONTROLS_MAX_POLAR, drawnItems,
-} from './gl-model.js?v=461';
+} from './gl-model.js?v=462';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -292,7 +292,7 @@ function buildRoomGroup(model, shared) {
   //   윗면·바깥면까지 칠하면 흰 벽과 만나는 모서리에서 색이 끊겨 보인다(기존 3D 뷰 DEC-058과 같은 이유).
   //   BoxGeometry 면 순서: +X, −X, +Y, −Y, +Z, −Z
   const sideMat = side => {
-    const isAccent = accentOn && side === ACCENT_WALL_SIDE;
+    const isAccent = accentOn && side === (model.accentSide || ACCENT_WALL_SIDE);
     if (!isAccent) return matWallSide;
     if (!thk) return matAccent;
     const inner = side === 'left' ? 0 : 1;   // 왼쪽 벽은 +X면이, 오른쪽 벽은 −X면이 방 안쪽

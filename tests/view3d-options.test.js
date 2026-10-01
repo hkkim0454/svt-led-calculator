@@ -1,10 +1,12 @@
 // view3d-options.test.js — 3D 뷰 옵션 회귀 테스트 (오너 요청 2026-10-01, DEC-155).
 //   ① 무대 계단 토글이 3D 장면까지 전달된다  ② 좌석·책상 숨기기는 그림에서만 뺀다
 //   ③ 1열 거리(강의실·강당)  ④ 강당 무대 크기(가로·깊이·높이)  ⑤ 방 크기를 바꿔도 돌려 둔 시점을 지킨다
+//   ⑥ 벽면 기본 앞+우 · 아이소 카메라는 켜진 옆벽 반대편 (DEC-156)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildGLModel, drawnItems, SEAT_ITEM_TYPES, DESK_ITEM_TYPES } from '../src/gl-model.js';
+import { buildGLModel, drawnItems, SEAT_ITEM_TYPES, DESK_ITEM_TYPES, defaultWalls, featureWallSide, presetPose } from '../src/gl-model.js';
+import { ROOM_DESIGNS } from '../src/room-design.js';
 import { layoutRoom, defaultOptions, auditoriumStageSize, AUDITORIUM_SEATING, AUDITORIUM_STAGE } from '../src/room-presets.js';
 
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
@@ -96,4 +98,29 @@ test('⑤ 방 크기가 바뀌어도 돌려 둔 시점·저장한 시점은 지�
   assert.match(s, /userMoved = false;\n\s*customPose = false;/);
   // '맞춤'은 언제든 지금 프리셋 자리로 다시 앉힌다.
   assert.match(s, /fitView\(\) \{ applyPreset\(presetId\); \}/);
+});
+
+// ── DEC-156 — 벽면 기본값 앞+우 · 포인트 벽 오른쪽 · 아이소 카메라는 켜진 옆벽 반대편 ──
+
+test('⑥ 기본 벽은 앞+우, 상황실 디자인만 앞+좌(흡음벽 쪽)다', () => {
+  for (const d of [null, ...Object.keys(ROOM_DESIGNS)]) {
+    const side = d === 'controlRoom' ? 'left' : 'right';
+    assert.equal(featureWallSide(d), side, String(d));
+    assert.deepEqual(defaultWalls(d), { front: true, back: false, left: side === 'left', right: side === 'right' }, String(d));
+    const m = buildGLModel({ space: { W: 10000, H: 3400, D: 10000 }, led, items: [], design: d });
+    assert.equal(m.accentSide, side, `${d}: 포인트 벽`);
+    assert.deepEqual(m.show.walls, defaultWalls(d), `${d}: 모델 기본 벽`);
+  }
+  // 화면도 같은 한 곳(defaultWalls)에서 기본값을 받고, 디자인이 바뀌어 기본 쪽이 달라질 때만 되돌린다.
+  assert.match(src('app.js'), /walls: defaultWalls\(designId\),/);
+  assert.match(src('app.js'), /function syncWallsToDesign\(prevDesign, force = false\)/);
+});
+
+test('⑥ 아이소 카메라는 켜진 옆벽의 반대편에 선다 — 벽이 방을 가리지 않는다', () => {
+  const base = { space: { W: 10000, H: 3400, D: 10000 }, led, items: [] };
+  const x = walls => presetPose('iso', buildGLModel({ ...base, show: { walls } }), 1.5, {}).position[0];
+  const W = 10;   // m
+  assert.ok(x({ left: false, right: true }) < 0, '오른쪽 벽만 켜면 왼쪽 바깥에서 본다');
+  assert.ok(x({ left: true, right: false }) > W, '왼쪽 벽만 켜면 오른쪽 바깥에서 본다(예전 자리)');
+  assert.ok(x({ left: true, right: true }) > W, '양쪽이면 예전 자리');
 });

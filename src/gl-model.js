@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=461';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=461';
+import { floorFinishFor, moodFor } from './materials.js?v=462';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=462';
 
-import { cameraPlanForDesign } from './design-camera.js?v=461';
-import { controlWallPlan } from './control-walls.js?v=461';
+import { cameraPlanForDesign } from './design-camera.js?v=462';
+import { controlWallPlan, wantsControlWalls, ACOUSTIC_WALL_SIDE } from './control-walls.js?v=462';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -263,12 +263,12 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
       desks: show?.desks !== false,
       // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 벽 2면만 —
       //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
-      walls: {
-        front: show?.walls?.front !== false,
-        back: !!show?.walls?.back,
-        left: show?.walls?.left !== false,
-        right: !!show?.walls?.right,
-      },
+      //   적지 않은 면은 그 공간의 기본값(defaultWalls)을 따른다.
+      walls: (() => {
+        const d = defaultWalls(design || null), w = show?.walls || {};
+        const pick = k => (typeof w[k] === 'boolean' ? w[k] : d[k]);
+        return { front: pick('front'), back: pick('back'), left: pick('left'), right: pick('right') };
+      })(),
     },
     // 바닥 마감 — 공간 타입이 정한다(강의실만 비닐, 나머지는 카펫).
     //   재질 수치는 materials.js에 있고 여기서는 '어떤 마감인지'만 고른다.
@@ -305,6 +305,8 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
     },
     // 방 안에 따로 서는 칸막이. 방 껍데기(벽)를 대신하지 않는다 — 벽 토글과 무관하다.
     partitions: partitionsOf(space, design || null, items),
+    // 포인트(마감) 벽이 붙는 옆벽 — 'left' | 'right'. 렌더러는 이 값만 본다.
+    accentSide: featureWallSide(design || null),
     stage: stageItem ? {
       x: u(stageItem.x), z: u(stageItem.z),
       w: u(stageItem.w), d: u(stageItem.d), h: u(stageItem.h || 280),
@@ -323,10 +325,20 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
 //   corner-r  우측 코너에서
 //   iso       아이소메트릭. 방 전체 구조를 한눈에 보는 배치도(Reference B).
 //   top       평면도. 위에서 내려다본 배치. 여기만 정사투영(원근 없음)을 쓴다.
-// 포인트 벽 — **공간 좌표 기준 왼쪽 벽**에 고정한다(기존 Canvas 뷰 DEC-060과 같은 값).
+// 포인트 벽 · 기본으로 켜 두는 옆벽 — **공간 좌표 기준 한쪽 벽**에 고정한다(카메라와 무관).
 //   '카메라에서 보이는 옆벽'에 칠하면 시점을 돌릴 때 벽이 좌↔우로 옮겨 다닌다.
-//   실제로 칠해 둔 벽은 그럴 수 없다. 이 값은 카메라와 무관한 상수다.
-export const ACCENT_WALL_SIDE = 'left';
+//   실제로 칠해 둔 벽은 그럴 수 없다.
+//   기본은 **오른쪽**이다(오너 2026-10-01, DEC-156). 상황실 디자인만 왼쪽이다 —
+//   흡음벽(왼쪽)·유리 파티션(오른쪽)과 그 벽을 겨눈 제안 카메라가 왼쪽 벽을 전제로 설계됐다.
+export const ACCENT_WALL_SIDE = 'right';
+export function featureWallSide(design) {
+  return wantsControlWalls(design) ? ACOUSTIC_WALL_SIDE : ACCENT_WALL_SIDE;
+}
+/** 처음 켜 두는 벽 — LED 벽 + 그 공간의 포인트 벽. 카메라 쪽 벽이 없어야 방 안이 들여다보인다. */
+export function defaultWalls(design) {
+  const side = featureWallSide(design);
+  return { front: true, back: false, left: side === 'left', right: side === 'right' };
+}
 
 // 표시 토글 '좌석' · '책상'이 가리는 가구 종류. 앉은 사람(seated)은 좌석과 함께 사라진다.
 //   책상 위의 개인 모니터·키보드도 책상과 함께 뺀다(허공에 뜨지 않게).
@@ -628,7 +640,11 @@ export function presetPose(id, model, aspect = 16 / 9, opts = {}) {
   if (p.id === 'iso') {
     // 기본 30°(좁은 화각 = 원근이 약해 아이소메트릭처럼). 사용자가 화각을 바꾸면 같은 비율로 따라간다.
     const fov = clampFov(30 * (clampFov(opts.fov) / FOV_DEG), 30);
-    const yaw = 34 * DEG, pitch = 30 * DEG;    // 30° — 지나친 top-down을 피한다
+    // 카메라는 **켜진 옆벽의 반대편**에 선다 — 그래야 그 벽이 방을 가리지 않고 배경이 된다.
+    //   오른쪽 벽만 켜져 있으면 왼쪽 뒤에서, 그 밖(왼쪽 벽·양쪽·없음)은 예전처럼 오른쪽 뒤에서 본다.
+    const wl = model.show?.walls || {};
+    const fromLeft = !!wl.right && !wl.left;
+    const yaw = (fromLeft ? -34 : 34) * DEG, pitch = 30 * DEG;    // 30° — 지나친 top-down을 피한다
     // 방을 감싸는 구의 반지름으로 거리를 잡으면 어느 방 모양에서도 전체가 들어온다.
     const R = 0.5 * Math.hypot(room.W, room.H, room.D);
     const minFov = Math.min(fov * DEG, hFovOf(fov, a));
