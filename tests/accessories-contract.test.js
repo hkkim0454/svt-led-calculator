@@ -164,9 +164,10 @@ test('⑩ 이번 단계는 소품을 **더하지 않았다** — 새 자산·새
   const 소품자산 = Object.keys(FURNITURE_ASSETS).filter(k => /plant|decor|prop|accessor/i.test(k));
   assert.deepEqual(소품자산, [], `소품 자산이 늘었다: ${소품자산.join(', ')}`);
   // 새 화면 토글을 만들지 않았다 — 소품 관련 토글은 기존 둘(방 옵션 화분 · 3D 사람)뿐이다.
+  //   좌석·책상 토글(2026-10-01 오너 요청)은 가구를 숨기는 표시 토글이라 소품이 아니다.
   const html = src('index.html');
   const t3d = [...html.matchAll(/data-t3d="([^"]+)"/g)].map(m => m[1]).sort();
-  assert.deepEqual([...new Set(t3d)], ['accentWall', 'ceiling', 'dims', 'grid', 'person', 'viewAngle'],
+  assert.deepEqual([...new Set(t3d)], ['accentWall', 'ceiling', 'desks', 'dims', 'grid', 'person', 'seats', 'viewAngle'],
     '3D 표시 토글 구성이 바뀌었다');
 });
 

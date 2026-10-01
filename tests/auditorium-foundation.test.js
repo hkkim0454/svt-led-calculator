@@ -259,8 +259,9 @@ test('⑨ 알려진 결함 ②: 큰 방일수록 LED 가 작아진다 — 방 �
   //   고정한다 — 강당 옵션 어디에도 LED 관련 항목이 없다.
   for (const [t] of 강당) {
     const keys = roomType(t).options.map(o => o.key);
-    assert.deepEqual(keys, ['rows', 'seatsPerRow', 'aisles', 'stage', 'stageStep',
-      'tiers', 'riserH', 'tierStartRow', 'occupancy', 'plant'], `${t}: 옵션 목록이 달라졌다`);
+    // 2026-10-01 오너 요청으로 1열 거리 · 무대 가로/깊이/높이(전부 0 = 자동)가 더해졌다.
+    assert.deepEqual(keys, ['rows', 'seatsPerRow', 'aisles', 'firstRow', 'stage', 'stageStep',
+      'stageW', 'stageD', 'stageH', 'tiers', 'riserH', 'tierStartRow', 'occupancy', 'plant'], `${t}: 옵션 목록이 달라졌다`);
     assert.equal(keys.some(k => /led/i.test(k)), false, `${t}: LED 옵션이 생겼다`);
   }
 });
@@ -340,10 +341,13 @@ test('⑫ 상황실 단차 보호 — 강당과 같은 헬퍼를 쓰므로 여�
 test('⑬ 카메라·조명은 이 단계의 범위 밖이다', () => {
   const s = src('room-presets.js');
   // **PHASE 9-c 에서 바뀐 것.** 무대는 이제 크기별 규칙이 정한다(그전에는 2,600 × 280 고정).
-  assert.match(s, /const 무대 = o\.stage \? auditoriumStageSize\(typeId, W, Math\.max\(0, int\(o\.ledW, 0\)\), int\(o\.ledBottom, 1000\)\) : null;/);
+  //   2026-10-01: 사용자가 넣은 무대 크기(0 = 자동)를 함께 넘긴다.
+  assert.match(s, /const 무대 = o\.stage \? auditoriumStageSize\(typeId, W, Math\.max\(0, int\(o\.ledW, 0\)\), int\(o\.ledBottom, 1000\),\s*\{ w: o\.stageW, d: o\.stageD, h: o\.stageH, D \}\) : null;/);
   assert.match(s, /step: o\.stageStep !== false, variant: 'auditorium'/);
   // 첫 줄 위치는 **무대 깊이와 분리**돼 있다 — 무대가 깊어져도 좌석이 밀리지 않는다.
-  assert.match(s, /const zStart = Math\.max\(P\.firstRowZ, stageD \+ P\.stageClear\);/);
+  //   2026-10-01: '1열 거리'를 넣으면 그 값이 대신한다. 0(자동)이면 예전 식 그대로다.
+  assert.match(s, /const zStart = askFirst > 0 \? clamp\(askFirst, minFirst, maxFirst\) : Math\.max\(P\.firstRowZ, minFirst\);/);
+  assert.match(s, /const minFirst = stageD \+ P\.stageClear;/);
   // 카메라 계획표에 강당이 아직 없다(PHASE 9-d.2 의 몫).
   assert.equal(/hall/i.test(src('design-camera.js')), false, '카메라 층에 강당이 들어갔다');
   assert.equal(/hall/i.test(src('design-lighting.js')), false, '조명 층에 강당이 들어갔다');
