@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=461';
+import { MODELS } from './models.js?v=462';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -9,17 +9,17 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=461';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=462';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=461';
-import { createViewerGL } from './render3d-gl.js?v=461';
-import { buildGLModel, CAMERA_PRESETS, cameraPreset } from './gl-model.js?v=461';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=461';
-import { normalizeDesign, designsFor } from './room-design.js?v=461';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=461';
-import { sideMonitorLayout } from './monitors.js?v=461';
-import { ledImageFit } from './led-image.js?v=461';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=461';
+} from './room-presets.js?v=462';
+import { createViewerGL } from './render3d-gl.js?v=462';
+import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide } from './gl-model.js?v=462';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=462';
+import { normalizeDesign, designsFor } from './room-design.js?v=462';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=462';
+import { sideMonitorLayout } from './monitors.js?v=462';
+import { ledImageFit } from './led-image.js?v=462';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=462';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -290,10 +290,17 @@ let render3dMode = DEFAULT_RENDER_MODE;
 const pv3dShow = {
   person: true, dims: true, grid: true, accentWall: true, ceiling: false, viewAngle: false,
   seats: true, desks: true,   // 좌석 · 책상(테이블) 그림 표시 — 끄면 그림에서만 뺀다(오너 2026-10-01)
-  // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 왼쪽 2면 —
-  //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이).
-  walls: { front: true, back: false, left: true, right: false },
+  // 벽 4면을 각각 켜고 끈다. 기본은 LED 벽 + 그 공간의 포인트 벽 2면(대부분 오른쪽, 상황실은 왼쪽) —
+  //   카메라 쪽 벽이 없어야 방 안이 들여다보인다(컷어웨이). 기본값은 gl-model.defaultWalls 한 곳에서 정한다.
+  walls: defaultWalls(designId),
 };
+// 디자인이 바뀌어 기본 옆벽 쪽이 달라질 때만 벽 토글을 그 기본값으로 되돌린다
+//   (같은 쪽이면 사용자가 눌러 둔 벽을 그대로 둔다).
+function syncWallsToDesign(prevDesign, force = false) {
+  if (!force && featureWallSide(prevDesign) === featureWallSide(designId)) return;
+  pv3dShow.walls = defaultWalls(designId);
+  for (const b of document.querySelectorAll('button[data-t3dwall]')) b.classList.toggle('on', !!pv3dShow.walls[b.dataset.t3dwall]);
+}
 let viewer3d = null;   // createViewerGL() 인스턴스(3D 뷰를 처음 열 때 만든다)
 let gl3dFailed = false;   // WebGL을 쓸 수 없는 환경인지(한 번 실패하면 다시 시도하지 않는다)
 // 사람(스케일 기준 인물): 실사 사진(연예인, 실제 키) + 의상형 실루엣(남/여, 회색 PNG).
@@ -1379,7 +1386,9 @@ $('#roomType')?.addEventListener('change', () => {
   roomTypeId = roomType($('#roomType').value).id;
   roomOpts = defaultOptions(roomTypeId);   // 타입이 바뀌면 그 타입의 기본 옵션으로
   // 디자인도 그 용도의 것으로 다시 정한다 — 회의실 디자인이 강당에 따라붙으면 안 된다.
+  const prevDesign = designId;
   designId = normalizeDesign(designId, roomTypeId);
+  syncWallsToDesign(prevDesign);
   applyAutoLedSize();                      // 강당이면 LED 설치 크기를 방에 맞춘다
   clampLedInputs();
   renderRoomDesigns(); renderRoomOptions(); renderAll();
@@ -1387,7 +1396,9 @@ $('#roomType')?.addEventListener('change', () => {
 
 // 공간 디자인 — 고른 값을 상태에 넣고, 그 디자인에서만 쓰는 옵션(대회의실 테이블 방향)을 다시 그린다.
 $('#roomDesign')?.addEventListener('change', () => {
+  const prevDesign = designId;
   designId = normalizeDesign($('#roomDesign').value, roomTypeId);
+  syncWallsToDesign(prevDesign);
   renderRoomDesigns(); renderRoomOptions(); renderPreview(); saveLastSession();
 });
 
@@ -3143,6 +3154,7 @@ function applyConfig(raw) {
   roomOpts = normalizeOptions(roomTypeId, c.roomOpts);
   // 저장값이 없거나(예전 세션)·모르는 값이거나·용도가 안 맞으면 **그 용도의 기본 디자인**으로.
   designId = normalizeDesign(c.roomDesign, roomTypeId);
+  syncWallsToDesign(null, true);   // 벽 토글은 저장하지 않는다 — 불러온 디자인의 기본값으로
   if ($('#wallThk')) $('#wallThk').value = c.wallThk;
   customViews = Array.isArray(c.customViews) ? c.customViews.map(v => ({ ...v })) : [];
   // 항목이 없는 옛 저장값은 normalizeConfig 이 true 로 채워 준다 — 예전 화면 그대로 복원된다.

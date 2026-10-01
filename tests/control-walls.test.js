@@ -22,7 +22,7 @@ import { roomFinishForDesign, DESIGN_PALETTES } from '../src/design-finish.js';
 import {
   MATERIAL_IDS, MATERIAL_PRESETS, materialParams, renderSemantics, resolveMaterialId,
 } from '../src/materials.js';
-import { buildGLModel, ACCENT_WALL_SIDE } from '../src/gl-model.js';
+import { buildGLModel, ACCENT_WALL_SIDE, featureWallSide, defaultWalls } from '../src/gl-model.js';
 
 const CR = 'controlRoom';
 const src = f => readFileSync(new URL(`../src/${f}`, import.meta.url), 'utf8');
@@ -296,7 +296,10 @@ test('⑲ 어댑터가 깊이 기록만 옮긴다 — 깊이 검사에는 손대
 
 test('⑳ 흡음 마감은 **왼쪽 벽 안쪽 면**에만 붙는다 — 새 벽 형상을 만들지 않았다', () => {
   assert.equal(ACOUSTIC_WALL_SIDE, 'left');
-  assert.equal(ACCENT_WALL_SIDE, 'left', '포인트 벽이 왼쪽에서 옮겨 갔다');
+  //   2026-10-01(DEC-156): 일반 공간의 포인트 벽은 오른쪽으로 옮겼지만 **상황실은 왼쪽 그대로**다.
+  assert.equal(ACCENT_WALL_SIDE, 'right');
+  assert.equal(featureWallSide(CR), 'left', '상황실 포인트(흡음) 벽이 왼쪽에서 옮겨 갔다');
+  assert.deepEqual(defaultWalls(CR), { front: true, back: false, left: true, right: false });
   const room = roomFinishForDesign(CR);
   assert.equal(room.wallAccent.canonical, 'acousticPanel');
   // 나머지 벽은 그대로 도장 벽이다 — 특히 **LED 벽(wallFront)에는 붙이지 않는다**(오너 지침 §3).
