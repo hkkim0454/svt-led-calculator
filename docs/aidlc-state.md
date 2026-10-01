@@ -6,14 +6,17 @@
 - **Project Type**: Greenfield
 - **Start Date**: 2026-07-23
 - **Current Phase**: **PHASE 10 — 제품 전체 시각 통일**(계산기 본체는 CONSTRUCTION, 3D 공간은 릴리스 운용 단계)
-- **Current Stage**: PHASE 9(강당 V1) **완료 · 릴리스 · 동결** → PHASE 10-0 감사 완료 →
-  10-a 문서·배포 기준 **완료·병합**(PR #109) → 10-b 상황실 카메라 **완료·병합**(PR #115) →
-  10-c 아이디에이션 카메라·밝은 면 **완료·병합**(PR #116) → 10-d **부분 수용·병합**(PR #117 —
-  교육장 릴리스 · 대회의실 DEFERRED) → **10-d.1 실현 가능성 감사 완료**(대회의실 HOLD 유지) →
-  10-e 는 오너 승인 전까지 시작하지 않는다
+- **Current Stage**: **PHASE 10 종료**(2026-09-27) —
+  `PHASE 10 COMPLETE — PRODUCT-WIDE VISUAL CONSISTENCY RELEASED / LARGE CONFERENCE VISUAL EXCEPTION DEFERRED`.
+  10-a 문서·배포 기준(PR #109) → 10-b 상황실 카메라(PR #115) → 10-c 아이디에이션 카메라·밝은 면
+  (PR #116) → 10-d 부분 수용(PR #117 — 교육장 릴리스 · 대회의실 DEFERRED) → 10-d.1 실현 가능성
+  감사 → **10-e 제품 전체 시각 QA 통과**(PR #119) 까지 전부 병합했다.
+  다음 트랙은 **LED Recommendation Expansion** 이며, 첫 단계인 읽기 전용 감사
+  **PHASE 11-0** 은 오너의 별도 지시를 받아 시작한다
 - **Released / Frozen 디자인**: **아홉 벌**(대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
-- **기준선**: `main` `823def9` · 화면 버전 **v456** · `npm test` **1169/1169** · 작업 트리 clean
+- **기준선**: `main` 제품 기준 커밋 `8705539`(PR #124) · 화면 버전 **v460** · `npm test` **1170/1170** · 작업 트리 clean
+  (그 뒤의 커밋은 문서 전용이다)
 - **작업 가지**: 없음(10-d.1 은 문서만 고쳤고 제품 소스 변경이 0건이다)
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
   (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · `.github/workflows` 없음 — `main` 병합이 곧 배포)
@@ -436,6 +439,59 @@ PHASE 10-e 명세 §5 는 임원 회의실의 정체성을 'U-table / monitor ro
 `.github/workflows` 는 없으며 `main` 병합이 곧 배포다. **라이브 접속은 이 작업 환경에서
 차단되어 있어(HTTP 000) 확인하지 못했다.** 배포 상태를 짐작하지 않고, 검증은 전부 로컬 `main`
 산출물 기준으로 했다.
+
+## PHASE 10 종료 — 제품 전체 시각 일관성 릴리스 (오너 결정, 2026-09-27)
+
+`PHASE 10 COMPLETE — PRODUCT-WIDE VISUAL CONSISTENCY RELEASED / LARGE CONFERENCE VISUAL EXCEPTION DEFERRED`
+
+2026-09-27, 오너가 PHASE 10-e 결과를 승인하고 PR #119 병합과 PHASE 10 종료를 지시했다.
+`main` `f740b52` · 화면 버전 **v456** · `npm test` **1169/1169** · 아홉 디자인 전부 `ready` ·
+열린 PR 0 · 작업 트리 clean.
+
+### 대회의실의 자리
+
+- **기능 상태(functional status)는 `ready`** 다. 다른 여덟 공간과 같다.
+- **시각 예외(visual exception)만 `DEFERRED`** 다. 제안 세 컷의 화면 아래 띠
+  61.62 / 67.01 / 67.23% 가 권장 55% 를 넘는다.
+- 기존 계약 **㉒(상판 점유) · ㉓(LED 담기)** 를 그대로 유지한다. ㉔㉕·㉗ 도 마찬가지다.
+- **별도 결정이 있기 전까지 하단 띠 문제를 다시 구현하지 않는다.** 10-d.1 이 확인한 대로
+  rug-aware framing 은 기준 방에서 무효 연산이고, 55% 기준과 ㉒·㉓ 을 동시에 만족하는 해가
+  현재 계약 집합 안에 없다.
+
+### 수용한 편차 — 상황실 3단
+
+`ACCEPTED P2 — CONTROL ROOM 3-TIER RIGHT-CORNER BOTTOM-BAND DISTRIBUTION`
+
+| 항목 | 값 |
+|---|---|
+| 구성 | 상황실 `tiers = 3`(16 × 3.9 × 14m · 콘솔 3줄) |
+| 우코너 화면 아래 띠 | **41.16% → 76.09%** |
+| 세 컷 최댓값 | **79.18% → 76.09%**(개선) |
+| 하단을 채우는 물체 | 빈 바닥이 아니라 **의도된 단(riser)** |
+
+오너가 이 편차를 **accepted P2 로 수용**했다. 이번 단계에서 다음을 하지 않는다.
+
+- 상황실 카메라를 다시 고치지 않는다.
+- 단(riser)의 형상을 고치지 않는다.
+- 기준을 완화하려고 코드를 바꾸지 않는다.
+
+문서에만 accepted P2 로 남긴다.
+
+### 다음 트랙 — LED Recommendation Expansion (승인, 착수 전)
+
+오너가 다음 트랙으로 **LED 권장 크기 확대**를 골랐다. 다만 **바로 구현하지 않는다.**
+다음 단계는 읽기 전용 감사다.
+
+> **`PHASE 11-0 — Product-Wide LED Recommendation Expansion Audit`**
+
+지금은 강당 셋에만 방 크기에 따른 LED 권장 규칙(`auditoriumLedSize`)이 있고, 나머지 여섯
+공간은 4,000 × 2,300 고정이다. 14m 대회의실·16m 상황실에서 화면이 방에 비해 작게 잡히는
+까닭이 여기 있다(제안 27컷에서 대회의실 LED 점유 7.27~8.88% 가 아홉 공간 중 가장 낮다).
+
+감사 범위는 현재 규칙 · 문제점 · 공간별 후보 권장 방식 · 계산과 BOM 영향 · 수동 입력
+정책 · 회귀 위험 · 단계별 로드맵 · 오너 결정이 필요한 항목이며, 강당 셋은 기준선으로 쓴다.
+**규칙을 구현하거나 숫자를 확정하지 않고, 소스·검사·화면 버전·LED 기본값·계산 결과도
+바꾸지 않는다.** 착수는 오너의 별도 지시를 받는다.
 
 ## 대회의실 HOLD 원인 재검증 (PHASE 10-d.1 실현 가능성 감사, 2026-09-24)
 
