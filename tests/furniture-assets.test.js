@@ -9,8 +9,9 @@ import {
   assetFor, assetParts, assetKey,
   createConferenceChair, createAuditoriumChair, createTrainingChair,
   createTrainingDesk, createConferenceTable, createAvCredenza, createCorporateChair,
-  createCorporateTable, corporateSupportXs, fitsCorporateTable, BOAT_BULGE_RATIO,
+  createCorporateTable, corporateSupportXs, fitsCorporateTable, BOAT_BULGE_RATIO, createSeatedPerson,
 } from '../src/furniture-assets.js';
+import { SEATED_EYE_MM } from '../src/viewangle.js';
 import { layoutRoom, ROOM_TYPES, defaultOptions, FURNITURE } from '../src/room-presets.js';
 import { PART_FINISH, PART_MATERIAL, finishForPart } from '../src/materials.js';
 import { FURNITURE_CONTRACTS } from '../src/furniture-contracts.js';
@@ -590,4 +591,30 @@ test('기존 회의 테이블 — PHASE 2-b 에서 한 글자도 바뀌지 않�
   assert.equal(DIMS.conferenceTable.surfaceY, 740);
   assert.equal(DIMS.conferenceTable.topThk, 30);
   assert.equal(assetFor({ type: 'table' }), 'conferenceTable', '기본 테이블은 그대로다');
+});
+
+test('착석 인원 — 앉은키·눈높이는 대한민국 성인 남성(20~40대) 평균이다', () => {
+  // 사이즈코리아 8차 표준 인체치수(앉은자세, 남성) — 20대·30대·40대 단순 평균.
+  const mean3 = (a, b, c) => (a + b + c) / 3;
+  const sittingH = mean3(936.15, 939.72, 935.67);   // 937.18
+  const eyeH = mean3(810.01, 813.94, 810.63);       // 811.53
+  const S = DIMS.seatedPerson;
+  assert.equal(S.sittingH, Math.round(sittingH), '앉은키 계약이 표 평균과 다르다');
+  assert.equal(S.eyeH, Math.round(eyeH), '앉은눈높이 계약이 표 평균과 다르다');
+  assert.equal(SEATED_EYE_MM, S.eyeH, '시야 계산의 눈높이와 3D 인물의 눈높이가 갈렸다');
+});
+
+test('착석 인원 — 실제로 그려지는 머리 끝이 앉은키와 같고 발이 바닥에 닿는다', () => {
+  const S = DIMS.seatedPerson;
+  const seatTop = 450;
+  const parts = createSeatedPerson(seatTop);
+  const top = Math.max(...parts.map(p => yRange(p)[1]));
+  const bottom = Math.min(...parts.map(p => yRange(p)[0]));
+  assert.ok(Math.abs((top - seatTop) - S.sittingH) <= 1,
+    `머리 끝 ${(top - seatTop).toFixed(1)}mm ≠ 앉은키 ${S.sittingH}mm`);
+  assert.ok(bottom >= -1 && bottom <= 1, `발이 바닥에서 떴거나 뚫었다 (${bottom})`);
+  // 눈은 머리 끝에서 아래로 (앉은키 − 눈높이)만큼 — 머리 구 안에 있어야 한다.
+  const head = parts.find(p => p.shape === 'sph');
+  const eyeY = seatTop + S.eyeH;
+  assert.ok(eyeY < head.y + head.r && eyeY > head.y - head.r, '눈 높이가 머리 구 밖에 있다');
 });
