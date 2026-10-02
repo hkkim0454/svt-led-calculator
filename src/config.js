@@ -20,7 +20,9 @@ export const CONFIG_DEFAULTS = Object.freeze({
   //   **여기서는 문자열인지만 본다** — 어떤 디자인이 실재하는지는 room-design.js가 안다
   //   (이 파일이 가구·마감 규칙을 알 필요는 없다. roomOpts와 같은 방침이다).
   roomDesign: null,
-  wallThk: 100,          // 벽 두께(mm) — 3D 뷰 전용. 방 안쪽 치수(W×H×D)는 그대로 둔다
+  wallThk: 100,          // 옆벽(좌·우·뒤) 두께(mm) — 3D 뷰 전용. 방 안쪽 치수(W×H×D)는 그대로 둔다
+  wallThkFront: 100,     // 앞벽(LED 벽) 두께(mm) — 3D 뷰 전용. 기본은 옆벽과 같은 100mm(오너 2026-10-02)
+  columns: null,         // 벽에 붙은 기둥 [{ wall, pos, w, d }](mm) — 3D 뷰 전용. null = 없음
   customViews: null,     // 3D 뷰에서 사용자가 저장한 시점 목록. null = 없음
   // 3D 뷰에 세우는 축척 기준 인물(서 있는 사람)을 보일지. **기본은 켬**이다 —
   //   릴리스된 네 공간의 동결 화면이 이 사람을 포함한 상태이므로(PHASE 6-0 감사, DEC-126),
@@ -81,6 +83,13 @@ export function normalizeConfig(raw) {
     // 모르는 값·빈 값은 그대로 null로 둔다 → 화면이 normalizeDesign()으로 그 타입의 기본 디자인으로 떨어뜨린다.
     roomDesign: asStr(r.roomDesign, D.roomDesign),
     wallThk: asNum(r.wallThk, D.wallThk),
+    // 앞벽 두께가 없는 옛 저장값은 옆벽 두께를 그대로 쓴다 — 예전엔 한 값으로 네 벽을 그렸다.
+    wallThkFront: asNum(r.wallThkFront, asNum(r.wallThk, D.wallThkFront)),
+    // 기둥은 형태만 확인한다(자리·크기를 방에 맞춰 자르는 것은 3D 쪽 columnBoxes 가 한다).
+    columns: Array.isArray(r.columns)
+      ? r.columns.filter(c => c && typeof c === 'object' && ['front', 'back', 'left', 'right'].includes(c.wall))
+        .slice(0, 4).map(c => ({ wall: c.wall, pos: asNum(c.pos, 0), w: asNum(c.w, 600), d: asNum(c.d, 600) }))
+      : D.columns,
     // 저장된 시점은 형태만 확인하고 그대로 둔다(카메라 좌표의 의미는 3D 뷰가 안다).
     customViews: Array.isArray(r.customViews)
       ? r.customViews.filter(v => v && typeof v === 'object'

@@ -14,7 +14,8 @@ test('정상 구성은 값이 그대로 왕복(roundtrip)된다', () => {
     spareRate: '7', spareEdited: true, sboxSpare: 2, signalMode: 'uhd',
     selectedId: 'IF015RM', selectedModel: { id: 'IF015RM', name: 'IF015R-M' },
     etcCost: 500000, etcSell: 700000, visibleLines: ['IF', 'MM'], indirectDisabled: ['연금보험료'],
-    wallThk: 120,
+    wallThk: 120, wallThkFront: 300,
+    columns: [{ wall: 'front', pos: 1200, w: 600, d: 600 }, { wall: 'left', pos: 4000, w: 800, d: 400 }],
     customViews: [{ id: 'v1', label: '내 시점', position: [1, 2, 3], target: [0, 1, 0], fov: 40 }],
   };
   const out = normalizeConfig(cfg);
@@ -187,4 +188,16 @@ test('3D 뷰 값이 없거나 잘못되면 기본값(깊이 0=자동)', () => {
   assert.equal(out.spaceD, 0);                    // 0 = 비움 → 공간 타입별 자동
   assert.equal(out.roomType, CONFIG_DEFAULTS.roomType);
   assert.equal(out.roomOpts, null);               // 배열은 옵션 객체가 아님
+});
+
+test('앞벽 두께 · 기둥 (2026-10-02) — 옛 저장값은 옆벽 두께를 따르고, 기둥은 형태가 맞는 것만 남는다', () => {
+  assert.equal(normalizeConfig({ wallThk: 250 }).wallThkFront, 250, '옛 저장값의 앞벽이 옆벽 두께를 따르지 않는다');
+  assert.equal(normalizeConfig({}).wallThkFront, 100);
+  assert.equal(CONFIG_DEFAULTS.wallThk, 100);
+  assert.equal(CONFIG_DEFAULTS.wallThkFront, 100);
+  assert.equal(normalizeConfig({}).columns, null);
+  const out = normalizeConfig({ columns: [{ wall: 'front', pos: '900' }, { wall: 'up', pos: 1 }, null, 'x',
+    { wall: 'back' }, { wall: 'left' }, { wall: 'right' }, { wall: 'front' }] });
+  assert.deepEqual(out.columns[0], { wall: 'front', pos: 900, w: 600, d: 600 });
+  assert.equal(out.columns.length, 4, '기둥은 4개까지');
 });

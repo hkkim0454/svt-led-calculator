@@ -18,17 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=462';
-import { createMaterialLibrary } from './materials-gl.js?v=462';
-import { MOODS } from './materials.js?v=462';
-import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=462';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=463';
+import { createMaterialLibrary } from './materials-gl.js?v=463';
+import { MOODS } from './materials.js?v=463';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=463';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
   stageWashForDesign,
-} from './design-lighting.js?v=462';
-import { ledImageFit } from './led-image.js?v=462';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=462';
+} from './design-lighting.js?v=463';
+import { ledImageFit } from './led-image.js?v=463';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=463';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -37,7 +37,7 @@ import {
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
   CONTROLS_MAX_POLAR, drawnItems,
-} from './gl-model.js?v=462';
+} from './gl-model.js?v=463';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -242,6 +242,8 @@ function buildRoomGroup(model, shared) {
   // 벽 두께. 0이면 예전처럼 얇은 판 하나로 그린다(두께 없는 벽).
   //   두께가 있으면 상자로 세우되 **방 바깥쪽으로만** 붙여 안쪽 치수를 건드리지 않는다.
   const thk = room.wallThk || 0;
+  // 앞벽(LED 벽)만 따로 두께를 받는다. 주지 않았으면 옆벽과 같다(예전 그림 그대로).
+  const thkF = room.wallThkFront ?? thk;
   const wallMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
 
   const wallOn = model.show?.walls || {};
@@ -249,9 +251,10 @@ function buildRoomGroup(model, shared) {
   // ② 정면 벽(LED가 붙는 벽, z=0) — 방 안쪽(+Z)을 향한다.
   if (wallOn.front !== false) {
     let wallFront;
-    if (thk > 0) {
-      wallFront = wallMesh(room.W + thk * 2, room.H, thk, matWallFront);
-      wallFront.position.set(room.W / 2, room.H / 2, -thk / 2);
+    if (thkF > 0) {
+      // 폭은 옆벽 두께만큼 양쪽으로 넓혀 모서리를 닫는다. 깊이(두께)만 앞벽 값이다.
+      wallFront = wallMesh(room.W + thk * 2, room.H, thkF, matWallFront);
+      wallFront.position.set(room.W / 2, room.H / 2, -thkF / 2);
     } else {
       wallFront = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallFront);
       wallFront.position.set(room.W / 2, room.H / 2, 0);
@@ -342,6 +345,16 @@ function buildRoomGroup(model, shared) {
   if (wallOn.left !== false) addBaseboard(bbT, room.D, bbT / 2, room.D / 2);
   if (wallOn.right) addBaseboard(bbT, room.D, room.W - bbT / 2, room.D / 2);
 
+  // ④'' 기둥 — 벽에 붙어 방 안쪽으로 튀어나온 사각 기둥(바닥~천장). 자리·크기는 gl-model 이 정했다.
+  //   벽과 같은 마감이고, 그 벽을 꺼 두면(컷어웨이) 기둥도 함께 감춘다 — 카메라를 가리지 않게.
+  for (const col of model.columns || []) {
+    if (!wallOn[col.wall]) continue;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(col.w, col.h, col.d), col.wall === 'front' ? matWallFront : matWallSide);
+    m.position.set(col.x, col.h / 2, col.z);
+    m.name = 'column';
+    g.add(m);
+  }
+
   // ④" 천장 — 실내 시점에서만 보인다. 아이소·평면도에서 천장이 있으면 방 안이 안 보인다.
   //   보이는 것은 아랫면뿐이라 얇은 상자 하나면 충분하다(복잡한 천장은 만들지 않는다).
   //   벽 두께만큼 넓혀 벽 위 모서리를 닫는다 — 실내에서 천장과 벽 사이가 벌어지지 않게.
@@ -351,12 +364,12 @@ function buildRoomGroup(model, shared) {
   //   재질 자체에 옅은 자발광(emissive)을 주어 '흰 천장'으로 읽히게 한다.
   //   (STEP 3에서 실내 조명이 들어오면 이 보정은 걷어낼 수 있다.)
   const ceiling = new THREE.Mesh(
-    new THREE.BoxGeometry(room.W + thk * 2, ceilThk, room.D + thk * 2),
+    new THREE.BoxGeometry(room.W + thk * 2, ceilThk, room.D + thkF + thk),
     mats.get('paintedWall', lighten(GL_PALETTE.ceiling), {
       emissive: new THREE.Color(lighten(GL_PALETTE.ceiling)), emissiveIntensity: 0.62,
     }),
   );
-  ceiling.position.set(room.W / 2, room.H + ceilThk / 2, room.D / 2);
+  ceiling.position.set(room.W / 2, room.H + ceilThk / 2, (room.D + thk - thkF) / 2);
   ceiling.name = 'ceiling';
   ceiling.visible = false;          // 실제 표시 여부는 시점에 따라 정한다(applyShellVisibility)
   g.add(ceiling);

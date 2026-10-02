@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=462';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=462';
+import { floorFinishFor, moodFor } from './materials.js?v=463';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=463';
 
-import { cameraPlanForDesign } from './design-camera.js?v=462';
-import { controlWallPlan, wantsControlWalls, ACOUSTIC_WALL_SIDE } from './control-walls.js?v=462';
+import { cameraPlanForDesign } from './design-camera.js?v=463';
+import { controlWallPlan, wantsControlWalls, ACOUSTIC_WALL_SIDE } from './control-walls.js?v=463';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -245,6 +245,8 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
   const room = {
     W: u(space.W), H: u(space.H), D: u(space.D),
     wallThk: u(clamp(Number(space.wallThk) || 0, 0, 600)),
+    // 앞벽(LED 벽) 두께 — 옆벽과 따로 정한다(오너 2026-10-02). 주지 않으면 옆벽과 같다.
+    wallThkFront: u(clamp(Number(space.wallThkFront ?? space.wallThk) || 0, 0, 600)),
   };
   const stageItem = (items || []).find(it => it && it.type === 'stage');
   return {
@@ -307,6 +309,10 @@ export function buildGLModel({ space, led, items, show, person, roomType, design
     partitions: partitionsOf(space, design || null, items),
     // 포인트(마감) 벽이 붙는 옆벽 — 'left' | 'right'. 렌더러는 이 값만 본다.
     accentSide: featureWallSide(design || null),
+    // 벽에 붙은 기둥(바닥~천장). 자리·크기는 columnBoxes 가 mm 로 정하고 여기서는 단위만 바꾼다.
+    columns: columnBoxes(space.columns, space).map(c => Object.freeze({
+      wall: c.wall, x: u(c.x), z: u(c.z), w: u(c.w), d: u(c.d), h: room.H,
+    })),
     stage: stageItem ? {
       x: u(stageItem.x), z: u(stageItem.z),
       w: u(stageItem.w), d: u(stageItem.d), h: u(stageItem.h || 280),
@@ -344,6 +350,47 @@ export function defaultWalls(design) {
 //   책상 위의 개인 모니터·키보드도 책상과 함께 뺀다(허공에 뜨지 않게).
 export const SEAT_ITEM_TYPES = Object.freeze(new Set(['chair', 'seat', 'seated', 'stool', 'lounge']));
 export const DESK_ITEM_TYPES = Object.freeze(new Set(['table', 'desk', 'console', 'highTable', 'collabTable', 'monitor', 'keyboard']));
+
+// ── 기둥 ────────────────────────────────────────────────────────────────────
+// 벽에 붙어 방 안쪽으로 튀어나온 사각 기둥(바닥~천장). 오너 요청(2026-10-02) — 벽 두께로는
+//   방 안으로 튀어나온 모양을 만들 수 없어서 따로 둔다. 그림 전용이다: 좌석 배치는 기둥을 피하지 않는다.
+//   입력(mm): { wall: 'front'|'back'|'left'|'right', pos, w, d }
+//     pos  앞·뒤 벽은 **왼쪽 벽에서**, 좌·우 벽은 **LED 벽에서** 기둥 중심까지의 거리
+//     w    벽을 따라 잰 가로,  d  벽에서 방 안쪽으로 튀어나온 깊이
+export const COLUMN_DEFAULT = Object.freeze({ w: 600, d: 600 });
+export const MAX_COLUMNS = 4;
+const COLUMN_WALLS = Object.freeze(['front', 'back', 'left', 'right']);
+
+/** 기둥 입력을 정리해 방 좌표(mm)의 상자로 바꾼다. 방 밖으로 나가지 않게 자른다. */
+export function columnBoxes(columns, space = {}) {
+  const W = Number(space.W) || 0, D = Number(space.D) || 0;
+  if (!Array.isArray(columns) || W <= 0 || D <= 0) return [];
+  const out = [];
+  for (const c of columns.slice(0, MAX_COLUMNS)) {
+    if (!c || !COLUMN_WALLS.includes(c.wall)) continue;
+    const along = c.wall === 'front' || c.wall === 'back' ? W : D;   // 기둥이 붙은 벽의 길이
+    const across = c.wall === 'front' || c.wall === 'back' ? D : W;
+    const num = (v, dft) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : dft);
+    const w = clamp(num(c.w, COLUMN_DEFAULT.w), 100, along);
+    const d = clamp(num(c.d, COLUMN_DEFAULT.d), 50, across / 2);
+    const pos = clamp(Number.isFinite(Number(c.pos)) ? Number(c.pos) : along / 2, w / 2, along - w / 2);
+    if (c.wall === 'front') out.push({ wall: c.wall, x: pos, z: d / 2, w, d });
+    else if (c.wall === 'back') out.push({ wall: c.wall, x: pos, z: D - d / 2, w, d });
+    else if (c.wall === 'left') out.push({ wall: c.wall, x: d / 2, z: pos, w: d, d: w });
+    else out.push({ wall: c.wall, x: W - d / 2, z: pos, w: d, d: w });
+  }
+  return out;
+}
+
+/** 앞벽 기둥 중 LED 화면 가로 범위와 겹치는 것의 번호(1부터). 안내 문구용. */
+export function columnLedConflicts(columns, space, led) {
+  const lx = Number(led?.x) || 0, lw = Number(led?.w) || 0;
+  const out = [];
+  columnBoxes(columns, space).forEach((b, i) => {
+    if (b.wall === 'front' && b.x + b.w / 2 > lx && b.x - b.w / 2 < lx + lw) out.push(i + 1);
+  });
+  return out;
+}
 
 /** 그릴 가구만 고른다. 배치(model.items)는 그대로 두고 그림에 넘길 목록만 거른다. */
 export function drawnItems(model) {

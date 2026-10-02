@@ -2,10 +2,12 @@
 //   ① 무대 계단 토글이 3D 장면까지 전달된다  ② 좌석·책상 숨기기는 그림에서만 뺀다
 //   ③ 1열 거리(강의실·강당)  ④ 강당 무대 크기(가로·깊이·높이)  ⑤ 방 크기를 바꿔도 돌려 둔 시점을 지킨다
 //   ⑥ 벽면 기본 앞+우 · 아이소 카메라는 켜진 옆벽 반대편 (DEC-156)
+//   ⑦ 앞벽·옆벽 두께 분리 · 벽에 붙은 기둥 (DEC-157)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildGLModel, drawnItems, SEAT_ITEM_TYPES, DESK_ITEM_TYPES, defaultWalls, featureWallSide, presetPose } from '../src/gl-model.js';
+import { buildGLModel, drawnItems, SEAT_ITEM_TYPES, DESK_ITEM_TYPES, defaultWalls, featureWallSide, presetPose,
+  columnBoxes, columnLedConflicts, COLUMN_DEFAULT, MAX_COLUMNS } from '../src/gl-model.js';
 import { ROOM_DESIGNS } from '../src/room-design.js';
 import { layoutRoom, defaultOptions, auditoriumStageSize, AUDITORIUM_SEATING, AUDITORIUM_STAGE } from '../src/room-presets.js';
 
@@ -123,4 +125,40 @@ test('⑥ 아이소 카메라는 켜진 옆벽의 반대편에 선다 — 벽이
   assert.ok(x({ left: false, right: true }) < 0, '오른쪽 벽만 켜면 왼쪽 바깥에서 본다');
   assert.ok(x({ left: true, right: false }) > W, '왼쪽 벽만 켜면 오른쪽 바깥에서 본다(예전 자리)');
   assert.ok(x({ left: true, right: true }) > W, '양쪽이면 예전 자리');
+});
+
+test('⑦ 앞벽 두께는 옆벽과 따로다 — 주지 않으면 옆벽과 같다(예전 그림 그대로)', () => {
+  const m = (space) => buildGLModel({ space: { W: 10000, H: 3400, D: 10000, ...space }, led, items: [] }).room;
+  assert.equal(m({ wallThk: 100 }).wallThkFront, 0.1);
+  assert.equal(m({ wallThk: 100, wallThkFront: 450 }).wallThkFront, 0.45);
+  assert.equal(m({ wallThk: 100, wallThkFront: 450 }).wallThk, 0.1, '옆벽까지 두꺼워졌다');
+  assert.equal(m({ wallThk: 100, wallThkFront: 99999 }).wallThkFront, 0.6);
+  // 렌더러: 앞벽 상자의 깊이는 앞벽 값, 폭은 옆벽 두께로 모서리를 닫는다.
+  assert.match(src('render3d-gl.js'), /wallFront = wallMesh\(room\.W \+ thk \* 2, room\.H, thkF, matWallFront\);/);
+});
+
+test('⑦ 기둥 — 기본 600×600, 벽에 붙어 방 안쪽으로 튀어나오고 방 밖으로 나가지 않는다', () => {
+  assert.deepEqual({ ...COLUMN_DEFAULT }, { w: 600, d: 600 });
+  const space = { W: 10000, D: 8000 };
+  const [f, b, l, r] = columnBoxes([
+    { wall: 'front', pos: 2000 }, { wall: 'back', pos: 5000, w: 800, d: 400 },
+    { wall: 'left', pos: 3000 }, { wall: 'right', pos: 3000, w: 1000, d: 300 },
+  ], space);
+  assert.deepEqual(f, { wall: 'front', x: 2000, z: 300, w: 600, d: 600 });
+  assert.deepEqual(b, { wall: 'back', x: 5000, z: 7800, w: 800, d: 400 });
+  assert.deepEqual(l, { wall: 'left', x: 300, z: 3000, w: 600, d: 600 });
+  assert.deepEqual(r, { wall: 'right', x: 9850, z: 3000, w: 300, d: 1000 });
+  // 벽 끝을 넘는 위치는 모서리에 붙여 자른다. 5개째부터는 버린다.
+  assert.equal(columnBoxes([{ wall: 'front', pos: 99999 }], space)[0].x, 10000 - 300);
+  assert.equal(columnBoxes(Array(6).fill({ wall: 'front', pos: 1000 }), space).length, MAX_COLUMNS);
+  assert.deepEqual(columnBoxes(null, space), []);
+  // 모델에 단위(m)로 실리고, 높이는 천장까지다.
+  const m = buildGLModel({ space: { ...space, H: 3400, columns: [{ wall: 'front', pos: 2000 }] }, led, items: [] });
+  assert.deepEqual({ ...m.columns[0] }, { wall: 'front', x: 2, z: 0.3, w: 0.6, d: 0.6, h: 3.4 });
+  assert.deepEqual(buildGLModel({ space: { ...space, H: 3400 }, led, items: [] }).columns, [], '기본은 기둥 없음');
+  // LED(왼쪽 2,000mm 에서 4,000mm 폭)와 겹치는 앞벽 기둥만 알린다.
+  assert.deepEqual(columnLedConflicts([{ wall: 'front', pos: 1500 }, { wall: 'front', pos: 3000 }, { wall: 'left', pos: 3000 }],
+    space, { x: 2000, w: 4000 }), [2]);
+  // 꺼 둔 벽의 기둥은 함께 감춘다(컷어웨이).
+  assert.match(src('render3d-gl.js'), /if \(!wallOn\[col\.wall\]\) continue;/);
 });
