@@ -13,7 +13,7 @@ const LED = { cx: 5000, cy: 2100, w: 4000, h: 2200 };   // 10m 폭 방 한가운
 test('시야 계산 — 정중앙 자리는 이탈각이 0에 가깝다', () => {
   const v = seatView({ x: LED.cx, z: 6000, y: 0 }, LED, { seatTopMm: 440 });
   assert.ok(v.offAxisH < 0.01, `수평 이탈 ${v.offAxisH}`);
-  // 눈높이(440 + 700 = 1,140)가 화면 중심(2,100)보다 낮으므로 위를 올려다본다.
+  // 눈높이(440 + 812 = 1,252)가 화면 중심(2,100)보다 낮으므로 위를 올려다본다.
   assert.equal(Math.round(v.eyeY), 440 + SEATED_EYE_MM);
   assert.ok(v.offAxisV > 5 && v.offAxisV < 15, `수직 이탈 ${v.offAxisV}`);
   assert.ok(v.dist > 6000 && v.dist < 6200, `거리 ${v.dist}`);

@@ -32,8 +32,13 @@ export const VIEW_RULES = Object.freeze({
   nearOvdRatio: 1.0,      // ovd_m 보다 가까우면 픽셀이 보이기 시작한다
 });
 
-/** 앉은 사람의 눈높이 — 좌판 윗면에서 위로(mm). 성인 평균 앉은키 기준. */
-export const SEATED_EYE_MM = 700;
+/**
+ * 앉은 사람의 눈높이 — 좌판 윗면에서 위로(mm).
+ * 대한민국 성인 남성(20~40대) 앉은눈높이 평균. 사이즈코리아 8차 표준 인체치수(앉은자세)에서
+ * 20대 810.01 · 30대 813.94 · 40대 810.63 mm 를 단순 평균한 811.53 을 반올림했다.
+ * 3D 착석 인원(`DIMS.seatedPerson.eyeH`)과 같은 값이어야 하며 테스트가 이를 확인한다.
+ */
+export const SEATED_EYE_MM = 812;
 
 /**
  * 좌석 하나의 시야 계산.

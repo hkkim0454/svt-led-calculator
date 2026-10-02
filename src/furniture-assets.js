@@ -19,9 +19,9 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=463';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=463';
-import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=463';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=464';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=464';
+import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=464';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -119,10 +119,13 @@ export const DIMS = Object.freeze({
   mobileStand: Object.freeze({ baseW: 760, baseD: 560, baseH: 70, poleW: 110, panelY: 1280,
     panelW: 1150, panelH: 660, panelThk: 65 }),
   // 앉은 사람 — 축척 비교가 아니라 '객석이 찼을 때의 시야'를 보기 위한 것이라 아주 단순하게.
-  //   좌판 윗면 기준 앉은키 약 880mm(머리 끝). 눈높이는 viewangle.js의 SEATED_EYE_MM(700)과 맞춘다.
-  seatedPerson: Object.freeze({ hip: 60, torsoH: 500, torsoW: 360, torsoD: 240,
+  //   키는 대한민국 성인 남성(20~40대) 기준이다 — 사이즈코리아 8차 표준 인체치수, 앉은자세.
+  //     앉은키     20대 936.15 · 30대 939.72 · 40대 935.67 → 단순 평균 937.18 ≈ 937mm
+  //     앉은눈높이 20대 810.01 · 30대 813.94 · 40대 810.63 → 단순 평균 811.53 ≈ 812mm
+  //   sittingH(머리 끝)·eyeH(눈)는 좌판 윗면에서 잰 높이이고, 눈높이는 viewangle.js 의 SEATED_EYE_MM 과 같아야 한다.
+  seatedPerson: Object.freeze({ hip: 60, torsoH: 615, torsoW: 360, torsoD: 240,
     shoulderW: 450, shoulderH: 110, neckR: 55, neckH: 70, headR: 100,
-    thighL: 380, legW: 130 }),
+    thighL: 380, legW: 130, sittingH: 937, eyeH: 812 }),
   // 부속물
   plant: Object.freeze({ potR: 170, potH: 300, leafH: 520 }),
   rug: Object.freeze({ h: 14 }),
