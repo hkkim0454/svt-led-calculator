@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=462';
+import { MODELS } from './models.js?v=463';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -9,17 +9,18 @@ import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=462';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=463';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=462';
-import { createViewerGL } from './render3d-gl.js?v=462';
-import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide } from './gl-model.js?v=462';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=462';
-import { normalizeDesign, designsFor } from './room-design.js?v=462';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=462';
-import { sideMonitorLayout } from './monitors.js?v=462';
-import { ledImageFit } from './led-image.js?v=462';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=462';
+} from './room-presets.js?v=463';
+import { createViewerGL } from './render3d-gl.js?v=463';
+import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=463';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=463';
+import { normalizeDesign, designsFor } from './room-design.js?v=463';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=463';
+import { sideMonitorLayout } from './monitors.js?v=463';
+import { ledImageFit } from './led-image.js?v=463';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=463';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -301,6 +302,12 @@ function syncWallsToDesign(prevDesign, force = false) {
   pv3dShow.walls = defaultWalls(designId);
   for (const b of document.querySelectorAll('button[data-t3dwall]')) b.classList.toggle('on', !!pv3dShow.walls[b.dataset.t3dwall]);
 }
+// 벽에 붙은 기둥 목록 [{ wall, pos, w, d }](mm). 구성과 함께 저장한다(현장 조건이므로).
+let columns3d = [];
+// 벽 두께(mm) — 3D 패널이 만들어지기 전에 불러온 구성 값도 여기 담아 둔다.
+const wallThk3d = {};
+// 마지막으로 그린 LED 가로 범위(mm) — 새 기둥을 LED 옆에 세울 때만 쓴다.
+let lastLedBox = null;
 let viewer3d = null;   // createViewerGL() 인스턴스(3D 뷰를 처음 열 때 만든다)
 let gl3dFailed = false;   // WebGL을 쓸 수 없는 환경인지(한 번 실패하면 다시 시도하지 않는다)
 // 사람(스케일 기준 인물): 실사 사진(연예인, 실제 키) + 의상형 실루엣(남/여, 회색 PNG).
@@ -893,9 +900,13 @@ function renderPreview3D() {
     side: roomOpts.sideMonitor || 'none', inches: Number(roomOpts.sideMonitorIn) || 55,
   });
 
+  lastLedBox = { x: r.marginW, w: r.actualW, roomW: sW };
+  // 앞벽 기둥이 LED 화면 가로 범위와 겹치면 알려 준다(기둥이 화면 앞을 가린다).
+  const colHit = columnLedConflicts(columns3d, { W: sW, D }, { x: r.marginW, w: r.actualW });
   // 계산 결과를 '읽기만' 해서 넘긴다 — 크기·배열·하단 높이 모두 engine / room-presets 값 그대로.
   viewer3d.setModel(buildGLModel({
-    space: { W: sW, H: sH, D, wallThk: num($('#wallThk')?.value) },
+    space: { W: sW, H: sH, D, wallThk: num($('#wallThk')?.value),
+      wallThkFront: num($('#wallThkFront')?.value ?? CONFIG_DEFAULTS.wallThkFront), columns: columns3d },
     led: {
       w: r.actualW, h: r.actualH, marginW: r.marginW, mount,
       cols: r.cols, rows: r.rows, depth: (m && m.depth) || 60,
@@ -937,6 +948,7 @@ function renderPreview3D() {
       vs,
       ...lay.notes,
       ...sm.notes,
+      colHit.length ? `기둥 ${colHit.join('·')}이(가) LED 화면 앞을 가립니다` : '',
       '끌기=회전 · 휠=확대 · ‘맞춤’=시점 복귀',
     ].filter(Boolean).join(' · ');
   }
@@ -1028,18 +1040,79 @@ function buildWallToggles() {
 }
 
 // 벽 두께(mm) — 3D 뷰 전용 표시 설정. 방 안쪽 치수(W×H×D)는 건드리지 않는다.
+//   앞벽(LED 벽)과 옆벽(좌·우·뒤)을 따로 받는다(오너 2026-10-02). 둘 다 기본 100mm.
 function buildWallThkField() {
-  const lab = document.createElement('label');
-  lab.className = 'pv3dField';
-  const t = document.createElement('span'); t.textContent = '벽 두께 (mm)';
-  const inp = document.createElement('input');
-  inp.type = 'number'; inp.id = 'wallThk'; inp.min = '0'; inp.max = '600'; inp.step = '10';
-  inp.value = String(CONFIG_DEFAULTS.wallThk);
-  inp.title = '벽은 방 바깥쪽으로 두꺼워집니다 — 안쪽 공간 크기는 그대로입니다';
-  inp.addEventListener('input', () => renderPreview());
-  lab.append(t, inp);
-  return lab;
+  const wrap = document.createDocumentFragment();
+  for (const [id, label, key] of [['wallThkFront', '앞벽 두께 (mm)', 'wallThkFront'], ['wallThk', '옆벽 두께 (mm)', 'wallThk']]) {
+    const lab = document.createElement('label');
+    lab.className = 'pv3dField';
+    const t = document.createElement('span'); t.textContent = label;
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.id = id; inp.min = '0'; inp.max = '600'; inp.step = '10';
+    // 3D 패널은 처음 열 때 만들어진다 — 그 전에 불러온 구성 값(wallThk3d)이 있으면 그 값으로 시작한다.
+    inp.value = String(wallThk3d[key] ?? CONFIG_DEFAULTS[key]);
+    inp.title = '벽은 방 바깥쪽으로 두꺼워집니다 — 안쪽 공간 크기는 그대로입니다. 방 안으로 튀어나온 모양은 아래 \'기둥\'으로 넣습니다';
+    inp.addEventListener('input', () => { wallThk3d[key] = num(inp.value); renderPreview(); });
+    inp.addEventListener('change', () => saveLastSession());
+    lab.append(t, inp);
+    wrap.appendChild(lab);
+  }
+  return wrap;
 }
+
+// 기둥 — 벽에 붙어 방 안쪽으로 튀어나온 사각 기둥(바닥~천장). 3D 그림 전용, 구성과 함께 저장한다.
+//   자리·크기 정리는 gl-model.columnBoxes 가 한다. 여기서는 입력만 받는다.
+const COLUMN_WALL_LABELS = [['front', '앞'], ['left', '좌'], ['right', '우'], ['back', '뒤']];   // 벽면 버튼과 같은 이름
+function buildColumnEditor() {
+  const box = document.createElement('div');
+  box.className = 'pv3dCols';
+  box.id = 'pv3dCols';
+  renderColumnEditor(box);
+  return box;
+}
+function renderColumnEditor(box = $('#pv3dCols')) {
+  if (!box) return;
+  const rows = columns3d.map((c, i) => `
+    <div class="pv3dColRow" data-col="${i}">
+      <div class="pv3dColHead"><span>기둥 ${i + 1}</span>
+        <button type="button" class="tiny ghost danger" data-colact="del" data-col="${i}" title="이 기둥 삭제">삭제</button></div>
+      <label class="pv3dField"><span>벽</span><select data-colkey="wall" data-col="${i}">${
+        COLUMN_WALL_LABELS.map(([v, t]) => `<option value="${v}"${c.wall === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+      <label class="pv3dField" title="앞·뒤 벽은 왼쪽 벽에서, 좌·우 벽은 LED 벽에서 기둥 중심까지의 거리"><span>위치</span><input type="number" min="0" step="50" data-colkey="pos" data-col="${i}" value="${Math.round(c.pos)}"/></label>
+      <label class="pv3dField" title="벽을 따라 잰 기둥 가로(mm)"><span>가로</span><input type="number" min="100" step="50" data-colkey="w" data-col="${i}" value="${c.w}"/></label>
+      <label class="pv3dField" title="벽에서 방 안쪽으로 튀어나온 깊이(mm)"><span>깊이</span><input type="number" min="50" step="50" data-colkey="d" data-col="${i}" value="${c.d}"/></label>
+    </div>`).join('');
+  box.innerHTML = `<div class="pv3dColsHead"><span class="pv3dWallsLab">기둥</span>
+      <button type="button" class="tiny ghost" data-colact="add"${columns3d.length >= MAX_COLUMNS ? ' disabled' : ''}
+        title="LED 옆에 600×600mm 기둥을 세웁니다 — 위치·크기는 아래 칸에서 고칩니다">+ 기둥 추가</button></div>${rows}
+    <div class="pv3dColsHint">위치: 앞·뒤 벽은 왼쪽 벽에서, 좌·우 벽은 LED 벽에서 기둥 중심까지(mm)</div>`;
+}
+// 새 기둥의 첫 자리 — LED 왼쪽 옆(100mm 띄움), 이미 있으면 오른쪽 옆. 자리가 없으면 벽 가운데.
+function nextColumnPos() {
+  const L = lastLedBox, w = COLUMN_DEFAULT.w;
+  if (!L) return spaceWmm() / 2;
+  const left = L.x - 100 - w / 2, right = L.x + L.w + 100 + w / 2;
+  const used = columns3d.filter(c => c.wall === 'front').map(c => c.pos);
+  const free = p => p >= w / 2 && p <= L.roomW - w / 2 && !used.some(u => Math.abs(u - p) < w);
+  return [left, right].find(free) ?? L.roomW / 2;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-colact]'); if (!b) return;
+  if (b.dataset.colact === 'add' && columns3d.length < MAX_COLUMNS) {
+    columns3d.push({ wall: 'front', pos: Math.round(nextColumnPos()), w: COLUMN_DEFAULT.w, d: COLUMN_DEFAULT.d });
+  } else if (b.dataset.colact === 'del') {
+    columns3d.splice(Number(b.dataset.col), 1);
+  } else return;
+  renderColumnEditor(); renderPreview(); saveLastSession();
+});
+// 숫자는 입력하는 동안 바로 그린다(목록은 다시 만들지 않는다 — 입력 중 포커스 유지).
+document.addEventListener('input', e => {
+  const el = e.target.closest('[data-colkey]'); if (!el) return;
+  const c = columns3d[Number(el.dataset.col)]; if (!c) return;
+  c[el.dataset.colkey] = el.dataset.colkey === 'wall' ? el.value : num(el.value);
+  renderPreview();
+});
+document.addEventListener('change', e => { if (e.target.closest('[data-colkey]')) saveLastSession(); });
 
 // 시점 옵션 — 화각 슬라이더 + 평면도 원근 토글.
 //   화각을 바꾸면 각 시점이 정해 둔 화각에 같은 비율이 곱해진다(시점끼리의 성격 차이는 유지).
@@ -1132,6 +1205,7 @@ function buildInspector() {
   const s3 = inspectorSection('설치 요소');
   s3.id = 'pv3dElements';
   s3.body.appendChild(buildWallToggles());
+  s3.body.appendChild(buildColumnEditor());
   for (const sel of ['[data-t3d="person"]', '#person3dSel', '[data-t3d="dims"]',
                      '[data-t3d="grid"]', '[data-t3d="accentWall"]', '[data-t3d="ceiling"]',
                      '[data-t3d="viewAngle"]', '[data-t3d="seats"]', '[data-t3d="desks"]']) {
@@ -3122,7 +3196,10 @@ function gatherConfig() {
   return {
     spaceW: spaceWmm(), spaceH: spaceHmm(), spaceD: spaceDmm(),
     roomType: roomTypeId, roomOpts: { ...roomOpts }, roomDesign: designId,
-    wallThk: num($('#wallThk')?.value) || CONFIG_DEFAULTS.wallThk,
+    // 3D 패널을 아직 열지 않았으면 입력칸이 없다 — 불러온 값(wallThk3d)을 그대로 다시 저장한다.
+    wallThk: num($('#wallThk')?.value ?? wallThk3d.wallThk) || CONFIG_DEFAULTS.wallThk,
+    wallThkFront: num($('#wallThkFront')?.value ?? wallThk3d.wallThkFront) || CONFIG_DEFAULTS.wallThkFront,
+    columns: columns3d.map(c => ({ ...c })),
     customViews: customViews.map(v => ({ ...v })),
     // 3D 축척 인물 표시 여부(PHASE 6-a). 다른 3D 표시 토글은 화면 보조선이라 저장하지 않지만,
     //   사람은 **제안서에 나가는 그림 자체**를 바꾸므로 저장해 두어야 같은 구성이 같게 복원된다.
@@ -3155,7 +3232,11 @@ function applyConfig(raw) {
   // 저장값이 없거나(예전 세션)·모르는 값이거나·용도가 안 맞으면 **그 용도의 기본 디자인**으로.
   designId = normalizeDesign(c.roomDesign, roomTypeId);
   syncWallsToDesign(null, true);   // 벽 토글은 저장하지 않는다 — 불러온 디자인의 기본값으로
+  wallThk3d.wallThk = c.wallThk; wallThk3d.wallThkFront = c.wallThkFront;
   if ($('#wallThk')) $('#wallThk').value = c.wallThk;
+  if ($('#wallThkFront')) $('#wallThkFront').value = c.wallThkFront;
+  columns3d = (c.columns || []).map(x => ({ ...x }));
+  renderColumnEditor();
   customViews = Array.isArray(c.customViews) ? c.customViews.map(v => ({ ...v })) : [];
   // 항목이 없는 옛 저장값은 normalizeConfig 이 true 로 채워 준다 — 예전 화면 그대로 복원된다.
   pv3dShow.person = c.person3d;

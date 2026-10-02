@@ -1196,6 +1196,16 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 .pv3dInspector .pv3dWallBtn{flex:1 1 0;min-width:0;justify-content:center;padding:6px 0;gap:0}
 .pv3dInspector .pv3dWallBtn .dot{display:none}
 .pv3dWallBtn.on{background:rgba(47,127,246,.12);color:var(--accent,#1250E0);border-color:rgba(47,127,246,.35)}
+.pv3dCols{display:flex;flex-direction:column;gap:8px;width:100%}
+.pv3dColsHead{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.pv3dColRow{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px;border:1px solid var(--line);border-radius:var(--r-field)}
+.pv3dColHead{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:700;color:var(--ink)}
+.pv3dColRow .pv3dField{display:flex;gap:4px;min-width:0}
+.pv3dColRow .pv3dField>span{flex:0 0 auto;font-size:12px}
+.pv3dColRow .pv3dField select,.pv3dColRow .pv3dField input[type=number]{flex:1 1 0;width:auto;min-width:0;padding:6px 4px}
+.pv3dColRow .pv3dField input[type=number]{text-align:right;-moz-appearance:textfield;appearance:textfield}
+.pv3dColRow .pv3dField input[type=number]::-webkit-inner-spin-button,.pv3dColRow .pv3dField input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.pv3dColsHint{font-size:11px;color:var(--muted);line-height:1.4}
 
 /* 공간 크기 W × H × D */
 .pv3dSize{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
