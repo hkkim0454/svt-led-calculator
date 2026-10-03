@@ -133,8 +133,8 @@ test('⑦ 앞벽 두께는 옆벽과 따로다 — 주지 않으면 옆벽과 �
   assert.equal(m({ wallThk: 100, wallThkFront: 450 }).wallThkFront, 0.45);
   assert.equal(m({ wallThk: 100, wallThkFront: 450 }).wallThk, 0.1, '옆벽까지 두꺼워졌다');
   assert.equal(m({ wallThk: 100, wallThkFront: 99999 }).wallThkFront, 0.6);
-  // 렌더러: 앞벽 상자의 깊이는 앞벽 값, 폭은 옆벽 두께로 모서리를 닫는다.
-  assert.match(src('render3d-gl.js'), /wallFront = wallMesh\(room\.W \+ thk \* 2, room\.H, thkF, matWallFront\);/);
+  // 렌더러: 앞벽 상자의 깊이는 앞벽 값이다(폭 규칙은 아래 별도 검사).
+  assert.match(src('render3d-gl.js'), /room\.H, thkF, matWallFront\);/);
 });
 
 test('⑦ 기둥 — 기본 600×600, 벽에 붙어 방 안쪽으로 튀어나오고 방 밖으로 나가지 않는다', () => {
@@ -161,4 +161,12 @@ test('⑦ 기둥 — 기본 600×600, 벽에 붙어 방 안쪽으로 튀어나�
     space, { x: 2000, w: 4000 }), [2]);
   // 꺼 둔 벽의 기둥은 함께 감춘다(컷어웨이).
   assert.match(src('render3d-gl.js'), /if \(!wallOn\[col\.wall\]\) continue;/);
+});
+
+test('⑦ 앞·뒤 벽은 켜진 옆벽 쪽만 그 두께만큼 넓힌다 — 꺼 둔 쪽으로 방 가로보다 넓어지지 않는다', () => {
+  const s = src('render3d-gl.js');
+  assert.match(s, /const capL = model\.show\?\.walls\?\.left \? thk : 0;/);
+  assert.match(s, /const capR = model\.show\?\.walls\?\.right \? thk : 0;/);
+  assert.match(s, /wallFront = wallMesh\(room\.W \+ capL \+ capR, room\.H, thkF, matWallFront\);/);
+  assert.equal(/room\.W \+ thk \* 2, room\.H/.test(s), false, '앞·뒤 벽이 다시 양쪽으로 넓어졌다');
 });

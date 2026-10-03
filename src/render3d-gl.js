@@ -18,17 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=464';
-import { createMaterialLibrary } from './materials-gl.js?v=464';
-import { MOODS } from './materials.js?v=464';
-import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=464';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=465';
+import { createMaterialLibrary } from './materials-gl.js?v=465';
+import { MOODS } from './materials.js?v=465';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=465';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
   stageWashForDesign,
-} from './design-lighting.js?v=464';
-import { ledImageFit } from './led-image.js?v=464';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=464';
+} from './design-lighting.js?v=465';
+import { ledImageFit } from './led-image.js?v=465';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=465';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -37,7 +37,7 @@ import {
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
   CONTROLS_MAX_POLAR, drawnItems,
-} from './gl-model.js?v=464';
+} from './gl-model.js?v=465';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -244,6 +244,9 @@ function buildRoomGroup(model, shared) {
   const thk = room.wallThk || 0;
   // 앞벽(LED 벽)만 따로 두께를 받는다. 주지 않았으면 옆벽과 같다(예전 그림 그대로).
   const thkF = room.wallThkFront ?? thk;
+  // 앞·뒤 벽이 옆벽 모서리를 덮는 폭 — 그쪽 옆벽이 켜져 있을 때만 그 두께만큼이다.
+  const capL = model.show?.walls?.left ? thk : 0;
+  const capR = model.show?.walls?.right ? thk : 0;
   const wallMesh = (w, h, d, mats) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
 
   const wallOn = model.show?.walls || {};
@@ -252,9 +255,10 @@ function buildRoomGroup(model, shared) {
   if (wallOn.front !== false) {
     let wallFront;
     if (thkF > 0) {
-      // 폭은 옆벽 두께만큼 양쪽으로 넓혀 모서리를 닫는다. 깊이(두께)만 앞벽 값이다.
-      wallFront = wallMesh(room.W + thk * 2, room.H, thkF, matWallFront);
-      wallFront.position.set(room.W / 2, room.H / 2, -thkF / 2);
+      // 폭은 **켜져 있는 옆벽 쪽만** 그 두께만큼 넓혀 모서리를 닫는다. 꺼 둔 쪽까지 넓히면
+      //   방 가로보다 넓은 벽이 생긴다(가로 1.18m 공간이 더 넓어 보이던 보고, 2026-10-03).
+      wallFront = wallMesh(room.W + capL + capR, room.H, thkF, matWallFront);
+      wallFront.position.set(room.W / 2 + (capR - capL) / 2, room.H / 2, -thkF / 2);
     } else {
       wallFront = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallFront);
       wallFront.position.set(room.W / 2, room.H / 2, 0);
@@ -267,8 +271,8 @@ function buildRoomGroup(model, shared) {
   if (wallOn.back) {
     let wallBack;
     if (thk > 0) {
-      wallBack = wallMesh(room.W + thk * 2, room.H, thk, matWallSide);
-      wallBack.position.set(room.W / 2, room.H / 2, room.D + thk / 2);
+      wallBack = wallMesh(room.W + capL + capR, room.H, thk, matWallSide);
+      wallBack.position.set(room.W / 2 + (capR - capL) / 2, room.H / 2, room.D + thk / 2);
     } else {
       wallBack = new THREE.Mesh(new THREE.PlaneGeometry(room.W, room.H), matWallSide);
       wallBack.rotation.y = Math.PI;               // 방 안쪽(−Z)을 향한다
