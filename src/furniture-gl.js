@@ -15,12 +15,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=465';
-import { createMaterialLibrary } from './materials-gl.js?v=465';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=465';
-import { GRADE_COLORS } from './viewangle.js?v=465';
-import { createGeometryCache } from './geometry-gl.js?v=465';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=465';
+import { u } from './gl-model.js?v=466';
+import { createMaterialLibrary } from './materials-gl.js?v=466';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=466';
+import { GRADE_COLORS } from './viewangle.js?v=466';
+import { createGeometryCache } from './geometry-gl.js?v=466';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=466';
 import {
   credenzaFinishForDesign,
   avFinishForDesign,
@@ -30,13 +30,13 @@ import {
   trainingFinishForDesign,
   auditoriumSurfaceFinish,
   ideationSurfaceFinish,
-} from './design-finish.js?v=465';
+} from './design-finish.js?v=466';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=465';
+} from './furniture-assets.js?v=466';
 
 const DEG = Math.PI / 180;
 

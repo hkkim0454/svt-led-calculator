@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=465';
+import { MODELS } from './models.js?v=466';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -8,19 +8,20 @@ import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportB
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT } from './product-docs.js?v=466';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=465';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=466';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=465';
-import { createViewerGL } from './render3d-gl.js?v=465';
+} from './room-presets.js?v=466';
+import { createViewerGL } from './render3d-gl.js?v=466';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=465';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=465';
-import { normalizeDesign, designsFor } from './room-design.js?v=465';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=465';
-import { sideMonitorLayout } from './monitors.js?v=465';
-import { ledImageFit } from './led-image.js?v=465';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=465';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=466';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=466';
+import { normalizeDesign, designsFor } from './room-design.js?v=466';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=466';
+import { sideMonitorLayout } from './monitors.js?v=466';
+import { ledImageFit } from './led-image.js?v=466';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=466';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -225,6 +226,95 @@ function opts() {
   return { mode: 'ledsize', ledW: lw, ledH: lh, ...common };
 }
 
+// ── 제품 정보 팝업(ⓘ) — 스펙 · 이미지 · 카탈로그·자료 · 출처 (오너 요청 2026-10-03, DEC-159) ──
+//   스펙 수치는 models.js, 자료(PDF·공식 페이지·사진)는 product-docs.js 가 단일 출처다.
+//   '지금 구성에서'는 engine.computeConfig 를 지금 입력으로 그대로 부른 값이다(새 공식 없음).
+//   index.html 마크업을 건드리지 않게 동적으로 만든다(포트·이미지 팝업과 같은 방식).
+const PD_TABS = [['spec', '스펙'], ['image', '이미지'], ['docs', '카탈로그 · 자료'], ['source', '출처']];
+function cabinetSketch(m) {
+  // 사진이 없을 때 — 캐비닛 가로·세로 비율대로 그린 그림(치수만 쓴다, 모양을 지어내지 않는다).
+  const W = Number(m.cabW) || 16, H = Number(m.cabH) || 9, k = Math.min(240 / W, 150 / H);
+  const w = W * k, h = H * k, x = (320 - w) / 2, y = (200 - h) / 2;
+  return `<svg viewBox="0 0 320 220" class="pdSketch" role="img" aria-label="캐비닛 비율 그림">
+    <rect x="${x + 10}" y="${y + 8}" width="${w}" height="${h}" rx="3" fill="#9aa5b6"/>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="url(#pdG)"/>
+    <defs><linearGradient id="pdG" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#14254a"/><stop offset=".6" stop-color="#1f4c9c"/><stop offset="1" stop-color="#3e83e6"/></linearGradient></defs>
+    <text x="${x + w / 2}" y="${y + h + 30}" text-anchor="middle" class="pdDim">${fmt(m.cabW, 1)} × ${fmt(m.cabH, 1)} mm</text></svg>`;
+}
+function pdDocList(d) {
+  const docs = [['catalog', '카탈로그', d.catalog], ['datasheet', '데이터시트', d.datasheet]].filter(x => x[2]);
+  return docs;
+}
+function renderProductInfo(el, m, tab, docKey) {
+  const d = docsFor(m.id);
+  const docs = pdDocList(d);
+  const cur = docs.find(x => x[0] === docKey) || docs[0] || null;
+  const st = DATA_STATUS_TEXT[m.dataStatus] || DATA_STATUS_TEXT['needs-verification'];
+  const S = ledSpecRows(m);
+  let body = '';
+  if (tab === 'spec') {
+    const r = computeConfig(m, spaceWmm(), spaceHmm(), opts());
+    const now = r && r.total > 0
+      ? `<div class="pdNow"><b>지금 구성에서</b> ${r.cols} × ${r.rows} = ${fmt(r.total)}장 (+ 예비 ${fmt(r.spares)}) · ${fmt(r.actualW / 1000, 3)} × ${fmt(r.actualH / 1000, 3)} m · ${fmt(r.resW)} × ${fmt(r.resH)} px`
+        + `${r.maxW != null ? ` · 최대 ${fmt(r.maxW / 1000, 2)} kW` : ''}${r.sbox > 0 ? ` · S-Box ${fmt(r.sbox)}대 (+ 예비 ${fmt(r.sboxSpares)})` : ''}</div>` : '';
+    body = `<div class="pdGrid"><div class="pdVisual">${d.images[0] ? `<img src="${esc(d.images[0].file)}" alt="${esc(m.name)} ${esc(d.images[0].label || '')}"/>` : cabinetSketch(m)}</div>
+      <div><div class="pdKpi">${S.kpi.map(x => `<div><small>${esc(x.k)}</small><b>${esc(x.v)}</b></div>`).join('')}</div>
+      <table class="pdTbl">${S.rows.map(x => `<tr><td>${esc(x.k)}</td><td>${esc(x.v)}</td></tr>`).join('')}</table>${now}</div></div>`;
+  } else if (tab === 'image') {
+    body = d.images.length
+      ? `<div class="pdGallery">${d.images.map(im => `<figure><img src="${esc(im.file)}" alt="${esc(m.name)} ${esc(im.label || '')}"/><figcaption>${esc(im.label || '')}</figcaption></figure>`).join('')}</div>`
+      : `<div class="pdEmpty">${cabinetSketch(m)}<p>아직 등록된 제품 사진이 없습니다. 지금은 캐비닛 치수 비율로 그린 그림을 보여 줍니다.</p></div>`;
+  } else if (tab === 'docs') {
+    body = cur
+      ? `<div class="pdViewer"><div class="pdDocTabs">${docs.map(x => `<button type="button" class="tiny${x === cur ? ' on' : ''}" data-pddoc="${x[0]}">${esc(x[1])}</button>`).join('')}
+          <span class="pdDocMeta">${esc(cur[2].title || cur[1])}${cur[2].edition ? ` · ${esc(cur[2].edition)}` : ''} · PDF</span></div>
+          <iframe class="pdFrame" src="${esc(docViewUrl(cur[2]))}" title="${esc(m.name)} ${esc(cur[1])}"></iframe></div>`
+      : `<div class="pdEmpty"><p>아직 등록된 카탈로그·데이터시트가 없습니다.${d.officialUrl ? ' 아래 \'공식 페이지\'에서 제조사 자료를 볼 수 있습니다.' : ''}</p></div>`;
+  } else {
+    body = `<div class="pdSource"><p><b>${esc(st.label)}</b> — ${esc(st.text)}</p>
+      <p>스펙 수치는 계산에 쓰는 모델 데이터와 같은 값입니다. 값이 없는 항목은 지어내지 않고 — 로 표시합니다.</p>
+      ${d.officialUrl ? `<p>공식 페이지: <a href="${esc(d.officialUrl)}" target="_blank" rel="noopener">${esc(d.officialUrl)}</a></p>` : ''}</div>`;
+  }
+  const dlDoc = (tab === 'docs' && cur) ? cur : docs[0] || null;
+  const btn = (on, html) => on ? html : html.replace('<a ', '<a aria-disabled="true" tabindex="-1" ').replace('class="pdBtn', 'class="pdBtn off');
+  el.innerHTML = `<div class="pdCard" role="dialog" aria-modal="true" aria-label="${esc(m.name)} 제품 정보">
+    <div class="pdHead"><div><span class="pdChip">${esc(lineLabel(m.series))}</span><span class="pdChip mute">${esc(m.category || '')}</span>
+      <h3>${esc(m.name)} ${statusBadge(m)}${newBadge(m)}</h3>
+      <div class="pdSub">${m.cabinetPart ? `부품 코드 ${esc(m.cabinetPart)}` : ''}${m.sbox ? ` · 컨트롤러 ${esc(m.sbox)}` : ''}</div></div>
+      <button type="button" class="ppClose" data-pdclose aria-label="닫기">✕</button></div>
+    <div class="pdTabs">${PD_TABS.map(([k, t]) => `<button type="button" class="pdTab${k === tab ? ' on' : ''}" data-pdtab="${k}">${t}</button>`).join('')}</div>
+    <div class="pdBody">${body}</div>
+    <div class="pdFoot"><div class="pdMeta">${docs.length ? docs.map(x => `📄 ${esc(x[2].title || x[1])}${x[2].edition ? ` · ${esc(x[2].edition)}` : ''}`).join('<br>') : '등록된 카탈로그 없음'}</div>
+      ${m.id !== selectedId ? `<button type="button" class="pdBtn" data-pdapply>이 모델로 계산</button>` : ''}
+      ${btn(!!d.officialUrl, `<a class="pdBtn ghost" href="${esc(d.officialUrl || '#')}" target="_blank" rel="noopener">공식 페이지 ↗</a>`)}
+      ${btn(!!dlDoc, `<a class="pdBtn" href="${esc(dlDoc?.[2].file || '#')}" download>⬇ ${dlDoc ? esc(dlDoc[1]) : '카탈로그'} 다운로드</a>`)}
+      ${tab === 'docs' && cur
+        ? btn(true, `<a class="pdBtn" href="${esc(docViewUrl(cur[2]))}" target="_blank" rel="noopener">새 창에서 열기 ↗</a>`)
+        : `<button type="button" class="pdBtn pri${docs.length ? '' : ' off'}" data-pdtab="docs"${docs.length ? '' : ' disabled'}>카탈로그 바로 보기</button>`}
+    </div></div>`;
+}
+function openProductInfo(id, tab = 'spec') {
+  const m = models.find(x => x.id === id); if (!m) return;
+  let el = $('#prodInfoPop');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'prodInfoPop'; el.hidden = true; document.body.appendChild(el);
+    el.addEventListener('click', e => {
+      if (e.target === el || e.target.closest('[data-pdclose]')) { el.hidden = true; return; }
+      if (e.target.closest('a[aria-disabled="true"]')) { e.preventDefault(); return; }
+      const cur = models.find(x => x.id === el.dataset.mid); if (!cur) { el.hidden = true; return; }
+      const t = e.target.closest('[data-pdtab]');
+      if (t && !t.disabled) { renderProductInfo(el, cur, t.dataset.pdtab); return; }
+      const dk = e.target.closest('[data-pddoc]');
+      if (dk) { renderProductInfo(el, cur, 'docs', dk.dataset.pddoc); return; }
+      if (e.target.closest('[data-pdapply]')) { el.hidden = true; selectedId = cur.id; svCode = null; renderAll(); syncSignageCard(); }
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !el.hidden) el.hidden = true; });
+  }
+  el.dataset.mid = id;
+  renderProductInfo(el, m, tab);
+  el.hidden = false;
+}
+
 function renderModelList() {
   const el = $('#modelList'); el.innerHTML = '';
   const vis = visibleModels();
@@ -240,7 +330,7 @@ function renderModelList() {
         <button class="tiny ghost mv" data-act="down" data-id="${m.id}" title="아래로"${i === vis.length - 1 ? ' disabled' : ''}>▼</button>
       </div>
       <div class="minfo">
-        <div class="mname">${esc(m.name)} ${statusBadge(m)}${newBadge(m)}</div>
+        <div class="mname">${esc(m.name)} ${statusBadge(m)}${newBadge(m)}<button type="button" class="infoBtn" data-act="info" data-id="${m.id}" title="제품 정보 · 카탈로그" aria-label="${esc(m.name)} 제품 정보">i</button></div>
         <div class="mmeta">${esc(lineLabel(m.series))} · ${fmt(m.cabW,1)}×${fmt(m.cabH,1)}mm · P${fmtPitch(m.pitch)}</div>
       </div>
       <div class="acts">
@@ -3091,6 +3181,7 @@ $('#modelList').addEventListener('click', e => {
     if (act === 'up') return moveModel(id, -1);
     if (act === 'down') return moveModel(id, 1);
     if (act === 'edit') return openEdit(id);
+    if (act === 'info') return openProductInfo(id);   // 선택(계산)은 바꾸지 않고 정보만 연다
     if (act === 'del') {
       if (models.length <= 1) return alert('최소 1개 모델은 남겨야 합니다.');
       models = models.filter(m => m.id !== id);
