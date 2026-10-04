@@ -5,7 +5,7 @@ import { CONFIG_VERSION, CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalize
 
 test('정상 구성은 값이 그대로 왕복(roundtrip)된다', () => {
   const cfg = {
-    spaceW: 6000, spaceH: 3400, baseHeight: 800, ledW: 3200, ledH: 1800,
+    spaceW: 6000, spaceH: 3400, baseHeight: 800, ledW: 3200, ledH: 1800, ledSizeMode: 'manual',
     spaceD: 7000, roomType: 'classroom', roomOpts: { rows: 5, cols: 4, aisle: true },
     roomDesign: 'largeConference',
     person3d: false,

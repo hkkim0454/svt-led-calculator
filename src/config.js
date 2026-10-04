@@ -31,6 +31,9 @@ export const CONFIG_DEFAULTS = Object.freeze({
   baseHeight: 1000,      // 바닥에서 LED 아래까지(mm)
   ledW: 4000,            // 'LED 크기 지정' 모드의 LED 가로(mm)
   ledH: 2300,            // 'LED 크기 지정' 모드의 LED 세로(mm)
+  // ② LED 크기가 자동('auto')인지 사람이 넣은 값('manual')인지(PHASE 11-a). null = 적혀 있지 않은
+  //   옛 저장값 — 화면이 led-request.js 의 restoreLedSizeMode 로 보수적으로 판정한다.
+  ledSizeMode: null,
   mode: 'fill',          // 'fill'(자동 채움) | 'ledsize'(LED 크기 지정) | 'manual'(직접 지정)
   manCols: 0,
   manRows: 0,
@@ -102,6 +105,7 @@ export function normalizeConfig(raw) {
     baseHeight: asNum(r.baseHeight, D.baseHeight),
     ledW: asNum(r.ledW, D.ledW),
     ledH: asNum(r.ledH, D.ledH),
+    ledSizeMode: (r.ledSizeMode === 'auto' || r.ledSizeMode === 'manual') ? r.ledSizeMode : D.ledSizeMode,
     mode,
     manCols: asNum(r.manCols, D.manCols),
     manRows: asNum(r.manRows, D.manRows),
