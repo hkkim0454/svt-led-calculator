@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=466';
+import { MODELS } from './models.js?v=467';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -8,20 +8,20 @@ import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportB
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT } from './product-docs.js?v=466';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT } from './product-docs.js?v=467';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=466';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=467';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=466';
-import { createViewerGL } from './render3d-gl.js?v=466';
+} from './room-presets.js?v=467';
+import { createViewerGL } from './render3d-gl.js?v=467';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=466';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=466';
-import { normalizeDesign, designsFor } from './room-design.js?v=466';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=466';
-import { sideMonitorLayout } from './monitors.js?v=466';
-import { ledImageFit } from './led-image.js?v=466';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=466';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=467';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=467';
+import { normalizeDesign, designsFor } from './room-design.js?v=467';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=467';
+import { sideMonitorLayout } from './monitors.js?v=467';
+import { ledImageFit } from './led-image.js?v=467';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=467';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -268,7 +268,8 @@ function renderProductInfo(el, m, tab, docKey) {
     body = cur
       ? `<div class="pdViewer"><div class="pdDocTabs">${docs.map(x => `<button type="button" class="tiny${x === cur ? ' on' : ''}" data-pddoc="${x[0]}">${esc(x[1])}</button>`).join('')}
           <span class="pdDocMeta">${esc(cur[2].title || cur[1])}${cur[2].edition ? ` · ${esc(cur[2].edition)}` : ''} · PDF</span></div>
-          <iframe class="pdFrame" src="${esc(docViewUrl(cur[2]))}" title="${esc(m.name)} ${esc(cur[1])}"></iframe></div>`
+          <iframe class="pdFrame" src="${esc(docViewUrl(cur[2]))}" title="${esc(m.name)} ${esc(cur[1])}"></iframe>
+          ${cur[2].notice ? `<div class="pdNotice">※ ${esc(cur[2].notice)}</div>` : ''}</div>`
       : `<div class="pdEmpty"><p>아직 등록된 카탈로그·데이터시트가 없습니다.${d.officialUrl ? ' 아래 \'공식 페이지\'에서 제조사 자료를 볼 수 있습니다.' : ''}</p></div>`;
   } else {
     body = `<div class="pdSource"><p><b>${esc(st.label)}</b> — ${esc(st.text)}</p>

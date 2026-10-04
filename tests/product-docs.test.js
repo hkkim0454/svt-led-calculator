@@ -57,3 +57,14 @@ test('화면 — 모델 줄의 ⓘ 는 선택(계산)을 바꾸지 않고 정보
   assert.match(app, /function renderProductInfo[\s\S]{0,1500}computeConfig\(m, spaceWmm\(\), spaceHmm\(\), opts\(\)\)/);
   assert.ok(existsSync(new URL('../src/catalogs/README.md', import.meta.url)));
 });
+
+test('삼성 LED 제품가이드 연결 (DEC-160) — 실린 모델만, 사양 쪽부터, 저작권 안내와 함께', () => {
+  const page = id => docsFor(id).catalog?.page ?? null;
+  for (const id of ['MM009F', 'MM012F', 'MM015F']) assert.equal(page(id), 3, id);
+  for (const id of ['IF015R', 'IF025R', 'IF040R']) assert.equal(page(id), 5, id);
+  assert.equal(page('IE015A'), 7);
+  // 자료에 없는 모델은 연결하지 않는다(부품 코드 대조 결과).
+  for (const id of ['IF020R', 'IE020A', 'IE025A', 'IE040A', 'IF015RM', 'IE015AE', 'MM012FS', 'MP012F']) assert.equal(page(id), null, id);
+  assert.match(docsFor('MM009F').catalog.notice, /동의 없이 제3자에게 복제·배포할 수 없습니다/);
+  assert.equal(docViewUrl(docsFor('MM009F').catalog), 'catalogs/samsung-led-indoor-guide.pdf#page=3');
+});

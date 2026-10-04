@@ -1394,3 +1394,4 @@ body.printing #cv3d{height:420px}
   .pdKpi{grid-template-columns:repeat(2,1fr)}
   .pdHead h3{font-size:19px}
 }
+.pdNotice{font-size:11.5px;color:var(--muted);line-height:1.5}

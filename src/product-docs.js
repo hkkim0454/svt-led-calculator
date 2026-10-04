@@ -12,13 +12,25 @@
 //   datasheet { file, title, edition, page }  같은 모양
 //   officialUrl  제조사 공식 제품 페이지(https). 확인된 주소만 적는다 — 추측해서 채우지 않는다.
 //   images    [{ file, label }]                제품 사진(정면·측면·후면·설치 예 등)
+//   catalog/datasheet 의 notice 는 자료에 붙은 저작권 안내 문구다. 팝업이 그대로 보여 준다.
 //
 // 오너가 PDF 를 보내 주면 src/catalogs/ 에 넣고 여기에 한 줄을 더한다(2026-10-03, DEC-159).
 
 export const DOCS_DIR = 'catalogs/';
 
+// 삼성전자 제품가이드(LED 사이니지 실내용, 7쪽) — 오너가 2026-10-04 '삼성 동의를 받음'을 확인하고 게시를 지시했다(DEC-160).
+//   실린 모델만 연결한다(부품 코드로 대조). page = 그 시리즈 사양 쪽.
+const SAMSUNG_NOTICE = '삼성전자 자료입니다. 삼성전자의 동의 없이 제3자에게 복제·배포할 수 없습니다.';
+const LED_GUIDE = Object.freeze({ file: 'catalogs/samsung-led-indoor-guide.pdf', title: '삼성 LED 사이니지 실내용 제품가이드', notice: SAMSUNG_NOTICE });
+const guide = page => Object.freeze({ catalog: Object.freeze({ ...LED_GUIDE, page }) });
+
 export const PRODUCT_DOCS = Object.freeze({
-  // 예) MP012F: { catalog: { file: 'catalogs/samsung-mpf-2026.pdf', title: 'MPF 시리즈 카탈로그', edition: '2026', page: 3 } },
+  // MMF 시리즈(LH009/012/015MMFRGS) — 3쪽
+  MM009F: guide(3), MM012F: guide(3), MM015F: guide(3),
+  // IFR 시리즈(LH015/025/040IFRCLS) — 5쪽. P2.0(IF020R)은 이 자료에 없다.
+  IF015R: guide(5), IF025R: guide(5), IF040R: guide(5),
+  // IEA(LH015IEACLS) — 7쪽. P2.0·2.5·4.0 은 이 자료에 없다.
+  IE015A: guide(7),
 });
 
 const EMPTY = Object.freeze({ catalog: null, datasheet: null, officialUrl: null, images: Object.freeze([]) });
