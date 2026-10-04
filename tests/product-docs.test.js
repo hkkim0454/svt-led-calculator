@@ -17,15 +17,21 @@ test('자료 목록 — 등록한 제품은 실재하고, 파일은 catalogs/ �
       assert.ok(doc.file.startsWith(DOCS_DIR) && doc.file.endsWith('.pdf'), `${id}.${key}: catalogs/…pdf 가 아니다`);
       assert.ok(onDisk(doc.file), `${id}.${key}: 파일이 없다 (${doc.file})`);
     }
+    // 제안서는 암호화 파일(…pdf.lock)만 둔다 — 원본 PDF 를 공개 저장소에 올리지 않는다(DEC-163).
+    if (d.proposal) {
+      assert.ok(d.proposal.locked && d.proposal.file.startsWith(DOCS_DIR) && d.proposal.file.endsWith('.pdf.lock'), `${id}.proposal: 잠긴 파일이 아니다`);
+      assert.ok(onDisk(d.proposal.file), `${id}.proposal: 파일이 없다 (${d.proposal.file})`);
+    }
     if (d.officialUrl) assert.match(d.officialUrl, /^https:\/\//, `${id}: 공식 주소가 https 가 아니다`);
-    for (const im of d.images || []) assert.ok(onDisk(im.file), `${id}: 사진 파일이 없다 (${im.file})`);
+    // 사진은 catalogs/ 안의 파일이거나, 삼성 공식 이미지 서버 주소(링크만 — 파일을 복사하지 않는다, DEC-163)다.
+    for (const im of d.images || []) assert.ok(onDisk(im.file) || im.file.startsWith('https://images.samsung.com/'), `${id}: 사진 파일이 없다 (${im.file})`);
   }
   // 공개 사이트다 — 가격·견적 정보를 자료 목록에 두지 않는다(CLAUDE.md 규칙 5).
   assert.equal(/price|cost|sell|견적|단가/i.test(src('product-docs.js').replace(/가격표·견적·계약·내부 문서는 올리지 않는다/g, '')), false);
 });
 
 test('docsFor — 등록이 없으면 빈 묶음, docViewUrl 은 그 쪽부터 연다', () => {
-  assert.deepEqual({ ...docsFor('없는제품') }, { catalog: null, datasheet: null, officialUrl: null, images: [] });
+  assert.deepEqual({ ...docsFor('없는제품') }, { catalog: null, datasheet: null, proposal: null, officialUrl: null, images: [] });
   assert.equal(docViewUrl(null), null);
   assert.equal(docViewUrl({ file: 'catalogs/a.pdf' }), 'catalogs/a.pdf');
   assert.equal(docViewUrl({ file: 'catalogs/a.pdf', page: 3 }), 'catalogs/a.pdf#page=3');
