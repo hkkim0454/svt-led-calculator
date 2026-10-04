@@ -11,27 +11,28 @@
 - '무단 복제·배포 금지' 문구가 있는 자료는 오너가 동의 사실을 확인한 뒤에만 넣고, 그 확인을
   `docs/audit.md` 에 남긴다. 팝업에는 자료의 저작권 안내 문구(`notice`)를 함께 보여 준다.
 
-## 제안서는 암호화해서 넣는다 (DEC-163)
+## 삼성 자료는 전부 암호화해서 넣는다 (DEC-163 · DEC-164)
 
-- **매뉴얼(제품가이드)** 은 PDF 그대로 넣는다(비밀번호 없이 열린다).
-- **제안서** 는 원본 PDF 를 넣지 않는다. 비밀번호로 암호화한 `…pdf.lock` 만 넣는다.
+- **제품가이드와 제안서 모두** 원본 PDF 를 넣지 않는다. 비밀번호로 암호화한 `…pdf.lock` 만 넣는다.
   ```
   DOC_PASSWORD='(비밀번호)' node tools/lock-doc.mjs 원본.pdf src/catalogs/이름.pdf.lock
   ```
   화면에서 비밀번호를 넣으면 브라우저 안에서만 풀어 보여 준다(`src/doc-lock.js`).
-- **비밀번호는 저장소 어디에도 적지 않는다**(코드·문서·검사·PR·커밋). 바꿀 때는 제안서 전부를 새 비밀번호로 다시 잠근다.
+- **비밀번호는 저장소 어디에도 적지 않는다**(코드·문서·검사·PR·커밋). 바꿀 때는 자료 전부를 새 비밀번호로 다시 잠근다.
+- 검사(`tests/doc-lock.test.js`)가 이 폴더에 잠기지 않은 PDF 가 있으면 실패한다.
 
-## 지금 들어 있는 자료
+## 지금 들어 있는 자료 (전부 🔒)
 
 | 파일 | 내용 | 종류 | 근거 |
 |---|---|---|---|
-| `samsung-led-indoor-guide.pdf` | 삼성 LED 사이니지 실내용 제품가이드(MMF·IFR·IEA, 7쪽) | 매뉴얼 | 오너가 삼성 동의를 확인(2026-10-04, DEC-160) |
-| `samsung-lcd-standalone-guide.pdf` | 삼성 LCD 사이니지 단독형 제품가이드(47쪽) | 매뉴얼 | 오너 지시(2026-10-04, DEC-163) |
-| `samsung-lcd-qh115fx-guide.pdf` | 삼성 LCD 사이니지 단독형 QHFX 115형(2쪽) | 매뉴얼 | 같음 |
-| `samsung-lcd-videowall-guide.pdf` | 삼성 LCD 비디오월 제품가이드(18쪽) | 매뉴얼 | 같음 |
-| `samsung-led-mpf-proposal.pdf.lock` | 삼성 스마트 LED 사이니지 MPF 시리즈(18쪽) | 제안서 · 🔒 | 같음 |
-| `samsung-led-mmf-proposal.pdf.lock` | 삼성 스마트 LED 사이니지 MMF 시리즈(14쪽) | 제안서 · 🔒 | 같음 |
-| `samsung-lcd-spatial-proposal.pdf.lock` | 삼성 스페이셜 사이니지(20쪽) | 제안서 · 🔒 | 같음 |
+| `samsung-led-indoor-guide.pdf.lock` | 삼성 LED 사이니지 실내용 제품가이드(MMF·IFR·IEA, 7쪽) | 제품가이드 | 게시 DEC-160, 잠금 DEC-164 |
+| `samsung-lcd-standalone-guide.pdf.lock` | 삼성 LCD 사이니지 단독형 제품가이드(47쪽) | 제품가이드 | DEC-163, 잠금 DEC-164 |
+| `samsung-lcd-qh115fx-guide.pdf.lock` | 삼성 LCD 사이니지 단독형 QHFX 115형(2쪽) | 제품가이드 | 같음 |
+| `samsung-lcd-videowall-guide.pdf.lock` | 삼성 LCD 비디오월 제품가이드(18쪽) | 제품가이드 | 같음 |
+| `samsung-led-mpf-proposal.pdf.lock` | 삼성 스마트 LED 사이니지 MPF 시리즈(18쪽) | 제안서 | DEC-163 |
+| `samsung-led-mmf-proposal.pdf.lock` | 삼성 스마트 LED 사이니지 MMF 시리즈(14쪽) | 제안서 | DEC-163 |
+| `samsung-lcd-spatial-proposal.pdf.lock` | 삼성 스페이셜 사이니지(20쪽) | 제안서 | DEC-163 |
+
 - 파일 하나는 수십 MB 이하로 둔다(저장소와 화면이 무거워진다).
 
 ## 파일 이름

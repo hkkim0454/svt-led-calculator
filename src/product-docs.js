@@ -4,11 +4,11 @@
 // 이 파일은 '어떤 자료가 어디 있는가'만 안다. 제품 정보 팝업과 제품 자료실(app.js)이 읽어서 보여 준다.
 //
 // ⚠ 배포 사이트(GitHub Pages)와 저장소는 **공개**다. 주소를 아는 누구나 볼 수 있으므로
-//   가격표·견적·계약·내부 문서는 올리지 않는다. 제조사 매뉴얼(제품가이드)은 그대로 올리고,
-//   **제안서는 비밀번호로 암호화한 파일(…pdf.lock)만** 올린다(doc-lock.js · tools/lock-doc.mjs, DEC-163).
+//   가격표·견적·계약·내부 문서는 올리지 않는다. 삼성 **제품가이드와 제안서는 전부 비밀번호로 암호화한
+//   파일(…pdf.lock)만** 올린다(doc-lock.js · tools/lock-doc.mjs, DEC-163 · DEC-164). 원본 PDF 는 올리지 않는다.
 //
 // 항목 모양 (키 = models.js 의 id)
-//   catalog   { file, title, page, notice }   매뉴얼·카탈로그 PDF. file 은 src/ 기준 상대 경로(catalogs/…pdf),
+//   catalog   { file, title, page, notice, locked }   제품가이드·카탈로그. file 은 src/ 기준 상대 경로(catalogs/…pdf 또는 …pdf.lock),
 //                                             page 는 그 모델이 실린 첫 쪽(없으면 1)
 //   datasheet { … }                           같은 모양
 //   proposal  { …, locked: true }             제안서 — 파일은 catalogs/…pdf.lock(암호화). 비밀번호를 넣어야 열린다
@@ -25,11 +25,11 @@ const SAMSUNG_NOTICE = '삼성전자 자료입니다. 삼성전자의 동의 없
 const doc = (file, title, extra = {}) => Object.freeze({ file: DOCS_DIR + file, title, notice: SAMSUNG_NOTICE, ...extra });
 const at = (d, page) => Object.freeze({ ...d, page });
 
-// ── 매뉴얼(제품가이드) — 비밀번호 없이 연다 ──
-const LED_GUIDE = doc('samsung-led-indoor-guide.pdf', '삼성 LED 사이니지 실내용 제품가이드', { kind: 'manual', pages: 7 });
-const LCD_STANDALONE = doc('samsung-lcd-standalone-guide.pdf', '삼성 LCD 사이니지 단독형 제품가이드', { kind: 'manual', pages: 47 });
-const LCD_QH115 = doc('samsung-lcd-qh115fx-guide.pdf', '삼성 LCD 사이니지 단독형 QHFX(115형) 제품가이드', { kind: 'manual', pages: 2 });
-const LCD_VIDEOWALL = doc('samsung-lcd-videowall-guide.pdf', '삼성 LCD 비디오월 제품가이드', { kind: 'manual', pages: 18 });
+// ── 제품가이드 — 암호화 파일. 비밀번호를 넣어야 열린다(오너 지시 2026-10-04, DEC-164) ──
+const LED_GUIDE = doc('samsung-led-indoor-guide.pdf.lock', '삼성 LED 사이니지 실내용 제품가이드', { kind: 'guide', locked: true, pages: 7 });
+const LCD_STANDALONE = doc('samsung-lcd-standalone-guide.pdf.lock', '삼성 LCD 사이니지 단독형 제품가이드', { kind: 'guide', locked: true, pages: 47 });
+const LCD_QH115 = doc('samsung-lcd-qh115fx-guide.pdf.lock', '삼성 LCD 사이니지 단독형 QHFX(115형) 제품가이드', { kind: 'guide', locked: true, pages: 2 });
+const LCD_VIDEOWALL = doc('samsung-lcd-videowall-guide.pdf.lock', '삼성 LCD 비디오월 제품가이드', { kind: 'guide', locked: true, pages: 18 });
 // ── 제안서 — 암호화 파일. 비밀번호를 넣어야 열린다(DEC-163) ──
 const MPF_PROPOSAL = doc('samsung-led-mpf-proposal.pdf.lock', '삼성 스마트 LED 사이니지 MPF 시리즈 제안서', { kind: 'proposal', locked: true, pages: 18 });
 const MMF_PROPOSAL = doc('samsung-led-mmf-proposal.pdf.lock', '삼성 스마트 LED 사이니지 MMF 시리즈 제안서', { kind: 'proposal', locked: true, pages: 14 });
@@ -60,7 +60,7 @@ export const PRODUCT_DOCS = Object.freeze({
   MP016F: { proposal: at(MPF_PROPOSAL, 17), images: mpfImages('lh016mpfaaa-go', [550079043, 550079049, 550079051, 550079047]) },
 });
 
-// LCD 사이니지(signage-data.js 의 modelCode) — 매뉴얼의 그 모델이 실린 쪽(모델 코드로 대조, 2026-10-04).
+// LCD 사이니지(signage-data.js 의 modelCode) — 제품가이드의 그 모델이 실린 쪽(모델 코드로 대조, 2026-10-04).
 const sv = (d, page) => Object.freeze({ manual: at(d, page) });
 export const SIGNAGE_DOCS = Object.freeze({
   // QMC 10쪽 · QHC 12쪽 (단독형 제품가이드)
@@ -75,7 +75,7 @@ export const SIGNAGE_DOCS = Object.freeze({
   LH55VMCRBGBXKR: sv(LCD_VIDEOWALL, 15), LH55VHCRBGBXKR: sv(LCD_VIDEOWALL, 15),
 });
 
-/** 제품 자료실 — 올린 자료 전부. 매뉴얼은 바로 열리고 제안서는 비밀번호를 넣어야 열린다. */
+/** 제품 자료실 — 올린 자료 전부(제품가이드 · 제안서). 전부 비밀번호를 넣어야 열린다. */
 export const DOC_LIBRARY = Object.freeze([
   { group: 'LED', for: 'MMF · IFR · IEA 시리즈', doc: LED_GUIDE },
   { group: 'LED', for: 'MPF 시리즈(MP008F · MP012F · MP016F)', doc: MPF_PROPOSAL },
@@ -87,6 +87,7 @@ export const DOC_LIBRARY = Object.freeze([
 ].map(Object.freeze));
 
 /** 이 자료는 비밀번호로 잠겨 있는가. */
+export const DOC_KIND_LABEL = Object.freeze({ guide: '제품가이드', proposal: '제안서' });
 export const isLockedDoc = d => !!(d && d.locked);
 
 const EMPTY = Object.freeze({ catalog: null, datasheet: null, proposal: null, officialUrl: null, images: Object.freeze([]) });
