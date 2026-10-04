@@ -2931,7 +2931,7 @@ function renderLedSizeFitWarning(bar) {
   bar.hidden = false;
   bar.innerHTML = `<span class="svField">LED 설치 크기</span>`
     + `<span class="notice warn" data-ledfit="over">LED 가 벽에 들어가지 않습니다. ${why.join(' · ')}. `
-    + `② LED 크기나 하단 높이를 직접 조정해 주세요.</span>`;
+    + `2번 LED 설치 크기나 하단 높이를 직접 조정해 주세요.</span>`;
 }
 function renderLedFitBar() {
   const bar = $('#ledFitBar'); if (!bar) return;
