@@ -17,7 +17,7 @@
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
 - **기준선**: `main` 제품 기준 커밋 `8705539`(PR #124) · 화면 버전 **v460** · `npm test` **1170/1170** · 작업 트리 clean
   (그 뒤의 커밋은 문서 전용이다)
-- **작업 가지**: `claude/phase11a-led-state-safety`(PHASE 11-a · 화면 버전 v469 · `npm test` 1201/1201 · Draft, 병합 전)
+- **작업 가지**: `claude/phase11a-led-state-safety`(PHASE 11-a · 최신 `main` `bed6990`(v470) 위로 다시 올림 · 화면 버전 v471 · `npm test` 1205/1205 · Draft, 병합 전)
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
   (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · `.github/workflows` 없음 — `main` 병합이 곧 배포)
 - **다음 트랙 후보**(PHASE 10-0, 승인 대기): Track A 제품 전체 시각 통일(추천) ·
@@ -527,7 +527,7 @@ PHASE 11-0 읽기 전용 감사가 찾은 **P1 두 건**만 고쳤다. 권장 �
 - `src/app.js` — 저장·복원·용도 전환·하단 높이·경고 막대 연결. `src/config.js` — `ledSizeMode` 정규화
 - `engine.js`·`room-presets.js` 공식·캐비닛 맞춤·반올림·삼성 정합성·BOM·전력은 **변경 0**
 - `tests/led-state.test.js`(신규 10건: 계약 A~G · 기준값 · 자동 복귀 · 배선), `tests/config.test.js` 왕복 항목 1개 추가
-- 화면 버전 v468 → **v469**
+- 화면 버전 v468 → v469 → **v471**(PR #134·#135 병합 뒤 최신 `main` v470 위로 다시 올렸다)
 
 ### 남긴 항목(P2)
 
