@@ -1395,3 +1395,55 @@ body.printing #cv3d{height:420px}
   .pdHead h3{font-size:19px}
 }
 .pdNotice{font-size:11.5px;color:var(--muted);line-height:1.5}
+
+/* ── 01~08 디자인 정리 — RTCOM Configurator 디자인 언어(오너 A안, 2026-10-04, DEC-161) ──
+   상단 흰 카드 · 단계 표시줄 · 칸 머리표(작은 파란 글씨) + 큰 안내 문장 · 01 입력 번호 묶음 ·
+   02 모델 선택 표시(초록 점) · 주요 버튼 그라데이션. 칸의 가로 폭·안쪽 여백은 그대로 둔다
+   (3D 미리보기 캔버스 크기가 바뀌면 동결된 기준 화면이 달라지기 때문이다). */
+header.top{
+  background:var(--glass-fill);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-stroke);border-radius:var(--r-card);box-shadow:var(--shadow-card);
+  padding:16px 22px;margin-bottom:14px;
+}
+.stepNav{position:sticky;top:8px;z-index:40;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;
+  margin:0 0 18px;padding:6px 10px 0;border-radius:18px;
+  background:var(--glass-fill);-webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-stroke);box-shadow:var(--shadow-card)}
+.stepNav .stepBtn{display:flex;align-items:center;gap:8px;min-width:0;padding:8px 4px 10px;border:0;border-radius:0;
+  background:none;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:inset 0 -3px 0 rgba(118,118,128,.18);
+  font:600 12.5px var(--sans);color:var(--muted);text-align:left}
+.stepNav .stepBtn:hover{background:none;color:var(--ink)}
+.stepNav .stepBtn:active{transform:none}
+.stepNav .stepBtn i{flex:none;font-style:normal;display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;
+  border-radius:999px;background:rgba(118,118,128,.14);font:700 11px var(--mono);color:var(--muted)}
+.stepNav .stepBtn span{overflow:hidden;text-overflow:ellipsis}
+.stepNav .stepBtn.on{color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
+.stepNav .stepBtn.on i{background:var(--accent);color:#fff}
+.card[data-step]{scroll-margin-top:84px}
+/* 칸 머리표 — '01 설치 공간'을 작은 파란 글씨로, 그 아래 큰 안내 문장 */
+.card h2,.vpSectionHead h2{font-size:12px;letter-spacing:.12em;color:var(--accent);margin:0 0 6px}
+.card h2 .idx,.vpSectionHead h2 .idx{font-size:12px}
+.secHead{margin:0 0 16px;text-transform:none;letter-spacing:0}
+.secHead h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.25;color:var(--ink)}
+.secHead p{margin:5px 0 0;font-size:13px;font-weight:500;color:var(--muted);line-height:1.5}
+.vpSectionHead .secHead{margin:2px 0 0}
+/* 01 입력 묶음 제목 */
+.grpTitle{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:13px;font-weight:800;color:var(--ink)}
+.grpTitle b{flex:none;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;
+  background:var(--accent);color:#fff;font:700 11px var(--mono)}
+.grpTitle span{font-size:11.5px;font-weight:500;color:var(--muted)}
+.secHead + .grpTitle{margin-top:4px}
+/* 02 모델 — 고른 모델은 파란 테두리 + 초록 점 */
+.modelRow{position:relative}
+.modelRow::after{content:"";position:absolute;top:12px;right:12px;width:9px;height:9px;border-radius:50%;background:rgba(118,118,128,.28)}
+.modelRow.sel{border:2px solid var(--accent);box-shadow:0 6px 18px -8px var(--accent)}
+.modelRow.sel::after{background:var(--ok);box-shadow:0 0 0 3px rgba(30,158,82,.18)}
+/* 주요 버튼 — 파랑 → 보라 */
+button.primary{background:linear-gradient(135deg,#3b7bf6,#6f5cf0);box-shadow:0 8px 18px -8px #5a6cf3}
+button.primary:hover{background:linear-gradient(135deg,#2f6ee8,#6150e6)}
+@media (max-width:900px){
+  .stepNav{display:flex;overflow-x:auto;scrollbar-width:none;top:4px}
+  .stepNav .stepBtn{flex:0 0 auto;padding:8px 8px 10px}
+  .secHead h3{font-size:19px}
+}
+@media print{ .stepNav{display:none} header.top{box-shadow:none} }

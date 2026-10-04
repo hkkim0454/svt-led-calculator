@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=467';
+import { MODELS } from './models.js?v=468';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -8,20 +8,20 @@ import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportB
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT } from './product-docs.js?v=467';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT } from './product-docs.js?v=468';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=467';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=468';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=467';
-import { createViewerGL } from './render3d-gl.js?v=467';
+} from './room-presets.js?v=468';
+import { createViewerGL } from './render3d-gl.js?v=468';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=467';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=467';
-import { normalizeDesign, designsFor } from './room-design.js?v=467';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=467';
-import { sideMonitorLayout } from './monitors.js?v=467';
-import { ledImageFit } from './led-image.js?v=467';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=467';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=468';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=468';
+import { normalizeDesign, designsFor } from './room-design.js?v=468';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=468';
+import { sideMonitorLayout } from './monitors.js?v=468';
+import { ledImageFit } from './led-image.js?v=468';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=468';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -4022,4 +4022,36 @@ handleSharedLink();   // 공유 링크(#share=)로 들어온 경우 그 구성�
   ['spaceW', 'spaceH'].forEach(id => $('#' + id)?.addEventListener('input', render));
   syncSignageCard = render;   // 모듈 전역에 노출(LED 모델 선택 시 바 갱신용)
   render();
+})();
+
+// ── 단계 표시줄(01~08) — 누르면 그 칸으로 이동하고, 스크롤하면 지금 보고 있는 칸 하나를 표시한다(DEC-161). ──
+//   두 단 배치라 여러 칸이 함께 보인다 — 표시줄 바로 아래에 머리가 가장 가까운 칸을 '지금 칸'으로 고른다
+//   (같으면 번호가 작은 칸). 그래서 06 을 누르면 06 이, 맨 위에서는 01 이 켜진다.
+(function initStepNav() {
+  const nav = $('#stepNav'); if (!nav) return;
+  const cards = () => [...document.querySelectorAll('.card[data-step]')];
+  nav.addEventListener('click', e => {
+    const b = e.target.closest('[data-stepgo]'); if (!b) return;
+    const c = document.querySelector(`.card[data-step="${b.dataset.stepgo}"]`); if (!c) return;
+    if (c.tagName === 'DETAILS' && !c.open) c.open = true;   // 접힌 05·08은 펼쳐서 보여 준다
+    c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  let raf = 0;
+  const mark = () => {
+    raf = 0;
+    const top = nav.getBoundingClientRect().bottom;
+    let best = null, bestD = Infinity;
+    for (const c of cards()) {
+      const r = c.getBoundingClientRect();
+      if (r.bottom < top + 60 || r.top > window.innerHeight) continue;   // 화면에 거의 안 보이는 칸은 빼고
+      const d = Math.abs(r.top - top);
+      if (d < bestD - 1) { best = c; bestD = d; }
+    }
+    for (const b of nav.querySelectorAll('[data-stepgo]')) b.classList.toggle('on', b.dataset.stepgo === best?.dataset.step);
+  };
+  const queue = () => { if (!raf) raf = requestAnimationFrame(mark); };
+  window.addEventListener('scroll', queue, { passive: true });
+  window.addEventListener('resize', queue);
+  document.addEventListener('toggle', queue, true);   // 05·08 접기/펼치기
+  mark();
 })();
