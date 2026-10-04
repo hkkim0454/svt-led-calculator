@@ -14,7 +14,8 @@ test('자료 목록 — 등록한 제품은 실재하고, 파일은 catalogs/ �
     assert.ok(ids.has(id), `${id}: models.js 에 없는 제품`);
     for (const key of ['catalog', 'datasheet']) {
       const doc = d[key]; if (!doc) continue;
-      assert.ok(doc.file.startsWith(DOCS_DIR) && doc.file.endsWith('.pdf'), `${id}.${key}: catalogs/…pdf 가 아니다`);
+      // 삼성 자료는 전부 암호화 파일(…pdf.lock)이다(DEC-164). 잠기지 않은 자료라면 평범한 …pdf 다.
+      assert.ok(doc.file.startsWith(DOCS_DIR) && doc.file.endsWith(doc.locked ? '.pdf.lock' : '.pdf'), `${id}.${key}: catalogs/…pdf(.lock) 가 아니다`);
       assert.ok(onDisk(doc.file), `${id}.${key}: 파일이 없다 (${doc.file})`);
     }
     // 제안서는 암호화 파일(…pdf.lock)만 둔다 — 원본 PDF 를 공개 저장소에 올리지 않는다(DEC-163).
@@ -72,5 +73,6 @@ test('삼성 LED 제품가이드 연결 (DEC-160) — 실린 모델만, 사양 �
   // 자료에 없는 모델은 연결하지 않는다(부품 코드 대조 결과).
   for (const id of ['IF020R', 'IE020A', 'IE025A', 'IE040A', 'IF015RM', 'IE015AE', 'MM012FS', 'MP012F']) assert.equal(page(id), null, id);
   assert.match(docsFor('MM009F').catalog.notice, /동의 없이 제3자에게 복제·배포할 수 없습니다/);
-  assert.equal(docViewUrl(docsFor('MM009F').catalog), 'catalogs/samsung-led-indoor-guide.pdf#page=3');
+  assert.equal(docViewUrl(docsFor('MM009F').catalog), 'catalogs/samsung-led-indoor-guide.pdf.lock#page=3');   // 잠긴 파일(DEC-164) — 화면은 풀어 둔 blob: 주소로 연다
+  assert.equal(docsFor('MM009F').catalog.locked, true);
 });
