@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=468';
+import { MODELS } from './models.js?v=469';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -8,20 +8,21 @@ import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportB
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT } from './product-docs.js?v=468';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS } from './product-docs.js?v=469';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=469';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=468';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=469';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=468';
-import { createViewerGL } from './render3d-gl.js?v=468';
+} from './room-presets.js?v=469';
+import { createViewerGL } from './render3d-gl.js?v=469';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=468';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=468';
-import { normalizeDesign, designsFor } from './room-design.js?v=468';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=468';
-import { sideMonitorLayout } from './monitors.js?v=468';
-import { ledImageFit } from './led-image.js?v=468';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=468';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=469';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=469';
+import { normalizeDesign, designsFor } from './room-design.js?v=469';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=469';
+import { sideMonitorLayout } from './monitors.js?v=469';
+import { ledImageFit } from './led-image.js?v=469';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=469';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -242,13 +243,79 @@ function cabinetSketch(m) {
     <text x="${x + w / 2}" y="${y + h + 30}" text-anchor="middle" class="pdDim">${fmt(m.cabW, 1)} × ${fmt(m.cabH, 1)} mm</text></svg>`;
 }
 function pdDocList(d) {
-  const docs = [['catalog', '카탈로그', d.catalog], ['datasheet', '데이터시트', d.datasheet]].filter(x => x[2]);
+  const docs = [['catalog', '카탈로그', d.catalog], ['datasheet', '데이터시트', d.datasheet], ['proposal', '제안서 🔒', d.proposal]].filter(x => x[2]);
   return docs;
+}
+
+// ── 잠긴 자료(제안서) — 비밀번호를 넣은 브라우저 안에서만 풀어 보여 준다 (오너 지시 2026-10-04, DEC-163) ──
+//   파일은 암호화되어 있어(doc-lock.js) 주소를 알아도 읽을 수 없다. 비밀번호는 **이 페이지의 메모리에만** 두고
+//   어디에도 저장하지 않는다 — 새로 고치거나 탭을 닫으면 다시 넣어야 한다. 매뉴얼(제품가이드)은 잠그지 않는다.
+let docPassword = null;
+const docBlobUrls = new Map();     // 잠긴 파일 주소 → 풀어 둔 blob: 주소
+/** 이 자료를 지금 열 수 있는 주소(쪽 포함). 잠겨 있고 아직 못 풀었으면 null. */
+function docHref(d) {
+  if (!d) return null;
+  if (!isLockedDoc(d)) return docViewUrl(d);
+  const u = docBlobUrls.get(d.file); if (!u) return null;
+  const page = Math.max(1, Math.round(Number(d.page) || 1));
+  return page > 1 ? `${u}#page=${page}` : u;
+}
+/** 내려받기 주소 — 잠긴 자료는 풀어 둔 PDF(blob:)를 내려받는다. */
+const docDownloadHref = d => (!d ? null : isLockedDoc(d) ? (docBlobUrls.get(d.file) || null) : d.file);
+const docDownloadName = d => (d && isLockedDoc(d) ? `${d.title || 'document'}.pdf` : '');
+/** 잠긴 자료를 비밀번호로 푼다. 맞으면 그 비밀번호를 이 페이지 메모리에 기억해 다른 제안서도 바로 연다. */
+async function unlockDoc(d, pw) {
+  if (docBlobUrls.has(d.file)) return true;
+  const res = await fetch(d.file);
+  if (!res.ok) throw new Error(`자료를 불러오지 못했습니다 (${res.status})`);
+  const plain = await unlockBytes(new Uint8Array(await res.arrayBuffer()), pw);
+  docBlobUrls.set(d.file, URL.createObjectURL(new Blob([plain], { type: 'application/pdf' })));
+  docPassword = pw;
+  return true;
+}
+/** 잠금 화면(비밀번호 입력) — 제품 정보 팝업과 자료실이 같이 쓴다. */
+function docLockForm(d, msg = '') {
+  return `<form class="pdLock" data-doclock="${esc(d.file)}" autocomplete="off">
+    <div class="pdLockIcon" aria-hidden="true">🔒</div>
+    <p><b>${esc(d.title || '제안서')}</b><br>제안서는 비밀번호를 넣어야 열립니다. 매뉴얼(제품가이드)은 비밀번호 없이 열립니다.</p>
+    <div class="pdLockRow"><input type="password" name="pw" placeholder="비밀번호" aria-label="자료 비밀번호" autocomplete="current-password" required>
+      <button type="submit" class="pdBtn pri">열기</button></div>
+    <div class="pdLockMsg" role="status">${esc(msg)}</div></form>`;
+}
+/** 화면 안의 잠금 화면 제출을 처리한다. 성공하면 rerender() 로 다시 그린다. */
+function bindDocLock(root, rerender) {
+  root.addEventListener('submit', async e => {
+    const f = e.target.closest('form[data-doclock]'); if (!f) return;
+    e.preventDefault();
+    const d = [...DOC_LIBRARY.map(x => x.doc), ...Object.values(SIGNAGE_DOCS).map(x => x.manual),
+      ...models.map(m => docsFor(m.id).proposal)].find(x => x && x.file === f.dataset.doclock);
+    const msg = f.querySelector('.pdLockMsg'), btn = f.querySelector('button[type=submit]');
+    if (!d) return;
+    btn.disabled = true; msg.textContent = '여는 중…';
+    try { await unlockDoc(d, f.elements.pw.value); rerender(); }
+    catch (err) { msg.textContent = err instanceof WrongPasswordError ? '비밀번호가 맞지 않습니다.' : String(err.message || err); btn.disabled = false; f.elements.pw.select(); }
+  });
+}
+/** 이미 비밀번호를 넣었다면 아직 안 푼 제안서를 조용히 풀고 다시 그린다. */
+function autoUnlock(d, rerender) {
+  if (!d || !isLockedDoc(d) || !docPassword || docBlobUrls.has(d.file)) return false;
+  unlockDoc(d, docPassword).then(rerender, () => {});
+  return true;
+}
+/** 자료 보기 영역 — 매뉴얼은 바로, 제안서는 풀었으면 보여 주고 아니면 잠금 화면. */
+function docViewerHtml(d, label, rerender) {
+  const href = docHref(d);
+  if (!href) {
+    if (autoUnlock(d, rerender)) return `<div class="pdEmpty"><p>제안서를 여는 중…</p></div>`;
+    return docLockForm(d);
+  }
+  return `<iframe class="pdFrame" src="${esc(href)}" title="${esc(label)}"></iframe>`;
 }
 function renderProductInfo(el, m, tab, docKey) {
   const d = docsFor(m.id);
   const docs = pdDocList(d);
   const cur = docs.find(x => x[0] === docKey) || docs[0] || null;
+  el.dataset.doc = cur ? cur[0] : '';
   const st = DATA_STATUS_TEXT[m.dataStatus] || DATA_STATUS_TEXT['needs-verification'];
   const S = ledSpecRows(m);
   let body = '';
@@ -268,7 +335,7 @@ function renderProductInfo(el, m, tab, docKey) {
     body = cur
       ? `<div class="pdViewer"><div class="pdDocTabs">${docs.map(x => `<button type="button" class="tiny${x === cur ? ' on' : ''}" data-pddoc="${x[0]}">${esc(x[1])}</button>`).join('')}
           <span class="pdDocMeta">${esc(cur[2].title || cur[1])}${cur[2].edition ? ` · ${esc(cur[2].edition)}` : ''} · PDF</span></div>
-          <iframe class="pdFrame" src="${esc(docViewUrl(cur[2]))}" title="${esc(m.name)} ${esc(cur[1])}"></iframe>
+          ${docViewerHtml(cur[2], `${m.name} ${cur[1]}`, () => renderProductInfo(el, m, 'docs', cur[0]))}
           ${cur[2].notice ? `<div class="pdNotice">※ ${esc(cur[2].notice)}</div>` : ''}</div>`
       : `<div class="pdEmpty"><p>아직 등록된 카탈로그·데이터시트가 없습니다.${d.officialUrl ? ' 아래 \'공식 페이지\'에서 제조사 자료를 볼 수 있습니다.' : ''}</p></div>`;
   } else {
@@ -285,12 +352,13 @@ function renderProductInfo(el, m, tab, docKey) {
       <button type="button" class="ppClose" data-pdclose aria-label="닫기">✕</button></div>
     <div class="pdTabs">${PD_TABS.map(([k, t]) => `<button type="button" class="pdTab${k === tab ? ' on' : ''}" data-pdtab="${k}">${t}</button>`).join('')}</div>
     <div class="pdBody">${body}</div>
-    <div class="pdFoot"><div class="pdMeta">${docs.length ? docs.map(x => `📄 ${esc(x[2].title || x[1])}${x[2].edition ? ` · ${esc(x[2].edition)}` : ''}`).join('<br>') : '등록된 카탈로그 없음'}</div>
+    <div class="pdFoot"><div class="pdMeta">${docs.length ? docs.map(x => `${isLockedDoc(x[2]) ? '🔒' : '📄'} ${esc(x[2].title || x[1])}${x[2].edition ? ` · ${esc(x[2].edition)}` : ''}`).join('<br>') : '등록된 카탈로그 없음'}</div>
+      <button type="button" class="pdBtn ghost" data-doclib>📚 제품 자료실</button>
       ${m.id !== selectedId ? `<button type="button" class="pdBtn" data-pdapply>이 모델로 계산</button>` : ''}
       ${btn(!!d.officialUrl, `<a class="pdBtn ghost" href="${esc(d.officialUrl || '#')}" target="_blank" rel="noopener">공식 페이지 ↗</a>`)}
-      ${btn(!!dlDoc, `<a class="pdBtn" href="${esc(dlDoc?.[2].file || '#')}" download>⬇ ${dlDoc ? esc(dlDoc[1]) : '카탈로그'} 다운로드</a>`)}
+      ${btn(!!docDownloadHref(dlDoc?.[2]), `<a class="pdBtn" href="${esc(docDownloadHref(dlDoc?.[2]) || '#')}" download="${esc(docDownloadName(dlDoc?.[2]))}">⬇ ${dlDoc ? esc(dlDoc[1]) : '카탈로그'} 다운로드</a>`)}
       ${tab === 'docs' && cur
-        ? btn(true, `<a class="pdBtn" href="${esc(docViewUrl(cur[2]))}" target="_blank" rel="noopener">새 창에서 열기 ↗</a>`)
+        ? btn(!!docHref(cur[2]), `<a class="pdBtn" href="${esc(docHref(cur[2]) || '#')}" target="_blank" rel="noopener">새 창에서 열기 ↗</a>`)
         : `<button type="button" class="pdBtn pri${docs.length ? '' : ' off'}" data-pdtab="docs"${docs.length ? '' : ' disabled'}>카탈로그 바로 보기</button>`}
     </div></div>`;
 }
@@ -308,12 +376,70 @@ function openProductInfo(id, tab = 'spec') {
       const dk = e.target.closest('[data-pddoc]');
       if (dk) { renderProductInfo(el, cur, 'docs', dk.dataset.pddoc); return; }
       if (e.target.closest('[data-pdapply]')) { el.hidden = true; selectedId = cur.id; svCode = null; renderAll(); syncSignageCard(); }
+      if (e.target.closest('[data-doclib]')) { el.hidden = true; openDocLibrary(); }
     });
+    bindDocLock(el, () => { const cur = models.find(x => x.id === el.dataset.mid); if (cur && !el.hidden) renderProductInfo(el, cur, 'docs', el.dataset.doc); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && !el.hidden) el.hidden = true; });
   }
   el.dataset.mid = id;
   renderProductInfo(el, m, tab);
   el.hidden = false;
+}
+
+// ── 제품 자료실 — 올린 자료 전부(LED · LCD). 매뉴얼은 바로, 제안서는 비밀번호로 연다 (DEC-163) ──
+//   LCD 사이니지 매뉴얼은 아직 모델별 팝업(2단계)이 없어 여기서 연다. 사이니지를 고른 상태면 그 모델이 실린 쪽부터 연다.
+function renderDocLibrary(el, file) {
+  const groups = ['LED', 'LCD'];
+  const sel = DOC_LIBRARY.find(x => x.doc.file === file) || null;
+  const svDoc = svCode && SIGNAGE_DOCS[svCode] ? SIGNAGE_DOCS[svCode].manual : null;
+  const view = sel ? (svDoc && svDoc.file === sel.doc.file ? svDoc : sel.doc) : null;   // 고른 사이니지 모델의 쪽
+  const row = x => `<button type="button" class="pdLibRow${sel === x ? ' on' : ''}" data-doclibopen="${esc(x.doc.file)}">
+      <span class="pdLibIco" aria-hidden="true">${isLockedDoc(x.doc) ? '🔒' : '📄'}</span>
+      <span class="pdLibTxt"><b>${esc(x.doc.title)}</b><small>${esc(x.for)} · ${x.doc.pages}쪽 · ${isLockedDoc(x.doc) ? '제안서(비밀번호)' : '매뉴얼'}</small></span></button>`;
+  const body = view
+    ? `<div class="pdViewer"><div class="pdDocTabs"><button type="button" class="tiny" data-doclibopen="">← 목록</button>
+        <span class="pdDocMeta">${esc(view.title)}${view.page > 1 ? ` · ${view.page}쪽부터` : ''} · PDF</span></div>
+        ${docViewerHtml(view, view.title, () => renderDocLibrary(el, file))}
+        ${view.notice ? `<div class="pdNotice">※ ${esc(view.notice)}</div>` : ''}</div>`
+    : groups.map(g => `<h4 class="pdLibGroup">${g === 'LED' ? 'LED 사이니지' : 'LCD 사이니지'}</h4>
+        <div class="pdLibList">${DOC_LIBRARY.filter(x => x.group === g).map(row).join('')}</div>`).join('')
+      + `<p class="pdNotice">🔒 제안서는 비밀번호를 한 번 넣으면 이 탭을 닫거나 새로 고칠 때까지 다시 묻지 않습니다. 비밀번호는 어디에도 저장하지 않습니다.</p>`;
+  const dl = view ? docDownloadHref(view) : null;
+  el.dataset.file = file || '';
+  el.innerHTML = `<div class="pdCard" role="dialog" aria-modal="true" aria-label="제품 자료실">
+    <div class="pdHead"><div><span class="pdChip">자료</span><h3>제품 자료실</h3>
+      <div class="pdSub">삼성 LED · LCD 사이니지 매뉴얼과 제안서</div></div>
+      <button type="button" class="ppClose" data-pdclose aria-label="닫기">✕</button></div>
+    <div class="pdBody">${body}</div>
+    ${view ? `<div class="pdFoot"><div class="pdMeta">${isLockedDoc(view) ? '🔒 제안서' : '📄 매뉴얼'}</div>
+      <a class="pdBtn${dl ? '' : ' off'}" href="${esc(dl || '#')}" download="${esc(docDownloadName(view))}"${dl ? '' : ' aria-disabled="true" tabindex="-1"'}>⬇ 다운로드</a>
+      <a class="pdBtn${docHref(view) ? '' : ' off'}" href="${esc(docHref(view) || '#')}" target="_blank" rel="noopener"${docHref(view) ? '' : ' aria-disabled="true" tabindex="-1"'}>새 창에서 열기 ↗</a></div>` : ''}
+  </div>`;
+}
+function openDocLibrary(file = null) {
+  let el = $('#docLibPop');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'docLibPop'; el.hidden = true; document.body.appendChild(el);
+    el.addEventListener('click', e => {
+      if (e.target === el || e.target.closest('[data-pdclose]')) { el.hidden = true; return; }
+      if (e.target.closest('a[aria-disabled="true"]')) { e.preventDefault(); return; }
+      const o = e.target.closest('[data-doclibopen]');
+      if (o) renderDocLibrary(el, o.dataset.doclibopen || null);
+    });
+    bindDocLock(el, () => { if (!el.hidden) renderDocLibrary(el, el.dataset.file || null); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !el.hidden) el.hidden = true; });
+  }
+  renderDocLibrary(el, file);
+  el.hidden = false;
+}
+/** 사이니지 칸에 '자료' 버튼을 붙인다(마크업은 건드리지 않는다). 고른 모델이 있으면 그 매뉴얼의 해당 쪽을 연다. */
+function mountSignageDocsButton() {
+  const anchor = $('#svPickVideoWall'); if (!anchor || $('#svDocsBtn')) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.id = 'svDocsBtn'; b.className = 'tiny ghost'; b.textContent = '📄 자료';
+  b.title = 'LCD 사이니지 매뉴얼 · 제안서';
+  b.addEventListener('click', () => openDocLibrary(svCode && SIGNAGE_DOCS[svCode] ? SIGNAGE_DOCS[svCode].manual.file : null));
+  anchor.after(b);
 }
 
 function renderModelList() {
@@ -4018,6 +4144,7 @@ handleSharedLink();   // 공유 링크(#share=)로 들어온 경우 그 구성�
 
   $('#svPickStandalone')?.addEventListener('click', () => openSvPick('standalone_signage'));
   $('#svPickVideoWall')?.addEventListener('click', () => openSvPick('video_wall'));
+  mountSignageDocsButton();   // LCD 매뉴얼·제안서(제품 자료실, DEC-163)
   ['svCols', 'svRows'].forEach(id => $('#' + id)?.addEventListener('input', () => { render(); renderPreview(); renderReadout(); }));
   ['spaceW', 'spaceH'].forEach(id => $('#' + id)?.addEventListener('input', render));
   syncSignageCard = render;   // 모듈 전역에 노출(LED 모델 선택 시 바 갱신용)
