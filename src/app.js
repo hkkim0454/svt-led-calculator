@@ -1,28 +1,30 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=470';
+import { MODELS } from './models.js?v=471';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=277';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=471';
+// ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=471';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=470';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=470';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=471';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=471';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=470';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=471';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=470';
-import { createViewerGL } from './render3d-gl.js?v=470';
+} from './room-presets.js?v=471';
+import { createViewerGL } from './render3d-gl.js?v=471';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=470';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=470';
-import { normalizeDesign, designsFor } from './room-design.js?v=470';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=470';
-import { sideMonitorLayout } from './monitors.js?v=470';
-import { ledImageFit } from './led-image.js?v=470';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=470';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=471';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=471';
+import { normalizeDesign, designsFor } from './room-design.js?v=471';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=471';
+import { sideMonitorLayout } from './monitors.js?v=471';
+import { ledImageFit } from './led-image.js?v=471';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=471';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -1647,19 +1649,19 @@ $('#person3dSel')?.addEventListener('change', () => {
   renderPreview();
 });
 
-// ── LED 설치 크기 '자동' (PHASE 9-c) ────────────────────────────────────────
+// ── LED 설치 크기 '자동' (PHASE 9-c) · 자동/직접 상태 (PHASE 11-a) ─────────────────
 // 강당은 방이 깊을수록 뒷자리가 멀어지는데, ② 칸의 기본값(4,000×2,300)은 방 크기를 보지
 //   않는다. 그래서 대강당에서 화면이 벽의 점처럼 보였다(실내 시점 점유 1.55%).
 //   **사람이 ② 칸에 숫자를 넣기 전까지만** 공간 타입·크기에 맞는 값을 제안한다.
 //   제안하는 것은 '얼마나 큰 화면을 세울지'라는 요청값뿐이고, 캐비닛 수·전력 같은 산출은
 //   늘 하던 대로 그 요청값을 채우는 계산으로 나온다(지어낸 수치가 아니다).
+// 상태 규칙은 led-request.js 에 있다 — 'auto'(손대지 않음) / 'manual'(사람이 넣음).
+//   상태는 구성과 함께 저장된다(PHASE 11-a). 예전에는 저장되지 않아 새로 고칠 때마다 'manual' 로
+//   떨어졌고, 그래서 두 번째 방문부터 강당 자동 크기가 돌지 않았다(PHASE 11-0 P1-①).
 let ledSizeAuto = true;
 
-/** 강당이면 ② 칸을 방에 맞춰 채운다. 값을 바꿨으면 true. */
-function applyAutoLedSize() {
-  if (!ledSizeAuto) return false;
-  const wEl = $('#ledW'), hEl = $('#ledH');
-  if (!wEl || !hEl) return false;
+/** 'auto' 상태라면 지금 방에서 ② 칸에 있어야 할 값. 강당이면 권장값, 그 밖이면 제품 기본값. */
+function autoLedTarget() {
   const sW = spaceWmm(), sH = spaceHmm();
   const D = spaceDmm() || autoDepthForType(roomTypeId, sW);
   const baseH = num($('#baseHeight')?.value);
@@ -1668,10 +1670,30 @@ function applyAutoLedSize() {
   const size = auditoriumLedSize(roomTypeId, { W: sW, H: sH, D, ledBottom: baseH,
     lastRowZ: Number(lay?.placed?.firstRowZ) > 0
       ? lay.placed.firstRowZ + (lay.placed.rows - 1) * lay.placed.pitchZ : 0 });
-  if (!size) return false;                       // 강당이 아니면 건드리지 않는다
+  // 강당이 아니면 제품 기본값이다 — 강당 권장값을 다른 용도로 끌고 가지 않는다(P1-②).
+  return autoLedRequest(size);
+}
+
+/** 'auto' 상태면 ② 칸을 지금 방에 맞춘다. 값을 바꿨으면 true. 'manual' 이면 손대지 않는다. */
+function applyAutoLedSize() {
+  if (!ledSizeAuto) return false;
+  const wEl = $('#ledW'), hEl = $('#ledH');
+  if (!wEl || !hEl) return false;
+  const size = autoLedTarget();
   if (num(wEl.value) === size.w && num(hEl.value) === size.h) return false;
   wEl.value = size.w; hEl.value = size.h;
   return true;
+}
+
+/**
+ * ② 칸을 다시 '자동'으로 돌린다 — 다음 단계(PHASE 11-d)의 '추천값으로 되돌리기'가 부를 자리다.
+ *   아직 화면 버튼은 없다. 상태를 'auto' 로 바꾸고, 지금 방의 자동값으로 칸을 채운 뒤 다시 그린다.
+ */
+function resetLedSizeToAuto() {
+  ledSizeAuto = true;
+  applyAutoLedSize();
+  setLedMax();
+  renderAll();
 }
 
 $('#roomType')?.addEventListener('change', () => {
@@ -1681,8 +1703,9 @@ $('#roomType')?.addEventListener('change', () => {
   const prevDesign = designId;
   designId = normalizeDesign(designId, roomTypeId);
   syncWallsToDesign(prevDesign);
-  applyAutoLedSize();                      // 강당이면 LED 설치 크기를 방에 맞춘다
-  clampLedInputs();
+  applyAutoLedSize();                      // 'auto' 면 그 용도의 값으로(강당은 권장값, 그 밖은 기본값)
+  // 'manual' 값은 용도를 바꿔도 줄이지 않는다 — 벽을 넘으면 경고만 한다(PHASE 11-a).
+  setLedMax();
   renderRoomDesigns(); renderRoomOptions(); renderAll();
 });
 
@@ -2894,8 +2917,25 @@ function syncSignageMode() {
   }
 }
 // LED '배열 직접 지정' 요약 + 확장 안내 — 03 미리보기 위 바(비디오월과 동일 형태·위치, 이사 요청 2026-09-15).
+// ② LED 크기 지정에서 맞춘 LED 가 벽에 들어가지 않으면 알린다(PHASE 11-a).
+//   **다른 입력을 고쳐서 억지로 맞추지 않는다** — 사람이 LED 크기나 하단 높이를 직접 고치게 한다.
+function renderLedSizeFitWarning(bar) {
+  const m = models.find(x => x.id === selectedId);
+  const sW = spaceWmm(), sH = spaceHmm(), base = num($('#baseHeight')?.value);
+  const r = m ? computeConfig(m, sW, sH, opts()) : null;
+  const p = (r && r.fits) ? ledFitProblem({ spaceW: sW, spaceH: sH, baseHeight: base, actualW: r.actualW, actualH: r.actualH }) : null;
+  if (!p) { bar.hidden = true; bar.innerHTML = ''; return; }
+  const why = [];
+  if (p.height) why.push(`높이: 하단 ${fmt(base)} + LED ${fmt(r.actualH)} = <b>${fmt(p.topMm)}</b>mm 가 벽 ${fmt(sH)}mm 를 넘습니다`);
+  if (p.width) why.push(`가로: LED <b>${fmt(r.actualW)}</b>mm 가 벽 ${fmt(sW)}mm 를 넘습니다`);
+  bar.hidden = false;
+  bar.innerHTML = `<span class="svField">LED 설치 크기</span>`
+    + `<span class="notice warn" data-ledfit="over">LED 가 벽에 들어가지 않습니다. ${why.join(' · ')}. `
+    + `2번 LED 설치 크기나 하단 높이를 직접 조정해 주세요.</span>`;
+}
 function renderLedFitBar() {
   const bar = $('#ledFitBar'); if (!bar) return;
+  if (!svCode && mode !== 'manual') { renderLedSizeFitWarning(bar); return; }
   const m = (!svCode && mode === 'manual') ? models.find(x => x.id === selectedId) : null;
   if (!m) { bar.hidden = true; bar.innerHTML = ''; return; }
   const r = computeConfig(m, spaceWmm(), spaceHmm(), opts());   // 배치(초과분 제한) 결과
@@ -2938,8 +2978,11 @@ function clampLedInputs() {
   if (wEl && maxW > 0 && num(wEl.value) > maxW) wEl.value = maxW;
   if (hEl && maxH > 0 && num(hEl.value) > maxH) hEl.value = maxH;
 }
-// 하단 높이는 'LED가 벽면 안에 들어오는 최대치'(= 벽 세로 − LED 세로)까지만 허용한다.
-//   그 이상 올리면 입력칸에서 그 최대치로 되돌린다 → 미리보기 LED가 가운데로 튀지 않고 최고 위치를 유지.
+// 하단 높이 입력칸의 상한(max)을 'LED가 벽면 안에 들어오는 최대치'(= 벽 세로 − LED 세로)로 맞춘다.
+//   **LED 는 값을 몰래 내리지 않는다(PHASE 11-a).** 예전에는 넘치면 하단 높이를 그 최대치로 되돌렸는데,
+//   방을 줄이거나 강당 자동값이 따라오면 사람이 정한 하단 높이가 1,000 → 20mm 로 조용히 바뀌었다
+//   (PHASE 11-0 P1-②). 지금은 상한만 알려 주고, 넘치면 renderLedFitBar 가 경고를 띄운다.
+//   사이니지(LCD 패널)는 예전 규칙 그대로 상한으로 되돌린다.
 function clampBaseHeight() {
   const el = $('#baseHeight'); if (!el) return;
   const sH = spaceHmm();
@@ -2957,7 +3000,7 @@ function clampBaseHeight() {
   }
   const maxBase = Math.max(0, Math.round(sH - actualH));
   el.max = maxBase;
-  if (num(el.value) > maxBase) el.value = maxBase;
+  if (svCode && num(el.value) > maxBase) el.value = maxBase;
 }
 // 배열 직접 지정에서 벽면(설치 공간)을 넘는 캐비닛은 자동으로 잘라낸다(넘치는 열·행 삭제).
 //   최대 = 자동 채움(벽면−하단높이, 구조틀 여백 반영)의 열·행. 그 이하로 입력값을 제한하고 max도 맞춘다.
@@ -3424,6 +3467,8 @@ function gatherConfig() {
     //   사람은 **제안서에 나가는 그림 자체**를 바꾸므로 저장해 두어야 같은 구성이 같게 복원된다.
     person3d: pv3dShow.person,
     baseHeight: num($('#baseHeight').value), ledW: num($('#ledW').value), ledH: num($('#ledH').value),
+    // ② LED 크기의 상태도 함께 저장한다 — 이게 없으면 되살릴 때 손댄 값인지 알 수 없다(PHASE 11-a).
+    ledSizeMode: ledSizeAuto ? 'auto' : 'manual',
     mode, manCols: num($('#manCols').value), manRows: num($('#manRows').value),
     redundancy: $('#redundancy').checked, cs4b: userCS4B, gbicFB: $('#gbicFB').checked,
     highWork: $('#highWork')?.checked ?? false,
@@ -3464,7 +3509,10 @@ function applyConfig(raw) {
   renderPresetBar();
   renderRoomOptions();
   $('#baseHeight').value = c.baseHeight; $('#ledW').value = c.ledW; $('#ledH').value = c.ledH;
-  ledSizeAuto = false;   // 되살린 값은 **사람이 쓰던 값**이다. 자동 제안으로 덮지 않는다.
+  // 저장된 상태를 되살린다(PHASE 11-a). 상태가 적혀 있지 않은 옛 저장값은 **저장된 크기가 그 방의
+  //   자동값과 정확히 같을 때만** 'auto' 로 본다 — 그래야 되살리는 순간 칸의 값이 한 자리도 바뀌지 않는다.
+  //   그 밖에는 사람이 쓰던 값으로 보고('manual') 자동 제안으로 덮지 않는다.
+  ledSizeAuto = restoreLedSizeMode(c, autoLedTarget()) === 'auto';
   $('#manCols').value = c.manCols; $('#manRows').value = c.manRows;
   $('#sboxSpare').value = c.sboxSpare;
   $('#spareRate').value = c.spareRate;
