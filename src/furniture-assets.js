@@ -19,9 +19,9 @@
 //   tiltX  X축 기울기(도). +값이면 위쪽이 뒤(+Z)로 넘어간다 → 등받이 젖힘.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=470';
-import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=470';
-import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=470';
+import { FURNITURE_CONTRACTS } from './furniture-contracts.js?v=471';
+import { personalMonitorSize, prompterSize, PROMPTER_FLOOR_RISE } from './conference-av.js?v=471';
+import { consoleMonitorSize, keyboardSize, consoleSag, CONSOLE_MIN_BAND_DEPTH } from './control-av.js?v=471';
 
 // ── 색 ──────────────────────────────────────────────────────────────────────
 // 전부 조연이라 채도를 낮춘다. 파랑/흰색 UI 디자인 시스템과 같은 계열.
@@ -122,10 +122,13 @@ export const DIMS = Object.freeze({
   //   키는 대한민국 성인 남성(20~40대) 기준이다 — 사이즈코리아 8차 표준 인체치수, 앉은자세.
   //     앉은키     20대 936.15 · 30대 939.72 · 40대 935.67 → 단순 평균 937.18 ≈ 937mm
   //     앉은눈높이 20대 810.01 · 30대 813.94 · 40대 810.63 → 단순 평균 811.53 ≈ 812mm
+  //     앉은엉덩이무릎수평길이 20대 590.84 · 30대 594.17 · 40대 583.52 → 단순 평균 589.51 ≈ 590mm
   //   sittingH(머리 끝)·eyeH(눈)는 좌판 윗면에서 잰 높이이고, 눈높이는 viewangle.js 의 SEATED_EYE_MM 과 같아야 한다.
+  //   buttockKneeL 은 몸통 뒷면에서 무릎 앞면까지의 수평 거리이며, thighL 은 그 값이 되도록 정한 허벅지 상자 길이다
+  //   (590 = 몸통 뒷면 160 + 무릎 앞면 −430, 무릎 앞면 = −thighL + 15).
   seatedPerson: Object.freeze({ hip: 60, torsoH: 615, torsoW: 360, torsoD: 240,
     shoulderW: 450, shoulderH: 110, neckR: 55, neckH: 70, headR: 100,
-    thighL: 380, legW: 130, sittingH: 937, eyeH: 812 }),
+    thighL: 445, legW: 130, sittingH: 937, eyeH: 812, buttockKneeL: 590 }),
   // 부속물
   plant: Object.freeze({ potR: 170, potH: 300, leafH: 520 }),
   rug: Object.freeze({ h: 14 }),

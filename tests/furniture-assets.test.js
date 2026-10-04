@@ -604,6 +604,20 @@ test('착석 인원 — 앉은키·눈높이는 대한민국 성인 남성(20~40
   assert.equal(SEATED_EYE_MM, S.eyeH, '시야 계산의 눈높이와 3D 인물의 눈높이가 갈렸다');
 });
 
+test('착석 인원 — 엉덩이~무릎 수평 길이는 대한민국 성인 남성(20~40대) 평균이다', () => {
+  // 사이즈코리아 8차 표준 인체치수(앉은자세, 남성) 앉은엉덩이무릎수평길이 — 20대·30대·40대 단순 평균.
+  const mean = (590.84 + 594.17 + 583.52) / 3;     // 589.51
+  const S = DIMS.seatedPerson;
+  assert.equal(S.buttockKneeL, Math.round(mean), '계약 값이 표 평균과 다르다');
+  const parts = createSeatedPerson(450);
+  // 몸통 뒷면(몸통 상자의 뒤쪽 면)에서 무릎 앞면(다리 상자 중 가장 앞쪽 면)까지의 수평 거리.
+  const torso = parts.find(p => p.kind === 'bodyTop' && p.w === S.torsoW && p.h === S.torsoH);
+  const back = torso.dz + torso.d / 2;
+  const kneeFront = Math.min(...parts.filter(p => p.kind === 'bodyLeg').map(p => p.dz - p.d / 2));
+  assert.ok(Math.abs((back - kneeFront) - S.buttockKneeL) <= 1,
+    `그려진 엉덩이~무릎 길이 ${(back - kneeFront).toFixed(1)}mm ≠ ${S.buttockKneeL}mm`);
+});
+
 test('착석 인원 — 실제로 그려지는 머리 끝이 앉은키와 같고 발이 바닥에 닿는다', () => {
   const S = DIMS.seatedPerson;
   const seatTop = 450;
