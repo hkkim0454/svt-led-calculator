@@ -54,9 +54,10 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=471';
-import { conferenceAVItems } from './conference-av.js?v=471';
-import { controlAVItems } from './control-av.js?v=471';
+import { isOccupied } from './viewangle.js?v=472';
+import { conferenceAVItems } from './conference-av.js?v=472';
+import { controlAVItems } from './control-av.js?v=472';
+import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=472';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -312,8 +313,11 @@ export const ROOM_TYPES = Object.freeze([
           { value: 'right', label: '오른쪽' },
           { value: 'both', label: '양쪽' },
         ] },
-      { key: 'sideMonitorIn', label: '모니터 인치', type: 'select', default: '55',
-        choices: [43, 49, 55, 65, 75, 85, 98].map(n => ({ value: String(n), label: `${n}인치` })) },
+      // 인치는 **고정 목록이 아니라 직접 입력**이다. 현장 규격이 제조사·연식마다 다르고
+      //   계산(panelSize)은 16:9 순수 기하라 어떤 크기든 처리하기 때문이다.
+      //   suggest 는 입력칸에 띄우는 추천 목록일 뿐이고, 목록 밖 값도 그대로 쓸 수 있다.
+      { key: 'sideMonitorIn', label: '모니터 인치', type: 'number', default: 55,
+        min: MONITOR_INCH_MIN, max: MONITOR_INCH_MAX, suggest: MONITOR_INCHES },
       { key: 'rug', label: '러그', type: 'toggle', default: true },
       { key: 'plant', label: '화분', type: 'toggle', default: true },
     ],
