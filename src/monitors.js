@@ -10,8 +10,25 @@
 
 const MM_PER_INCH = 25.4;
 
-/** 고를 수 있는 인치 — 사이니지에서 흔히 쓰는 규격. */
-export const MONITOR_INCHES = Object.freeze([43, 49, 55, 65, 75, 85, 98]);
+/**
+ * **추천** 인치 — 사이니지에서 흔히 쓰는 규격이다(삼성 QMR/QMB/QMC 계열 기준).
+ *
+ * 이것은 **고를 수 있는 값의 제한이 아니라 입력칸에 띄우는 추천 목록**이다.
+ * `panelSize()`는 대각 인치를 16:9 기하로 환산할 뿐이므로 목록에 없는 크기도
+ * 그대로 계산한다. 화면에서도 아래 MONITOR_INCH_MIN~MAX 범위라면 직접 입력할 수 있다.
+ */
+export const MONITOR_INCHES = Object.freeze([32, 43, 50, 55, 65, 75, 86, 98, 110]);
+
+/** 직접 입력으로 받아 주는 인치 범위. 이 밖의 값은 화면에서 이 범위로 잘린다. */
+export const MONITOR_INCH_MIN = 10;
+export const MONITOR_INCH_MAX = 200;
+
+/** 입력칸·불러온 설정값을 받아 쓸 수 있는 인치로 다듬는다(범위 밖이면 잘라낸다). */
+export function normalizeInches(v, fallback = 55) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(MONITOR_INCH_MAX, Math.max(MONITOR_INCH_MIN, Math.round(n)));
+}
 
 /** 배치 위치. */
 export const MONITOR_SIDES = Object.freeze(['none', 'left', 'right', 'both']);

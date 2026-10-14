@@ -1,6 +1,6 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=471';
+import { MODELS } from './models.js?v=472';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
@@ -8,21 +8,21 @@ import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportB
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=471';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=471';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=472';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=472';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=471';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=472';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=471';
-import { createViewerGL } from './render3d-gl.js?v=471';
+} from './room-presets.js?v=472';
+import { createViewerGL } from './render3d-gl.js?v=472';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=471';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=471';
-import { normalizeDesign, designsFor } from './room-design.js?v=471';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=471';
-import { sideMonitorLayout } from './monitors.js?v=471';
-import { ledImageFit } from './led-image.js?v=471';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=471';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=472';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=472';
+import { normalizeDesign, designsFor } from './room-design.js?v=472';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=472';
+import { sideMonitorLayout, normalizeInches } from './monitors.js?v=472';
+import { ledImageFit } from './led-image.js?v=472';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=472';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -1115,7 +1115,7 @@ function renderPreview3D() {
   //   크기는 '대각 인치 → 16:9' 순수 기하다(제품 스펙을 지어내지 않는다).
   const sm = sideMonitorLayout({
     roomW: sW, ledX: r.marginW, ledW: r.actualW, ledCY: mount + r.actualH / 2,
-    side: roomOpts.sideMonitor || 'none', inches: Number(roomOpts.sideMonitorIn) || 55,
+    side: roomOpts.sideMonitor || 'none', inches: normalizeInches(roomOpts.sideMonitorIn),
   });
 
   lastLedBox = { x: r.marginW, w: r.actualW, roomW: sW };
@@ -1597,7 +1597,13 @@ function renderRoomOptions() {
       return `<button type="button" class="pvTog${v ? ' on' : ''}" data-ropt="${o.key}"><span class="dot"></span>${esc(o.label)}</button>`;
     }
     if (o.type === 'number') {
-      return `<label class="pv3dField"><span>${esc(o.label)}</span><input type="number" data-ropt="${o.key}" min="${o.min}" max="${o.max}" step="1" value="${v}"/></label>`;
+      // suggest 가 있으면 **고정 목록이 아니라 추천 목록**을 띄운다.
+      //   직접 타이핑한 값도 그대로 쓰이고, 추천은 자주 쓰는 규격을 빨리 고르라고 두는 것이다.
+      const listId = o.suggest ? `roptSug-${o.key}` : '';
+      const list = o.suggest
+        ? `<datalist id="${listId}">${o.suggest.map(n => `<option value="${n}">${n}인치</option>`).join('')}</datalist>`
+        : '';
+      return `<label class="pv3dField"><span>${esc(o.label)}</span><input type="number" data-ropt="${o.key}" min="${o.min}" max="${o.max}" step="1" value="${v}"${listId ? ` list="${listId}"` : ''}/>${list}</label>`;
     }
     const opts = o.choices.map(c => `<option value="${c.value}"${c.value === v ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
     return `<label class="pv3dField"><span>${esc(o.label)}</span><select data-ropt="${o.key}">${opts}</select></label>`;
