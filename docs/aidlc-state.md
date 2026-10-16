@@ -13,7 +13,8 @@
   감사 → **10-e 제품 전체 시각 QA 통과**(PR #119) 까지 전부 병합했다.
   다음 트랙은 **LED Recommendation Expansion** 이다. 읽기 전용 감사 **PHASE 11-0** 을 마쳤고,
   **PHASE 11-a**(LED 자동/직접 상태 보호, DEC-162, PR #133)와 **PHASE 11-c**(권장 크기 엔진, DEC-170, PR #142)를
-  병합·배포했다(`main` `1ef76fe` · 화면 버전 v476 · `npm test` 1221/1221). 다음 단계는
+  병합·배포했다(`main` `1ef76fe` · 화면 버전 v476 · `npm test` 1221/1221). 그 뒤 SVT 공통 디자인 v2(DEC-171)를
+  적용해 화면 버전이 **v477** 이다(CSS 만 변경, 계산·3D 무변경). 다음 단계는
   **PHASE 11-d — Recommendation UX & Restore-to-Auto** 이며 오너 지시 전에는 시작하지 않는다
 - **Released / Frozen 디자인**: **아홉 벌**(대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
