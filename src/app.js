@@ -1,30 +1,30 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=474';
+import { MODELS } from './models.js?v=475';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=474';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=475';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=474';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=475';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=474';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=474';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=475';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=475';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=474';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=475';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=474';
-import { createViewerGL } from './render3d-gl.js?v=474';
+} from './room-presets.js?v=475';
+import { createViewerGL } from './render3d-gl.js?v=475';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=474';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=474';
-import { normalizeDesign, designsFor } from './room-design.js?v=474';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=474';
-import { sideMonitorLayout, normalizeInches } from './monitors.js?v=474';
-import { ledImageFit } from './led-image.js?v=474';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=474';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=475';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=475';
+import { normalizeDesign, designsFor } from './room-design.js?v=475';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=475';
+import { sideMonitorLayout, normalizeInches } from './monitors.js?v=475';
+import { ledImageFit } from './led-image.js?v=475';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=475';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -2954,7 +2954,8 @@ function renderLedFitBar() {
   bar.hidden = false;
   const head = `<span class="svField">배열 직접 지정</span>`;
   const summary = `<span class="svSummary">`
-    + `<span>배열 <b>${r.cols}×${r.rows}</b> = ${r.total}캐비닛</span>`
+    // 배열 앞에 모델명을 붙인다 — 03 미리보기 우측 하단 라벨(DEC-167)과 같은 표기(오너 요청 2026-10-16).
+    + `<span>배열 <b>${esc(m.name)} ${r.cols}×${r.rows}</b> = ${r.total}캐비닛</span>`
     + `<span>전체 <b>${fmt(r.actualW)}×${fmt(r.actualH)}</b>mm</span>`
     + `<span>해상도 <b>${r.resW > 0 ? fmt(r.resW) + '×' + fmt(r.resH) : '—'}</b></span>`
     + `<span>무게 <b>${r.weightKg != null ? fmt(r.weightKg, 1) + 'kg' : '—'}</b></span>`
