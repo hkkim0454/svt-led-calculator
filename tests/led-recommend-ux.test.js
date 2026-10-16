@@ -118,6 +118,26 @@ test('D. 버튼 상태 — 자동/직접 입력 × 권장과 같음/다름', () 
   assert.match(r, /restore\.disabled = !ui\.restoreEnabled/);
 });
 
+// ── D-2. '같음' 판정 계약표(PHASE 11-d.1) ───────────────────────────────────
+//   폭과 높이가 **둘 다 정확히** 같을 때만 권장값과 같다. 현재값이 권장값보다 큰 경우도 '다름'이다.
+test('D-2. 같음 판정 — 폭·높이가 모두 정확히 같을 때만 같다(현재값이 더 커도 다름)', () => {
+  const rec = REC();   // 4,200 × 2,400 (대회의실 권장값)
+  const table = [
+    { name: '같음',      current: { w: 4200, h: 2400 }, same: true },
+    { name: '폭이 큼',    current: { w: 4400, h: 2400 }, same: false },
+    { name: '높이가 큼',  current: { w: 4200, h: 2500 }, same: false },
+    { name: '둘 다 큼',   current: { w: 4400, h: 2500 }, same: false },
+  ];
+  for (const row of table) {
+    const ui = recommendationUiState({ mode: 'manual', current: row.current, rec });
+    assert.equal(ui.same, row.same, `${row.name}: same`);
+    assert.deepEqual([ui.modeLabel, ui.applyEnabled, ui.applyText, ui.restoreEnabled],
+      row.same ? ['직접 입력', false, '권장값 적용됨', true] : ['직접 입력', true, '권장 크기 적용', true], `${row.name}: 버튼`);
+    // 자동 상태에서도 같은 판정을 쓴다.
+    assert.equal(recommendationUiState({ mode: 'auto', current: row.current, rec }).same, row.same, `${row.name}: same(자동)`);
+  }
+});
+
 // ── E. 표시만으로는 바뀌지 않는다 ────────────────────────────────────────────
 test('E. 권장 상자를 그리는 것만으로 현재 입력과 상태가 바뀌지 않는다', () => {
   const b = body('renderLedRecommendation');
