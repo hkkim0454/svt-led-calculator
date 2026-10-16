@@ -515,6 +515,15 @@ a:hover{color:var(--accent-2);text-decoration:underline}
 }
 /* 인쇄 직전(beforeprint) 미리보기를 이 고정폭으로 다시 그려 A4 폭에 맞춘다(화면 폭과 무관하게 안 잘리도록). */
 body.printing .previewStage{width:640px!important;height:auto!important}
+/* 인쇄용 정면 뷰 이미지(app.js makePrintShot). 화면에서는 숨기고, 인쇄할 때만 정면 뷰 대신 보여 준다
+   — 브라우저가 인쇄에서 CSS 3D·배경색을 화면과 다르게 처리하기 때문이다(오너 요청 2026-10-16). */
+#pvPrintImg{display:none}
+@media print{
+  body.pvPrintReady #stage{display:none!important}
+  body.pvPrintReady #pvPrintImg{display:block!important;width:100%;height:auto;border-radius:var(--r-inner)}
+  /* 이미지를 만들지 못한 브라우저에서도 LED·벽 배경색은 빠지지 않게 한다. */
+  .rs3Frame,.rs3Frame *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 
 /* ---- Product-line filter chips ---- */
 .lineFilter{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
