@@ -16,13 +16,14 @@
   병합·배포했다(`main` `1ef76fe` · 화면 버전 v476 · `npm test` 1221/1221). 그 뒤 SVT 공통 디자인 v2(DEC-171)를
   적용해 화면 버전이 **v477** 이다(CSS 만 변경, 계산·3D 무변경). 이어서 **PHASE 11-d**(권장 크기 화면 ·
   자동으로 되돌리기, DEC-172, PR #145)를 병합·배포했다(`main` `a84b900` · 화면 버전 **v478** · `npm test` 1229/1229).
-  **PHASE 11-d.1**(같음 판정 계약 보강, DEC-173)은 검사·문서만 바꾸는 Draft PR 이다. 다음 단계
-  **PHASE 11-e — Recommendation V1 Final Release Gate** 는 `NOT STARTED` 이며 오너 승인 전에는 시작하지 않는다
+  **PHASE 11-d.1**(같음 판정 계약 보강, DEC-173, PR #146)도 병합했다(`main` `d9fa1ea` · 화면 버전 v478 ·
+  `npm test` 1230/1230 · 검사·문서만 변경). 다음 단계 **PHASE 11-e — Recommendation V1 Final Release Gate** 는
+  `READY TO START / NOT STARTED` 이며 오너 승인 전에는 시작하지 않는다
 - **Released / Frozen 디자인**: **아홉 벌**(대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
-- **기준선**: `main` 제품 기준 커밋 `8705539`(PR #124) · 화면 버전 **v460** · `npm test` **1170/1170** · 작업 트리 clean
-  (그 뒤의 커밋은 문서 전용이다)
-- **작업 가지**: `claude/phase11d1-ux-contract-hardening`(PHASE 11-d.1 · 최신 `main` `a84b900`(v478) 기준 · 검사·문서만 변경, 화면 버전 v478 유지 · Draft PR, 오너 검토 대기)
+- **기준선**: `main` `d9fa1ea`(PR #146) · 화면 버전 **v478** · `npm test` **1230/1230** · 작업 트리 clean
+  (제품 소스의 마지막 변경은 PR #145 `a84b900` 이고, 그 뒤 PR #146 은 검사·문서만 바꿨다)
+- **작업 가지**: `claude/phase11d1-release-docs`(PHASE 11-d.1 병합 후 문서 동기화 · 최신 `main` `d9fa1ea`(v478) 기준 · 문서만 변경 · Draft PR, 오너 검토 대기)
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
   (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · 배포용 Actions 없음 — `main` 병합이 곧 배포)
 - **정기 작업**: `.github/workflows/supabase-keepalive.yml` 하나(DEC-169) — 사흘마다 Supabase 를 조회해 무료 요금제 자동 멈춤을 막는다
@@ -579,6 +580,18 @@ P0 0건 · P1 0건. 배포 후 변이 검사에서 찾은 검사 공백('같음'
 
 ### PHASE 11-d.1 — 같음 판정 계약 보강 (DEC-173)
 
+`PHASE 11-d.1 — Recommendation UX Contract Hardening` · **COMPLETE / MERGED**
+
+| 항목 | 값 |
+|---|---|
+| PR | #146 (squash 병합, 병합 커밋 내용 = 검증한 머리 `0625a0f` 와 트리 해시 동일) |
+| `main` | `d9fa1ea` |
+| 화면 버전 | v478 (그대로) |
+| `npm test` | 1230/1230 |
+| 변이 검사 | 16/16 검출 (`=== → >=` 포함) |
+| 기능 변경 | `src` 차이 0 · `qa` 차이 0 · 제품 기능 코드 무변경 |
+| P0 / P1 | 0 / 0 |
+
 `tests/led-recommend-ux.test.js` 에 `D-2` 계약표를 더했다(권장 4,200×2,400 기준, 직접 입력·자동 두 상태 모두).
 
 | 현재 입력 | 같음 | 권장 크기 적용 | 자동으로 되돌리기(직접 입력) |
@@ -592,7 +605,7 @@ P0 0건 · P1 0건. 배포 후 변이 검사에서 찾은 검사 공백('같음'
 
 ### 다음 단계
 
-**`PHASE 11-e — Recommendation V1 Final Release Gate`** · `NOT STARTED`. 오너의 별도 승인을 받아 시작한다.
+**`PHASE 11-e — Recommendation V1 Final Release Gate`** · `READY TO START / NOT STARTED`. 오너의 별도 승인을 받아 시작한다.
 
 ## LED 권장 크기 엔진 (PHASE 11-c, DEC-170, 2026-10-16)
 
