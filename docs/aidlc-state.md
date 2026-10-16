@@ -19,7 +19,8 @@
   (그 뒤의 커밋은 문서 전용이다)
 - **작업 가지**: `claude/phase11a-led-state-safety`(PHASE 11-a · 최신 `main` `a9fc4c5`(v472) 위로 다시 올림 · 화면 버전 v473 · `npm test` 1209/1209 · 오너 지시로 병합·배포)
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
-  (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · `.github/workflows` 없음 — `main` 병합이 곧 배포)
+  (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · 배포용 Actions 없음 — `main` 병합이 곧 배포)
+- **정기 작업**: `.github/workflows/supabase-keepalive.yml` 하나(DEC-169) — 사흘마다 Supabase 를 조회해 무료 요금제 자동 멈춤을 막는다
 - **다음 트랙 후보**(PHASE 10-0, 승인 대기): Track A 제품 전체 시각 통일(추천) ·
   Track C LED 권장 크기 전 공간 확대(대안 · 계산 입력이 바뀌므로 별도 승인 필요)
 - **Project Owner**: 김현규 (서울영상테크 SI사업본부)

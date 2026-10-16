@@ -107,9 +107,13 @@ docs/           SPEC.md, aidlc-state.md, audit.md.
   - 화면이 최신인지 보는 법: 페이지 아래쪽 `화면 버전 vNNN` 이 `src/index.html` 의 값과
     같은지 확인한다. 다르면 **Ctrl+Shift+R** 로 캐시를 비우고 다시 본다.
     지금 `main` 기준값은 **v460** 이다.
-  - **배포 구조** — `.github/workflows` 가 **없다**(GitHub Actions 0개). Pages 가 브랜치 내용을
+  - **배포 구조** — 배포용 GitHub Actions 는 **없다**. Pages 가 브랜치 내용을
     그대로 서비스하고, 저장소 루트의 `index.html` 이 `/src/index.html` 로 자동으로 보낸다.
     그래서 `main` 에 병합하는 것이 곧 배포다.
+  - **GitHub Actions 는 하나뿐이다** — `.github/workflows/supabase-keepalive.yml`(DEC-169).
+    무료 요금제 Supabase 가 일주일가량 요청이 없으면 멈추므로, 사흘마다 비밀번호 없는 목록 조회를
+    보내 깨워 둔다. 배포와는 관계없다. 저장소 변경이 60일 없으면 깃허브가 이 작업을 끄므로,
+    그때는 Actions 화면에서 다시 켠다.
   - **캐시 규칙** — 모듈 주소 뒤의 `?v=NNN`(59줄)과 화면에 적히는 `화면 버전 vNNN`(1줄)을
     **같은 값으로 함께** 올린다. 제품 소스를 바꾸는 단계마다 최신 `main` 값 +1 이다.
 
