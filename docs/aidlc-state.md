@@ -12,12 +12,14 @@
   (PR #116) → 10-d 부분 수용(PR #117 — 교육장 릴리스 · 대회의실 DEFERRED) → 10-d.1 실현 가능성
   감사 → **10-e 제품 전체 시각 QA 통과**(PR #119) 까지 전부 병합했다.
   다음 트랙은 **LED Recommendation Expansion** 이다. 읽기 전용 감사 **PHASE 11-0** 을 마쳤고,
-  그 P1 두 건을 고치는 **PHASE 11-a**(LED 자동/직접 상태 보호, DEC-162)는 Draft PR 로 오너 검토 대기다
+  **PHASE 11-a**(LED 자동/직접 상태 보호, DEC-162, PR #133)와 **PHASE 11-c**(권장 크기 엔진, DEC-170, PR #142)를
+  병합·배포했다(`main` `1ef76fe` · 화면 버전 v476 · `npm test` 1221/1221). 다음 단계는
+  **PHASE 11-d — Recommendation UX & Restore-to-Auto** 이며 오너 지시 전에는 시작하지 않는다
 - **Released / Frozen 디자인**: **아홉 벌**(대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
 - **기준선**: `main` 제품 기준 커밋 `8705539`(PR #124) · 화면 버전 **v460** · `npm test` **1170/1170** · 작업 트리 clean
   (그 뒤의 커밋은 문서 전용이다)
-- **작업 가지**: `claude/phase11c-led-recommendation-engine`(PHASE 11-c · 최신 `main` `be7ae6c`(v475) 기준 · 화면 버전 v476 · Draft PR, 오너 검토 대기)
+- **작업 가지**: 없음. PHASE 11-c 는 PR #142 로 병합·배포했다(`main` `1ef76fe` · 화면 버전 v476). 이 문서 정리는 `claude/phase11c-release-docs`
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
   (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · 배포용 Actions 없음 — `main` 병합이 곧 배포)
 - **정기 작업**: `.github/workflows/supabase-keepalive.yml` 하나(DEC-169) — 사흘마다 Supabase 를 조회해 무료 요금제 자동 멈춤을 막는다
@@ -496,7 +498,31 @@ PHASE 10-e 명세 §5 는 임원 회의실의 정체성을 'U-table / monitor ro
 
 ## LED 권장 크기 엔진 (PHASE 11-c, DEC-170, 2026-10-16)
 
-`PHASE 11-c — Product-Wide LED Recommendation Engine` · **Draft PR, 오너 검토 대기**
+`PHASE 11-c — Product-Wide LED Recommendation Engine` · **COMPLETE / MERGED / RELEASED / DEPLOYED**
+
+### 릴리스
+
+| 항목 | 값 |
+|---|---|
+| PR | #142 (squash 병합) |
+| `main` | `1ef76fe` |
+| 화면 버전 | v476 (GitHub Pages 에서 확인) |
+| `npm test` | 1221/1221 |
+| 디자인 | 아홉 벌 모두 `ready` (변경 없음) |
+
+### 검증
+
+| 항목 | 결과 |
+|---|---|
+| Frozen 19컷 — 정순 | 19/19 픽셀 차이 0 · JS 오류 0 |
+| Frozen 19컷 — 역순 | 19/19 픽셀 차이 0 · JS 오류 0 |
+| Frozen 19컷 — 컷마다 새 페이지 | 19/19 픽셀 차이 0 · JS 오류 0 |
+| 브라우저 시나리오 | 21/21 (로컬 · 배포 주소 모두) · 입력 변경 시 권장 줄 갱신 19/19 |
+| 변이 검사 | 15/15 검출 |
+| PHASE 11-a 자동/직접 상태 회귀 | 통과 |
+| 삼성 자료 잠금 회귀 | 통과 (잠금 7 · 틀린 비밀번호 7/7 거부 · 옛 PDF 7/7 404 · 저장소에 비밀번호 흔적 없음). 맞는 비밀번호로 여는 확인은 `DOC_PASSWORD` 가 없어 하지 못했다 |
+
+Frozen 기준 이미지는 새로 만들지 않았다(비교 기준은 병합 전 `main` `be7ae6c`).
 
 PHASE 11-b 읽기 전용 감사에서 승인한 Recommendation V1 정책을 구현했다. **권장 크기는 제안이다.**
 ② 칸의 값을 스스로 바꾸지 않는다.
@@ -530,17 +556,27 @@ PHASE 11-b 읽기 전용 감사에서 승인한 Recommendation V1 정책을 구�
 - 강당은 기존 규칙 그대로라 가독성 경고 문구를 붙이지 않는다(정보는 `data-readability` 에 남긴다).
 - 배치 계산(`layoutRoom`)은 같은 입력이면 직전 결과를 다시 쓴다 — 자동값과 권장값이 한 번의 배치를 함께 쓴다.
 
-### 남긴 항목(P2)
+### 남긴 항목
 
-1. 기준 강당(중·대)은 실제 화면 높이 기준 가장 먼 자리 비율이 6.4~6.5 로 6을 조금 넘는다. 강당 규칙이
+**P0 0건 · P1 0건.** P2 는 다음과 같다.
+
+1. 공간 깊이만 바꾸면 세션이 바로 저장되지 않는다. 깊이 입력이 `renderPreview` 만 부르기 때문이며,
+   PHASE 11-a 이전부터 있던 동작이라 이번에 바꾸지 않았다(권장 줄 표시는 바로 갱신된다).
+2. 기준 강당(중·대)은 실제 화면 높이 기준 가장 먼 자리 비율이 6.4~6.5 배로 6을 조금 넘는다. 강당 규칙이
    요청값(캐비닛 맞춤 전)에 ÷6 을 쓰기 때문이며, 강당 공식은 이번 범위 밖이라 그대로 두었다.
-2. 아주 넓은 방은 16:9 와 천장 때문에 5×5 근처에서 멈춘다 — 넓은 화면(32:9 등)은 V2.
-3. 상황실 앞줄 콘솔 모니터가 뒷자리 시야에서 LED 아래쪽을 가린다(추정 약 440 mm) — 크기와 무관, 별도 과제.
-4. PHASE 11-a 의 P2(옛 저장값 복원 · 사이니지 하단 높이 · `qa/README.md` 문구)는 그대로다.
+3. 상황실 앞줄 콘솔 모니터가 뒷자리 시야에서 LED 아래쪽 일부(추정 약 440 mm)를 가릴 수 있다. LED 크기와 무관한 별도 과제다.
+4. PHASE 11-a 의 accepted P2(옛 저장값 복원 · 사이니지 하단 높이 · `qa/README.md` 문구)는 그대로다.
+5. '자동으로 되돌리기' 버튼은 아직 없으며 PHASE 11-d 에서 만든다.
+
+범위 밖으로 미룬 것: 픽셀 피치 추천 · LED 모델 추천 · 상황실 초광폭(32:9 등) 권장 · 고급 가독성 경고 화면.
+
+### 다음 단계
+
+**`PHASE 11-d — Recommendation UX & Restore-to-Auto`**: 오너의 별도 지시를 받아 시작한다(착수 전).
 
 ## LED 자동/직접 상태 보호 (PHASE 11-a, DEC-162, 2026-10-04)
 
-`PHASE 11-a — LED Auto / Manual State Safety & Invalid-Fit Protection` · **Draft PR, 오너 검토 대기**
+`PHASE 11-a — LED Auto / Manual State Safety & Invalid-Fit Protection` · **완료·병합·배포**(PR #133, v473)
 
 PHASE 11-0 읽기 전용 감사가 찾은 **P1 두 건**만 고쳤다. 권장 규칙 확대(회의실·상황실 등 여섯
 공간의 권장 크기, 시청 거리, 피치·모델 추천, 배지, 적용 버튼)는 **하지 않았다.**
