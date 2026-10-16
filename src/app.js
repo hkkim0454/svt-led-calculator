@@ -1,30 +1,30 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=473';
+import { MODELS } from './models.js?v=474';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=473';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=474';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=473';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=474';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=473';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=473';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=474';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=474';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=473';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=474';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=473';
-import { createViewerGL } from './render3d-gl.js?v=473';
+} from './room-presets.js?v=474';
+import { createViewerGL } from './render3d-gl.js?v=474';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=473';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=473';
-import { normalizeDesign, designsFor } from './room-design.js?v=473';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=473';
-import { sideMonitorLayout, normalizeInches } from './monitors.js?v=473';
-import { ledImageFit } from './led-image.js?v=473';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=473';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=474';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=474';
+import { normalizeDesign, designsFor } from './room-design.js?v=474';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=474';
+import { sideMonitorLayout, normalizeInches } from './monitors.js?v=474';
+import { ledImageFit } from './led-image.js?v=474';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=474';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -556,6 +556,9 @@ const pvPersonImg = {};            // 커스텀 업로드(키=인물키) dataURL
 // 내장 이미지 경로. photo 항목은 file 필드 사용. 이미지 로드 실패는 콘솔에 파일명 명시(조용한 대체 금지).
 const personBuiltinSrc = p => `img/people/${(PEOPLE[p] && PEOPLE[p].file) || p + '.png'}`;
 let pvImage = null;    // LED 화면에 넣을 이미지(data URL). 세션 한정(구성 저장엔 미포함).
+// 인쇄용 정면 뷰 이미지(아래 '정면 뷰 PNG 저장' 절 참조). gen 은 화면이 다시 그려질 때마다 1씩 늘어,
+//   이전 화면으로 만든 캡처가 늦게 끝나도 버리게 한다.
+const pvPrint = { gen: 0, timer: 0, url: '' };
 let pvImgAspect = null; // 이미지 가로/세로 비(로드 시 계산).
 let pvImgMode = 'width'; // 'width'=가로 고정(가로 꽉·상하 이동) / 'height'=세로 고정(세로 꽉·좌우 이동).
 let pvImgPanY = 0.5;    // 세로 넘침 시 크롭 위치(0=위, 1=아래) — 가로 고정 모드.
@@ -704,6 +707,7 @@ function resolvePreviewTarget() {
 }
 
 function renderPreview() {
+  invalidatePrintShot();   // 화면이 바뀌면 인쇄용 캡처를 버리고 잠시 뒤 다시 만든다
   // 3D 뷰가 켜져 있으면 캔버스 렌더러가 대신 그린다(정면 뷰 로직은 그대로 둔다).
   if (pvView === '3d') return renderPreview3D();
   const stage = $('#stage');
@@ -936,7 +940,8 @@ function renderPreview() {
     //   우측/하단 프레임을 넘지 않도록 앵커를 프레임 안쪽으로 추가 clamp(넉넉한 여유, 이사 요청 2026-09-16).
     const bx = Math.min(clx(Lx + Lw - px(60)), visR - 34 / effFit);
     const by = Math.min(cly(Ly + Lh - px(60)), visB - 22 / effFit);
-    dims.push(`<div class="rs3Dlbl count br" style="left:${bx}px;top:${by}px">${r.cols} × ${r.rows} = ${r.total} 캐비닛</div>`);
+    //   앞에 모델명을 붙여 어떤 제품의 배열인지 캡처만 보고도 알 수 있게 한다(오너 요청 2026-10-16).
+    dims.push(`<div class="rs3Dlbl count br" style="left:${bx}px;top:${by}px">${esc(m.name)} ${r.cols} × ${r.rows} = ${r.total} 캐비닛</div>`);
   }
 
   const faceStyle = `left:0;top:0;width:${SWp}px;height:${SHp}px`;
@@ -3176,6 +3181,142 @@ $('#pvToggles')?.addEventListener('click', e => {
 $('#pvImgBtn')?.addEventListener('click', () => {
   if (pvImage) { pvImage = null; syncPvToggles(); renderPreview(); }
   else openImgModePopup();
+});
+// 정면 뷰 PNG 저장 · 인쇄용 캡처(오너 요청 2026-10-16).
+//   정면 뷰는 캔버스가 아니라 HTML 요소(CSS 3D)로 그리므로 바로 이미지로 뽑을 수 없다.
+//   그래서 지금 화면(.rs3Frame)을 복제해 SVG foreignObject 에 담고, 그 SVG 를 캔버스에 그려 PNG 로 만든다.
+//   외부 라이브러리 없이 브라우저 기본 기능만 쓴다(빌드리스 규칙). SVG 이미지는 바깥 파일을 읽지 못하므로
+//   스타일시트·서체·사진을 모두 data URL 로 바꿔 함께 넣는다.
+let pvCaptureCss = '';   // 캡처에 넣을 스타일시트 글자(서체 포함) — 한 번만 만들어 둔다
+const blobToDataUrl = b => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); });
+const fetchDataUrl = async url => blobToDataUrl(await (await fetch(url)).blob());
+async function captureCss() {
+  let css = '';
+  for (const sh of document.styleSheets) {
+    let rules; try { rules = sh.cssRules; } catch { continue; }   // 다른 출처 시트는 읽을 수 없다
+    for (const rule of rules) {
+      let t = rule.cssText;
+      if (rule.type === CSSRule.FONT_FACE_RULE) {   // 서체 파일 주소 → data URL
+        const m = t.match(/url\("?([^")]+)"?\)/);
+        if (!m) continue;
+        try { t = t.replace(m[0], `url("${await fetchDataUrl(new URL(m[1], sh.href || location.href).href)}")`); }
+        catch { continue; }
+      }
+      css += t + '\n';
+    }
+  }
+  return css.replaceAll(']]>', '');   // CDATA 안에 넣으므로 끝 표시와 겹치지 않게
+}
+async function frontViewPNG(scale = 3) {
+  const frame = $('#stage .rs3Frame');
+  if (!frame) return null;
+  const w = Math.ceil(frame.offsetWidth), h = Math.ceil(frame.offsetHeight);
+  const clone = frame.cloneNode(true);
+  clone.querySelectorAll('.rs3HeightHandle').forEach(el => el.remove());   // ↕ 손잡이는 캡처에서 뺀다
+  for (const im of clone.querySelectorAll('img')) {
+    const src = im.getAttribute('src') || '';
+    if (src && !src.startsWith('data:')) {
+      try { im.setAttribute('src', await fetchDataUrl(new URL(src, location.href).href)); } catch { im.remove(); }
+    }
+  }
+  const css = pvCaptureCss ||= await captureCss();
+  const stage = $('#stage');
+  // SVG 안에는 body 가 없으므로, body 에서 물려받던 글자 설정(서체·크기·색)을 감싸는 요소에 직접 준다.
+  //   (예: 눈높이 라벨은 서체를 따로 정하지 않아 그대로 두면 기본 명조체로 바뀐다.)
+  //   줄 간격은 px 값이 아니라 글자 크기의 배수(예: 1.45)로 넘긴다 — 작은 라벨이 자기 글자 크기에 맞춰
+  //   줄 간격을 줄이도록 화면과 같게 하려는 것이다(px 로 넘기면 라벨 상자가 위아래로 커진다).
+  const cs = getComputedStyle(stage);
+  const lhRatio = (parseFloat(cs.lineHeight) / parseFloat(cs.fontSize)) || 1.45;
+  const inherit = ['font-family', 'font-size', 'color', 'letter-spacing', 'font-variant-numeric']
+    .map(k => `${k}:${cs.getPropertyValue(k)}`).concat(`line-height:${lhRatio.toFixed(3)}`)
+    .join(';').replaceAll('"', "'");
+  const body = new XMLSerializer().serializeToString(clone);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">`
+    + `<div xmlns="http://www.w3.org/1999/xhtml" id="stage" class="${esc(stage.className)}" style="width:${w}px;height:${h}px;margin:0;padding:0;border:0;${esc(inherit)}">`
+    + `<style><![CDATA[${css}]]></style>${body}</div></foreignObject></svg>`;
+  // blob: 주소로 불러오면 Chrome 이 foreignObject 를 '외부 내용'으로 보고 캔버스 내보내기를 막는다.
+  //   data: 주소로 직접 담아야 toBlob 이 허용된다(2026-10-16 Chromium 에서 확인).
+  const img = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await img.decode();
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+  const g = c.getContext('2d');
+  g.scale(scale, scale);
+  g.fillStyle = cs.backgroundColor || '#fff';
+  g.fillRect(0, 0, w, h);
+  g.drawImage(img, 0, 0, w, h);
+  return new Promise((res, rej) => { try { c.toBlob(res, 'image/png'); } catch (e) { rej(e); } });
+}
+$('#pvPngBtn')?.addEventListener('click', async e => {
+  const btn = e.currentTarget;
+  if (btn.disabled) return;
+  const t = resolvePreviewTarget();
+  if (t.error || !$('#stage .rs3Frame')) { alert('저장할 정면 뷰가 없습니다. 모델을 먼저 선택하세요.'); return; }
+  btn.disabled = true; const label = btn.textContent; btn.textContent = '저장 중…';
+  try {
+    const blob = await frontViewPNG(3);   // 제안서·인쇄용 3배 해상도(3D 뷰와 같음)
+    if (!blob) throw new Error('empty');
+    const name = String(t.name || 'LED').trim().replace(/[^\w가-힣.-]+/g, '_');
+    const arr = t.r ? `_${t.r.cols}x${t.r.rows}` : '';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `정면뷰_${name}${arr}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (err) {
+    console.error('[정면 뷰 PNG 저장 실패]', err);
+    alert('이 브라우저에서는 정면 뷰를 이미지로 저장하지 못했습니다. Chrome 또는 Edge에서 다시 시도해 주세요.');
+  } finally { btn.disabled = false; btn.textContent = label; }
+});
+
+// 인쇄(PDF)할 때 정면 뷰를 화면에 보이는 모습 그대로 내보낸다(오너 요청 2026-10-16).
+//   브라우저는 인쇄할 때 배경색을 빼고 CSS 3D 를 화면과 다르게 펼쳐서, LED 가 흰색으로 나오고
+//   바닥·치수 위치가 어긋났다. 그래서 위 캡처로 만든 이미지를 인쇄에서만 정면 뷰 대신 보여 준다.
+//   인쇄 직전(beforeprint)에는 비동기 작업을 기다릴 수 없으므로, 화면이 멈추면 미리 만들어 둔다.
+function printShotImg() {
+  let img = $('#pvPrintImg');
+  if (!img) {
+    img = document.createElement('img');
+    img.id = 'pvPrintImg'; img.alt = '정면 뷰';
+    $('#stage')?.insertAdjacentElement('afterend', img);
+  }
+  return img;
+}
+function invalidatePrintShot() {
+  if (document.body.classList.contains('printing')) return;   // 인쇄 중 다시 그리는 것은 무시(준비한 이미지 유지)
+  pvPrint.gen++;
+  clearTimeout(pvPrint.timer);
+  document.body.classList.remove('pvPrintReady');
+  if (pvView !== '2d') return;   // 3D 뷰 인쇄는 기존 방식(캔버스)을 그대로 쓴다
+  pvPrint.timer = setTimeout(makePrintShot, 1500);   // 조작이 멈춘 뒤에만 만든다(드래그 중 버벅임 방지)
+}
+async function makePrintShot() {
+  const gen = pvPrint.gen;
+  try {
+    const blob = await frontViewPNG(2);
+    if (!blob || gen !== pvPrint.gen) return false;   // 그사이 화면이 바뀌었으면 버린다
+    const img = printShotImg();
+    if (pvPrint.url) URL.revokeObjectURL(pvPrint.url);
+    pvPrint.url = URL.createObjectURL(blob);
+    img.src = pvPrint.url;
+    await img.decode();
+    if (gen !== pvPrint.gen) return false;
+    document.body.classList.add('pvPrintReady');
+    return true;
+  } catch (err) {
+    console.warn('[인쇄용 정면 뷰 캡처 실패 — 인쇄는 기존 화면으로 진행]', err);
+    return false;
+  }
+}
+// Ctrl+P / ⌘+P: 이미지가 아직 준비되지 않았으면 먼저 만든 뒤 인쇄 창을 연다.
+document.addEventListener('keydown', async e => {
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || (e.key || '').toLowerCase() !== 'p') return;
+  if (pvView !== '2d' || document.body.classList.contains('pvPrintReady') || !$('#stage .rs3Frame')) return;
+  e.preventDefault();
+  clearTimeout(pvPrint.timer);
+  await makePrintShot();
+  window.print();
 });
 // 세로 돌리기: 사이니지 패널을 90° 회전(세로 설치). 단독형·비디오월 공통. 다시 누르면 가로로.
 $('#pvRotateBtn')?.addEventListener('click', () => { svPortrait = !svPortrait; renderAll(); });
