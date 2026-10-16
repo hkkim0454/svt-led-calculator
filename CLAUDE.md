@@ -12,14 +12,15 @@
 - 상태는 `docs/aidlc-state.md`, 이력은 `docs/audit.md`에 기록한다. **의미 있는 결정·승인·검증이 생기면 audit.md에 항목을 추가**하고 state.md의 해당 필드를 갱신할 것.
 - **코드보다 SPEC이 먼저다.** SPEC에 없는 계산 규칙을 임의로 만들지 말 것. 애매하면 진행을 멈추고 오너에게 질문한다.
 
-## 현재 위치 (2026-09-24 기준)
+## 현재 위치 (2026-10-16 기준)
 
 - Phase: **PHASE 10 종료**(2026-09-27) —
   `PHASE 10 COMPLETE — PRODUCT-WIDE VISUAL CONSISTENCY RELEASED / LARGE CONFERENCE VISUAL EXCEPTION DEFERRED`.
-  10-a 부터 10-e 까지 전부 병합했다. 다음 트랙은 **LED Recommendation Expansion** 이고, 첫 단계인
-  읽기 전용 감사 **PHASE 11-0** 은 오너의 별도 지시를 받아 시작한다.
-- `main` 제품 기준 커밋: **`8705539`**(PR #124) · 화면 버전 **v460** · `npm test` **1170/1170** · 작업 트리 clean.
-  그 뒤의 커밋은 문서 전용이라 화면과 계산 결과를 바꾸지 않는다.
+  10-a 부터 10-e 까지 전부 병합했다. 지금 트랙은 **LED Recommendation Expansion** 이다.
+  **PHASE 11-d.1** 까지 완료·병합했고, 다음 단계 **PHASE 11-e — Recommendation V1 Final Release Gate** 는
+  `READY TO START / NOT STARTED` 이며 오너의 별도 승인을 받아 시작한다(아래 로드맵 표).
+- `main` 기준 커밋: **`d9fa1ea`**(PR #146) · 화면 버전 **v478** · `npm test` **1230/1230** · 작업 트리 clean.
+  제품 소스의 마지막 변경은 PR #145(`a84b900`)이고, PR #146 은 검사·문서만 바꿨다.
 - **대회의실은 기능 상태가 `ready` 이고 시각 예외만 `DEFERRED` 다.** 제안 세 컷의 하단 띠
   61.6 / 67.0 / 67.2% 가 권장 55% 를 넘지만, 그 기준과 기존 계약 ㉒(상판 점유)·㉓(LED 담기)를
   동시에 만족하는 해가 지금의 계약 집합 안에 없다. 경위는 `docs/aidlc-state.md` 의 DEC-150 절과
@@ -111,7 +112,7 @@ docs/           SPEC.md, aidlc-state.md, audit.md.
     않는다.** 그래서 옛 주소는 갱신이 멈춘 옛 화면을 계속 보여 준다(2026-09-23 확인).
   - 화면이 최신인지 보는 법: 페이지 아래쪽 `화면 버전 vNNN` 이 `src/index.html` 의 값과
     같은지 확인한다. 다르면 **Ctrl+Shift+R** 로 캐시를 비우고 다시 본다.
-    지금 `main` 기준값은 **v460** 이다.
+    지금 `main` 기준값은 **v478** 이다(`d9fa1ea`).
   - **배포 구조** — 배포용 GitHub Actions 는 **없다**. Pages 가 브랜치 내용을
     그대로 서비스하고, 저장소 루트의 `index.html` 이 `/src/index.html` 로 자동으로 보낸다.
     그래서 `main` 에 병합하는 것이 곧 배포다.
