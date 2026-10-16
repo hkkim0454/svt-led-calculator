@@ -54,10 +54,10 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=477';
-import { conferenceAVItems } from './conference-av.js?v=477';
-import { controlAVItems } from './control-av.js?v=477';
-import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=477';
+import { isOccupied } from './viewangle.js?v=478';
+import { conferenceAVItems } from './conference-av.js?v=478';
+import { controlAVItems } from './control-av.js?v=478';
+import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=478';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
