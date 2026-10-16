@@ -1486,6 +1486,13 @@ button.primary:hover{background:linear-gradient(135deg,#2b62d4,#5f4fe4)}
 .ledRecRow button{margin-left:auto}
 .ledRecRow button:disabled{opacity:.55;cursor:default}
 .ledRecNote{margin-top:4px;font-size:12px;line-height:1.35;color:var(--muted)}
+/* PHASE 11-d — 상태 표시와 두 버튼. 좁은 화면에서는 줄을 바꿔 넘치지 않게 한다. */
+.ledRecRow+.ledRecRow{margin-top:5px}
+.ledRecRow{flex-wrap:wrap;row-gap:4px}
+.ledModeTag{font-size:12px;padding:1px 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+.ledModeTag.manual{color:var(--ink);font-weight:700}
+.ledRecWarn{margin-top:4px;font-size:12px;line-height:1.35;color:var(--warn)}
+.ledRecNote,.ledRecWarn{word-break:keep-all;overflow-wrap:anywhere}
 
 /* 모바일: 상단 버튼 줄을 한 줄 가로 스크롤로 (SVT 공통 디자인 v2, T7) */
 @media (max-width:720px){

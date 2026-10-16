@@ -1,31 +1,31 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=477';
+import { MODELS } from './models.js?v=478';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=477';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=478';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=477';
-import { recommendLedSize, farthestViewerMm, ledReadability } from './led-recommend.js?v=477';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=478';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=478';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=477';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=477';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=478';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=478';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=477';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=478';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=477';
-import { createViewerGL } from './render3d-gl.js?v=477';
+} from './room-presets.js?v=478';
+import { createViewerGL } from './render3d-gl.js?v=478';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=477';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=477';
-import { normalizeDesign, designsFor } from './room-design.js?v=477';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=477';
-import { sideMonitorLayout, normalizeInches } from './monitors.js?v=477';
-import { ledImageFit } from './led-image.js?v=477';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=477';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=478';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=478';
+import { normalizeDesign, designsFor } from './room-design.js?v=478';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=478';
+import { sideMonitorLayout, normalizeInches } from './monitors.js?v=478';
+import { ledImageFit } from './led-image.js?v=478';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=478';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -1728,8 +1728,8 @@ function applyAutoLedSize() {
 }
 
 /**
- * ② 칸을 다시 '자동'으로 돌린다 — 다음 단계(PHASE 11-d)의 '추천값으로 되돌리기'가 부를 자리다.
- *   아직 화면 버튼은 없다. 상태를 'auto' 로 바꾸고, 지금 방의 자동값으로 칸을 채운 뒤 다시 그린다.
+ * ② 칸을 다시 '자동'으로 돌린다 — '자동으로 되돌리기' 버튼(PHASE 11-d)이 부른다.
+ *   상태를 'auto' 로 바꾸고, 지금 방의 자동값(권장 크기가 아니다)으로 칸을 채운 뒤 다시 그리고 저장한다.
  */
 function resetLedSizeToAuto() {
   ledSizeAuto = true;
@@ -2975,41 +2975,56 @@ function renderLedSizeFitWarning(bar) {
     + `<span class="notice warn" data-ledfit="over">LED 가 벽에 들어가지 않습니다. ${why.join(' · ')}. `
     + `2번 LED 설치 크기나 하단 높이를 직접 조정해 주세요.</span>`;
 }
-// ② LED 설치 크기 아래 '권장 크기' 줄(PHASE 11-c). **제안만 한다** — ② 칸을 바꾸지 않는다.
-//   현재 입력 · 권장 크기 · 실제 설치 크기를 나눠 보여 주고, '권장 크기 적용'을 눌렀을 때만 칸에 넣는다.
-//   줄의 높이는 CSS 로 고정이고, 쓰지 않을 때도 자리만 남겨 숨긴다 — 화면 배치가 흔들리지 않게.
+// ② LED 설치 크기 아래 '권장 크기' 상자(PHASE 11-c · 11-d). **제안만 한다** — ② 칸을 스스로 바꾸지 않는다.
+//   세 값을 나눠 보인다: 현재 입력(계산에 쓰는 값) · 권장 크기(제안) · 실제 설치(엔진이 캐비닛으로 맞춘 값).
+//   버튼 둘은 서로 다른 일을 한다 — '권장 크기 적용'은 권장값을 넣고 직접 입력이 되며,
+//   '자동으로 되돌리기'는 권장값이 아니라 자동값(강당 권장값 · 그 밖 4,000×2,300)으로 돌아간다.
+//   버튼을 켜고 끄는 규칙은 led-recommend.js 의 recommendationUiState 에 있다.
+//   배열 직접 지정·사이니지에서는 자리만 남기고 숨긴다.
 function renderLedRecommendation() {
   const box = $('#ledRec'); if (!box) return;
-  const btn = $('#ledRecApply'), sizeEl = $('#ledRecSize'), note = $('#ledRecNote');
+  const btn = $('#ledRecApply'), restore = $('#ledRestoreAuto'), sizeEl = $('#ledRecSize'), note = $('#ledRecNote');
+  const curEl = $('#ledRecCurrent'), tag = $('#ledModeTag'), warnEl = $('#ledRecWarn');
   const m = models.find(x => x.id === selectedId);
   const rec = (!svCode && mode !== 'manual' && m) ? currentLedRecommendation() : null;
   if (!rec) {
     box.style.visibility = 'hidden';
     if (btn) btn.disabled = true;
+    if (restore) restore.disabled = true;
     delete box.dataset.recW; delete box.dataset.recH; delete box.dataset.recSame; delete box.dataset.readability;
     return;
   }
   box.style.visibility = '';
   const sW = spaceWmm(), sH = spaceHmm();
   const curW = num($('#ledW')?.value), curH = num($('#ledH')?.value);
-  const same = curW === rec.w && curH === rec.h;
   const ra = computeConfig(m, sW, sH, { ...opts(), mode: 'ledsize', ledW: rec.w, ledH: rec.h });
   const cur = computeConfig(m, sW, sH, opts());
-  const read = ledReadability(rec.readability.farViewerMm, ra.actualH);
+  const ui = recommendationUiState({ mode: ledSizeAuto ? 'auto' : 'manual', current: { w: curW, h: curH },
+    rec, actualH: ra.fits ? ra.actualH : 0 });
   box.dataset.recW = rec.w; box.dataset.recH = rec.h;
-  box.dataset.recSame = same ? '1' : '0';
-  box.dataset.readability = read.status;
+  box.dataset.recSame = ui.same ? '1' : '0';
+  box.dataset.readability = ui.readability ? ui.readability.status : 'unknown';
   box.dataset.basis = rec.basis;
+  box.dataset.mode = ledSizeAuto ? 'auto' : 'manual';
+  box.dataset.cap = (rec.capped || []).join(',');
+  box.dataset.warn = ui.warn ? '1' : '0';
+  if (curEl) curEl.textContent = `${fmt(curW)} × ${fmt(curH)} mm`;
+  if (tag) { tag.textContent = ui.modeLabel; tag.classList.toggle('manual', !ledSizeAuto); }
   if (sizeEl) sizeEl.textContent = `${fmt(rec.w)} × ${fmt(rec.h)} mm`;
-  if (btn) { btn.disabled = same; btn.textContent = same ? '적용됨' : '권장 크기 적용'; }
+  if (btn) { btn.disabled = !ui.applyEnabled; btn.textContent = ui.applyText; }
+  if (restore) restore.disabled = !ui.restoreEnabled;
   if (note) {
-    const actual = ra.fits ? `${fmt(ra.actualW)} × ${fmt(ra.actualH)} mm (${esc(m.name)} ${ra.cols}×${ra.rows})` : '—';
-    const now = same ? '현재 입력과 같습니다'
-      : `현재 입력 ${fmt(curW)} × ${fmt(curH)} → 실제 ${cur.fits ? fmt(cur.actualW) + ' × ' + fmt(cur.actualH) : '—'}`;
-    // 강당은 기존 강당 규칙 그대로라 이번 단계에서 경고 문구를 붙이지 않는다(정보는 data-readability 에 남긴다).
-    const warn = (read.status === 'below' && rec.basis !== 'auditorium')
-      ? ` · <span class="warnText">가장 먼 자리 ${fmt(read.farViewerMm / 1000, 1)}m 가 화면 높이의 ${read.threshold}배를 넘습니다</span>` : '';
-    note.innerHTML = `권장 시 실제 설치 <b>${actual}</b> · ${now}${warn}`;
+    const fit = r => r.fits ? `${fmt(r.actualW)} × ${fmt(r.actualH)} mm (${r.cols}×${r.rows})` : '—';
+    const parts = [`실제 설치 <b>${fit(cur)}</b>`];
+    if (!ui.same) parts.push(`권장 적용 시 ${fit(ra)}`);
+    if (ui.capNote) parts.push(esc(ui.capNote));
+    note.innerHTML = `${esc(m.name)} 기준 · ${parts.join(' · ')}`;
+  }
+  if (warnEl) {
+    warnEl.hidden = !ui.warn;
+    warnEl.textContent = ui.warn
+      ? `⚠ 가장 먼 자리(${fmt(ui.readability.farViewerMm / 1000, 1)}m)에서 권장 가독성 기준(화면 높이의 ${ui.readability.threshold}배)을 넘을 수 있습니다.`
+      : '';
   }
 }
 function renderLedFitBar() {
@@ -3112,6 +3127,9 @@ $('#ledRecApply')?.addEventListener('click', () => {
   ledSizeAuto = false;
   setLedMax(); renderAll();
 });
+// '자동으로 되돌리기' — 직접 입력을 버리고 자동 상태로 돌아간다(PHASE 11-d). **권장 크기를 넣지 않는다.**
+//   자동값은 강당이면 강당 권장값, 그 밖이면 제품 기본값(4,000×2,300)이다(PHASE 11-a 규칙 그대로).
+$('#ledRestoreAuto')?.addEventListener('click', () => { resetLedSizeToAuto(); });
 $('#sboxSpare')?.addEventListener('input', renderAll);
 // 05 비디오 프로세서 입력 — 05 결과만 다시 그린다(다른 산출엔 영향 없음).
 ['vpIn4k', 'vpIn2k', 'vpLayers4k'].forEach(id => $('#' + id)?.addEventListener('input', renderProcessors));

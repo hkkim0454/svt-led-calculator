@@ -16,8 +16,8 @@
 // 이 파일은 **모델과 무관한 물리 크기**만 정한다. 캐비닛 맞춤(실제 설치 크기)은 engine.js 가 한다.
 //   여기서 캐비닛 단위로 맞추지(snap) 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
-import { auditoriumLedSize, AUDITORIUM_LED_TOP_CLEAR } from './room-presets.js?v=477';
-import { LED_REQUEST_DEFAULT } from './led-request.js?v=477';
+import { auditoriumLedSize, AUDITORIUM_LED_TOP_CLEAR } from './room-presets.js?v=478';
+import { LED_REQUEST_DEFAULT } from './led-request.js?v=478';
 
 /**
  * 용도별 계수 — 한 곳에만 둔다. V1 에서는 넷 다 같지만, V2 에서 공간별로 고칠 수 있게 표로 남긴다.
@@ -130,5 +130,48 @@ export function recommendLedSize({ roomTypeId, designId, room, farViewerMm = 0, 
     basis: floored ? 'default-floor' : basis,
     capped,
     readability: ledReadability(far, out.h),
+  };
+}
+
+// ── 화면 표시 규칙 (PHASE 11-d) ──────────────────────────────────────────────
+// ② 칸 아래 상자가 무엇을 보여 주고 어느 버튼을 켤지 — 상태 네 가지(자동/직접 × 권장과 같음/다름)만 본다.
+//   '자동으로 되돌리기'는 **권장 크기가 아니라 자동값**(강당 권장값 · 그 밖 4,000×2,300)으로 돌아간다.
+//   그래서 두 버튼은 늘 따로 있고, 하나가 다른 하나를 대신하지 않는다.
+
+/** 상태 이름(저장값)을 화면 말로. */
+export const LED_MODE_LABEL = Object.freeze({ auto: '자동', manual: '직접 입력' });
+
+/** 쓸 수 있는 폭·높이에 걸려 줄인 이유를 사람 말로. 하한·강당이면 보이지 않는다. */
+export function recommendationCapNote(rec) {
+  if (!rec || rec.basis === 'default-floor' || rec.basis === 'auditorium') return '';
+  const c = Array.isArray(rec.capped) ? rec.capped : [];
+  if (c.includes('width') && c.includes('ceiling')) return '벽 폭과 천장 높이에 맞춰 줄인 값입니다';
+  if (c.includes('ceiling')) return '천장 높이(하단 높이 포함)에 맞춰 줄인 값입니다';
+  if (c.includes('width')) return '벽 폭(좌우 여유 포함)에 맞춰 줄인 값입니다';
+  return '';
+}
+
+/**
+ * 권장 상자의 버튼·문구 상태. 순수 함수.
+ * @param {{mode:'auto'|'manual', current:{w:number,h:number}, rec:object|null, actualH?:number}} p
+ *   actualH: 권장값을 적용했을 때 엔진이 맞춘 실제 화면 높이(mm). 가독성 판정에 쓴다.
+ * @returns {{modeLabel:string, same:boolean, applyEnabled:boolean, applyText:string,
+ *   restoreEnabled:boolean, capNote:string, warn:boolean, readability:object|null}}
+ */
+export function recommendationUiState({ mode, current, rec, actualH } = {}) {
+  const m = mode === 'manual' ? 'manual' : 'auto';
+  const same = !!rec && !!current && Number(current.w) === rec.w && Number(current.h) === rec.h;
+  const applyText = !rec ? '권장 크기 적용'
+    : same ? (m === 'auto' ? '현재 권장값 사용 중' : '권장값 적용됨') : '권장 크기 적용';
+  const capNote = recommendationCapNote(rec);
+  const readability = rec ? ledReadability(rec.readability && rec.readability.farViewerMm, actualH) : null;
+  // 경고는 최소한으로: 물리 한계 때문에 더 키울 수 없는데도 가장 먼 자리가 기준(6배)을 넘을 때만. 강당은 범위 밖.
+  const warn = !!rec && rec.basis !== 'auditorium' && rec.basis !== 'default-floor'
+    && Array.isArray(rec.capped) && rec.capped.length > 0 && !!readability && readability.status === 'below';
+  return {
+    modeLabel: LED_MODE_LABEL[m], same,
+    applyEnabled: !!rec && !same, applyText,
+    restoreEnabled: m === 'manual',
+    capNote, warn, readability,
   };
 }
