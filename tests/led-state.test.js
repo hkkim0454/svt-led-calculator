@@ -296,7 +296,10 @@ test('배선 — 저장·복원·용도 전환·직접 입력이 led-request.js 
   const reset = body('resetLedSizeToAuto');
   assert.match(reset, /ledSizeAuto = true/);
   assert.match(reset, /applyAutoLedSize\(\)/);
-  // 상태를 바꾸는 곳은 이 넷뿐이다: 처음 값 · 직접 입력 · 복원 · 자동 복귀.
+  // 상태를 바꾸는 곳은 이 다섯뿐이다: 처음 값 · 직접 입력 · 복원 · 자동 복귀 · 권장 크기 적용(PHASE 11-c).
+  //   다섯째는 의도해서 더했다 — '권장 크기 적용'은 사람이 고른 행동이라 직접('manual') 상태가 된다.
+  assert.match(listener('ledRecApply', 'click'), /ledSizeAuto = false;/, '권장 크기 적용이 직접 상태로 바꾸지 않는다');
+  assert.doesNotMatch(listener('ledRecApply', 'click'), /ledSizeAuto = true/, '권장 크기 적용이 자동 상태로 바꾼다');
   const 대입 = [...appSrc.matchAll(/ledSizeAuto = /g)].length;
-  assert.equal(대입, 4, `ledSizeAuto 를 바꾸는 곳이 ${대입}곳이다`);
+  assert.equal(대입, 5, `ledSizeAuto 를 바꾸는 곳이 ${대입}곳이다`);
 });
