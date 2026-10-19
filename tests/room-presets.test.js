@@ -2,6 +2,7 @@
 // '방 밖으로 나가지 않는다 / 요청보다 많이 놓지 않는다'가 핵심 규칙이다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions,
   autoDepthForType, layoutRoom, FURNITURE, faceTowards, distributeSeats, personSpot, PERSON_BLOCKING, tierPlan,
@@ -357,6 +358,32 @@ test('사람 자리 — LED 옆 빈 곳에 서고 가구와 겹치지 않는다'
     assert.ok(!(Math.abs(it.x - spot.x) < hw && Math.abs(it.z - spot.z) < hd),
       `${it.type}(${Math.round(it.x)},${Math.round(it.z)})와 겹침`);
   }
+});
+
+test('사람 자리 — 정면 뷰와 같은 쪽(LED 왼쪽)에 먼저 선다', () => {
+  // 정면 뷰는 사람을 LED 왼쪽 모서리 바깥에 세운다. 3D 도 같은 쪽이어야 뷰를 바꿔도 사람이 건너뛰지 않는다(오너 요청 2026-10-19).
+  const appSrc = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(appSrc, /const personX = Math\.max\(px\(150\), Lx - px\(500\)\);/, '정면 뷰 사람 자리가 바뀌었다 — 3D 와 다시 맞출 것');
+  const W = 10000, D = 8500;
+  const led = { x: 3000, y: 1000, w: 4000, h: 2200, z: 60 };
+  for (const design of ['corporateMeeting', 'executiveBoardroom', 'largeConference']) {
+    const res = layoutRoom('meeting', { tableShape: 'boat', seats: 12, rug: true, plant: true }, { W, D, design });
+    const spot = personSpot({ W, D }, led, res.items);
+    assert.ok(spot.x < led.x, `${design}: 사람이 LED 왼쪽에 서지 않는다(x=${spot.x})`);
+    assert.equal(spot.x, led.x - 1400, design);
+  }
+  // 빈 방이어도 왼쪽이다.
+  assert.equal(personSpot({ W, D }, led, []).x, led.x - 1400);
+});
+
+test('사람 자리 — 왼쪽이 막혔을 때만 오른쪽으로 간다', () => {
+  const W = 10000, D = 8500;
+  const led = { x: 3000, y: 1000, w: 4000, h: 2200, z: 60 };
+  // 왼쪽 두 후보(1.4 m · 2.3 m 바깥)를 네 깊이에서 모두 막는다.
+  const wall = [1600, 700].flatMap(x => [2200, 2800, 1500, 3400].map(z => ({ type: 'plant', x, z, w: 700, d: 700 })));
+  const spot = personSpot({ W, D }, led, wall);
+  assert.ok(spot.x > led.x + led.w, `왼쪽이 막혔는데 오른쪽으로 가지 않는다(x=${spot.x})`);
+  assert.equal(spot.x, led.x + led.w + 1400);
 });
 
 test('사람 자리 — 방이 가구로 가득해도 방 안의 좌표를 돌려준다', () => {
