@@ -1,31 +1,31 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=479';
+import { MODELS } from './models.js?v=480';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=479';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=480';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=479';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=479';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=480';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=480';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=479';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=479';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=480';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=480';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=479';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=480';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=479';
-import { createViewerGL } from './render3d-gl.js?v=479';
+} from './room-presets.js?v=480';
+import { createViewerGL } from './render3d-gl.js?v=480';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=479';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=479';
-import { normalizeDesign, designsFor } from './room-design.js?v=479';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=479';
-import { sideMonitorLayout, normalizeInches } from './monitors.js?v=479';
-import { ledImageFit } from './led-image.js?v=479';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=479';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=480';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=480';
+import { normalizeDesign, designsFor } from './room-design.js?v=480';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=480';
+import { sideMonitorLayout, normalizeInches } from './monitors.js?v=480';
+import { ledImageFit } from './led-image.js?v=480';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=480';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -1571,7 +1571,7 @@ function applyStagedUi() {
 function personFor3D(r, mount, sW, D, items) {
   if (!pv3dShow.person) return null;
   const who = PEOPLE[pvPerson] || PEOPLE['go-youn-jung_01'];
-  const spot = personSpot({ W: sW, D }, { x: r.marginW, w: r.actualW, h: r.actualH, y: mount }, items);
+  const spot = personSpot({ W: sW, D }, { x: r.marginW, w: r.actualW, h: r.actualH, y: mount }, items, designId);
   return { x: spot.x, z: spot.z, heightMm: who.hMM, img: person3dImage() };
 }
 

@@ -54,10 +54,10 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=479';
-import { conferenceAVItems } from './conference-av.js?v=479';
-import { controlAVItems } from './control-av.js?v=479';
-import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=479';
+import { isOccupied } from './viewangle.js?v=480';
+import { conferenceAVItems } from './conference-av.js?v=480';
+import { controlAVItems } from './control-av.js?v=480';
+import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=480';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -1414,7 +1414,11 @@ function addPlant(items, W, D) {
 export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage', 'credenza',
   'highTable', 'stool', 'lounge', 'collabTable', 'mobileStand', 'seated']));
 
-export function personSpot(room, led, items = []) {
+// 사람을 LED **오른쪽**에 먼저 세우는 디자인. 대회의실은 실내 카메라가 가운데보다 오른쪽에 서서
+//   왼쪽에 세우면 화면 밖으로 나가므로 예전처럼 오른쪽을 먼저 본다(오너 결정 2026-10-19).
+export const PERSON_RIGHT_DESIGNS = Object.freeze(['largeConference']);
+
+export function personSpot(room, led, items = [], design = null) {
   const W = Math.max(2000, room.W), D = Math.max(2000, room.D);
   const margin = 600;
   const blocked = (x, z) => (items || []).some(it => {
@@ -1424,8 +1428,13 @@ export function personSpot(room, led, items = []) {
   });
   // LED 좌·우 바깥쪽을 먼저, 벽에서 조금씩 떨어뜨려 가며 빈 곳을 찾는다.
   //   벽에 너무 붙이면 화면에서 치수선·치수 라벨과 겹치므로 적당히 띄운다.
-  //   LED 오른쪽을 먼저 본다 — 왼쪽에는 '하단 높이' 치수선이 내려와 사람과 겹친다.
-  const xs = [led.x + led.w + 1400, led.x - 1400, led.x + led.w + 2300, led.x - 2300];
+  //   LED **왼쪽**을 먼저 본다 — 정면 뷰가 사람을 LED 왼쪽에 세우므로, 뷰를 바꿔도 같은 쪽에
+  //   서야 한다(오너 요청 2026-10-19). 예전에는 '하단 높이' 치수선을 피하려고 오른쪽을 먼저 봤다.
+  //   왼쪽이 가구로 막혔을 때만 오른쪽으로 간다.
+  //   단, PERSON_RIGHT_DESIGNS(대회의실)는 오른쪽을 먼저 본다.
+  const left = [led.x - 1400, led.x - 2300], right = [led.x + led.w + 1400, led.x + led.w + 2300];
+  const [a, b] = PERSON_RIGHT_DESIGNS.includes(design) ? [right, left] : [left, right];
+  const xs = [a[0], b[0], a[1], b[1]];
   const zs = [2200, 2800, 1500, 3400];   // 벽에서 2.2 m쯤 떨어져 서면 치수 라벨과 겹치지 않는다
   for (const z of zs) {
     for (const x of xs) {
