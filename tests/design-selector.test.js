@@ -143,29 +143,37 @@ test('⑰⑱⑲ 대회의실 전용 마감·조명·화각이 대회의실에서
 
 // ── D. 한 디자인의 값이 남에게 새지 않는가 (§17 ⑫⑬⑭⑮⑯ ㉒㉓) ─────────────
 
-test('⑫⑬⑭ 테이블 방향 칸은 대회의실에서만 나온다', () => {
-  assert.ok(optionsForDesign('meeting', LC).some(o => o.key === 'tableDir'));
-  for (const id of [CO, EX, null, undefined, '없는것']) {
+test('⑫⑬⑭ 테이블 방향 칸은 회의실 세 디자인(대기업·임원·대회의실)에서만 나온다', () => {
+  // 처음에는 대회의실 전용이었다. 대기업·임원은 오너 요청(2026-10-19)으로 넓혔다.
+  for (const id of [CO, EX, LC]) {
+    assert.ok(optionsForDesign('meeting', id).some(o => o.key === 'tableDir'), id);
+  }
+  for (const id of [null, undefined, '없는것']) {
     assert.ok(!optionsForDesign('meeting', id).some(o => o.key === 'tableDir'), String(id));
   }
   // 화면도 **고른 디자인**으로 목록을 거른다(예전엔 언제나 기본 디자인이었다).
   assert.match(appSrc, /optionsForDesign\(roomTypeId, designId\)/);
 });
 
-test('⑮⑯ 세로(along)가 저장에 남아 있어도 대기업·임원 배치는 그대로다', () => {
+test('⑮⑯ 세로(along)는 회의실 세 디자인에만 걸리고, 디자인이 없는 회의실 배치는 그대로다', () => {
   const opts = { ...defaultOptions('meeting'), tableShape: 'u', seats: 20, tableDir: 'along' };
-  for (const id of [CO, EX]) {
-    assert.equal(tableDirOf({ design: id, tableDir: 'along' }), 'across', id);
-    const withStale = layoutRoom('meeting', opts, { W: 12000, D: 9000, ledBottom: 1000, design: id });
-    const clean = layoutRoom('meeting', { ...opts, tableDir: 'across' },
-      { W: 12000, D: 9000, ledBottom: 1000, design: id });
-    // 좌표 한 자리까지 같아야 한다 — 남은 값이 배치를 흔들면 안 된다.
-    assert.deepEqual(withStale.items, clean.items, `${id}: 남은 세로 값이 배치를 바꿨다`);
-    assert.equal(withStale.capacity, clean.capacity, id);
+  const room = { W: 12000, D: 9000, ledBottom: 1000 };
+  // 디자인이 없으면 남아 있는 세로 값이 배치를 흔들지 않는다(좌표 한 자리까지 같다).
+  for (const id of [null, '없는것']) {
+    assert.equal(tableDirOf({ design: id, tableDir: 'along' }), 'across', String(id));
+    const withStale = layoutRoom('meeting', opts, { ...room, design: id });
+    const clean = layoutRoom('meeting', { ...opts, tableDir: 'across' }, { ...room, design: id });
+    assert.deepEqual(withStale.items, clean.items, `${String(id)}: 남은 세로 값이 배치를 바꿨다`);
+    assert.equal(withStale.capacity, clean.capacity, String(id));
   }
-  // 대회의실에서만 실제로 세로가 걸린다.
-  assert.equal(tableDirOf({ design: LC, tableDir: 'along' }), 'along');
-  assert.deepEqual([...TABLE_DIR_DESIGNS], [LC]);
+  // 세 디자인에서는 실제로 세로가 걸린다(배치가 가로와 달라진다).
+  for (const id of [CO, EX, LC]) {
+    assert.equal(tableDirOf({ design: id, tableDir: 'along' }), 'along', id);
+    const along = layoutRoom('meeting', opts, { ...room, design: id });
+    const across = layoutRoom('meeting', { ...opts, tableDir: 'across' }, { ...room, design: id });
+    assert.notDeepEqual(along.items, across.items, `${id}: 세로를 골랐는데 배치가 그대로다`);
+  }
+  assert.deepEqual([...TABLE_DIR_DESIGNS], [CO, EX, LC]);
 });
 
 test('㉒㉓ 개인 모니터·프롬프터는 대회의실에서만 놓인다', () => {

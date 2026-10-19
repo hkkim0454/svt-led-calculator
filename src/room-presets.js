@@ -54,10 +54,10 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=478';
-import { conferenceAVItems } from './conference-av.js?v=478';
-import { controlAVItems } from './control-av.js?v=478';
-import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=478';
+import { isOccupied } from './viewangle.js?v=479';
+import { conferenceAVItems } from './conference-av.js?v=479';
+import { controlAVItems } from './control-av.js?v=479';
+import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=479';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -252,9 +252,6 @@ export function wantsConferenceAV(designId) {
   return U_TABLE_AV_DESIGNS.includes(designId);
 }
 
-// ── 테이블 방향 옵션 ────────────────────────────────────────────────────────
-// **대회의실에만** 있는 옵션이다. 다른 공간에서는 화면에 나오지도, 적용되지도 않는다 —
-//   대기업·임원 회의실은 옵션 값이 저장돼 있더라도 **가로 배치 그대로**다.
 // 콘솔마다 운용 모니터 2대 + 키보드 1개를 놓는 공간(PHASE 5-c).
 //   **여기 없는 디자인에는 AV 항목이 하나도 생기지 않는다** — 다른 공간은 그대로다.
 export const CONSOLE_AV_DESIGNS = Object.freeze(['controlRoom']);
@@ -262,7 +259,13 @@ export function wantsControlAV(designId) {
   return CONSOLE_AV_DESIGNS.includes(designId);
 }
 
-export const TABLE_DIR_DESIGNS = Object.freeze(['largeConference']);
+// ── 테이블 방향 옵션 ────────────────────────────────────────────────────────
+// **회의실 세 디자인(대기업·임원·대회의실)에만** 있는 옵션이다. 다른 공간에서는 화면에
+//   나오지도, 적용되지도 않는다 — 디자인이 없는 회의실은 값이 저장돼 있더라도 **가로 배치 그대로**다.
+// 처음에는 대회의실 전용이었다. 대기업·임원은 오너 요청(2026-10-19)으로 넓혔다 —
+//   LED를 상석 정면 벽에 거는 방(테이블 끝자리가 LED를 바로 보는 배치)을 그리기 위해서다.
+//   기본값은 셋 다 가로이므로 고르지 않으면 지금 화면 그대로다.
+export const TABLE_DIR_DESIGNS = Object.freeze(['corporateMeeting', 'executiveBoardroom', 'largeConference']);
 export function wantsTableDir(designId) {
   return TABLE_DIR_DESIGNS.includes(designId);
 }
@@ -295,10 +298,10 @@ export const ROOM_TYPES = Object.freeze([
           { value: 'none', label: '없음' },
         ] },
       { key: 'seats', label: '좌석 수', type: 'number', default: 12, min: 0, max: 60 },
-      // **대회의실 전용 옵션**(designs). 다른 공간 디자인에서는 화면에 나오지도, 적용되지도 않는다.
+      // **회의실 세 디자인 전용 옵션**(designs = TABLE_DIR_DESIGNS). 그 밖에서는 화면에 나오지도, 적용되지도 않는다.
       //   가로 = 지금까지의 배치. 세로 = 깊이축이 긴 변이 되는 배치(세로로 긴 실제 도면 대응).
       { key: 'tableDir', label: '테이블 방향', type: 'select', default: 'across',
-        designs: Object.freeze(['largeConference']),
+        designs: TABLE_DIR_DESIGNS,
         choices: [
           { value: 'across', label: '가로(권장)' },
           { value: 'along', label: '세로' },

@@ -513,10 +513,12 @@ test('㊲ 형상·배치·좌석 수가 한 자리도 바뀌지 않았다(§32)'
   assert.equal(FURNITURE.chairClear, 650);
   assert.equal(FURNITURE.frontClear, 1800);
   assert.equal(FURNITURE.wallClear, 800);
-  // 테이블 방향 옵션 논리도 그대로다(대회의실 전용).
+  // 테이블 방향 옵션 논리 — 회의실 세 디자인에서 세로가 걸리고, 디자인이 없으면 가로 그대로다.
+  //   (처음에는 대회의실 전용이었다. 대기업·임원은 오너 요청 2026-10-19 로 넓혔다.)
   assert.equal(tableDirOf({ design: LC, tableDir: 'along' }), 'along');
-  assert.equal(tableDirOf({ design: CO, tableDir: 'along' }), 'across');
-  assert.equal(tableDirOf({ design: EX, tableDir: 'along' }), 'across');
+  assert.equal(tableDirOf({ design: CO, tableDir: 'along' }), 'along');
+  assert.equal(tableDirOf({ design: EX, tableDir: 'along' }), 'along');
+  assert.equal(tableDirOf({ design: null, tableDir: 'along' }), 'across');
   // 화각 층이 배치·가구를 **쓰기**로 건드리지 않는다(읽는 모듈조차 없다).
   assert.ok(!/room-presets|furniture-|conference-av/.test(camSrc), '화각 층이 배치·가구를 읽는다');
 });

@@ -1,7 +1,9 @@
 // table-direction.test.js — 테이블 방향(가로/세로) 옵션 회귀 테스트. (오너 요청, 2026-09-17)
 // ─────────────────────────────────────────────────────────────────────────────
 // 여기서 지키는 것.
-//   ① 옵션이 **대회의실에만** 있다 — 다른 공간은 화면에 나오지도, 적용되지도 않는다.
+//   ① 옵션이 **회의실 세 디자인(대기업·임원·대회의실)에만** 있다 — 다른 공간은 화면에
+//      나오지도, 적용되지도 않는다. 처음에는 대회의실 전용이었고, 대기업·임원은
+//      오너 요청(2026-10-19)으로 넓혔다(아래 F 절).
 //   ② 기본값(가로)은 **지금까지와 완전히 같다** — 좌표·AV·프롬퍼터까지.
 //   ③ 세로 U자는 **앞쪽 날개에 앉히지 않는다**(LED를 등지는 자리를 만들지 않는다).
 //   ④ 세로 U자를 도형 판독기가 읽고, 덩어리를 돌려 세운다.
@@ -14,11 +16,15 @@ import {
   layoutRoom, defaultOptions, normalizeOptions, roomType, optionsForDesign,
   wantsTableDir, tableDirOf, TABLE_DIR_DESIGNS, rectTableFit, FURNITURE,
 } from '../src/room-presets.js';
-import { createLargeUTable, uTableBounds, createBoardroomTable } from '../src/furniture-assets.js';
+import { createLargeUTable, uTableBounds, createBoardroomTable, fitsCorporateTable } from '../src/furniture-assets.js';
+import { buildGLModel } from '../src/gl-model.js';
+import { cameraPlanForDesign } from '../src/design-camera.js';
 import { conferenceAVItems } from '../src/conference-av.js';
 import { FURNITURE_CONTRACTS } from '../src/furniture-contracts.js';
 
 const LC = 'largeConference';
+const CO = 'corporateMeeting';
+const EX = 'executiveBoardroom';
 const appSrc = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
 const glSrc = readFileSync(new URL('../src/furniture-gl.js', import.meta.url), 'utf8');
 
@@ -28,16 +34,18 @@ const lay = (W, D, over = {}, design = LC) =>
   layoutRoom('meeting', opt(over), { W, D, ledBottom: 1000, design });
 const of = (r, t) => r.items.filter(i => i.type === t);
 
-// ── A. 옵션 — 대회의실 전용, 두 가지뿐 ─────────────────────────────────────
+// ── A. 옵션 — 회의실 세 디자인 전용, 두 가지뿐 ─────────────────────────────
 
-test('① 옵션이 대회의실에만 노출된다', () => {
-  assert.deepEqual([...TABLE_DIR_DESIGNS], [LC]);
-  assert.equal(wantsTableDir(LC), true);
-  for (const d of ['corporateMeeting', 'executiveBoardroom', 'controlRoom', null, undefined]) {
+test('① 옵션이 회의실 세 디자인(대기업·임원·대회의실)에만 노출된다', () => {
+  assert.deepEqual([...TABLE_DIR_DESIGNS], [CO, EX, LC]);
+  for (const d of [CO, EX, LC]) {
+    assert.equal(wantsTableDir(d), true, d);
+    assert.ok(optionsForDesign('meeting', d).some(o => o.key === 'tableDir'), `${d}에 옵션이 없다`);
+  }
+  for (const d of ['controlRoom', 'trainingRoom', null, undefined, '없는것']) {
     assert.equal(wantsTableDir(d), false, String(d));
     assert.ok(!optionsForDesign('meeting', d).some(o => o.key === 'tableDir'), String(d));
   }
-  assert.ok(optionsForDesign('meeting', LC).some(o => o.key === 'tableDir'), '대회의실에 옵션이 없다');
   // 화면도 이 목록을 그대로 쓴다(직접 roomType(...).options 를 그리지 않는다).
   //   PHASE 4-d.4 부터는 **사용자가 고른 디자인**(designId)을 넘긴다 — 예전에는 언제나
   //   그 용도의 기본 디자인을 넘겨서, 대회의실을 골라도 테이블 방향 칸이 나오지 않았다.
@@ -52,7 +60,8 @@ test('② 선택지는 가로(기본)·세로 두 가지뿐 — 자동은 없다
   assert.equal(o.default, 'across', '기본값이 가로가 아니다');
   assert.deepEqual(o.choices.map(c => c.value), ['across', 'along']);
   assert.ok(!o.choices.some(c => c.value === 'auto'), '자동은 이번 단계에 넣지 않는다');
-  assert.deepEqual([...o.designs], [LC]);
+  // 화면에 띄우는 목록과 실제로 적용하는 목록이 **같은 상수 하나**다(두 곳에 적지 않는다).
+  assert.equal(o.designs, TABLE_DIR_DESIGNS);
   // 값이 없거나 이상하면 가로로 떨어진다.
   for (const v of [undefined, null, 'auto', 'x', 0, {}]) {
     assert.equal(normalizeOptions('meeting', { tableDir: v }).tableDir, 'across', String(v));
@@ -75,18 +84,19 @@ test('③ 가로 = 옵션이 없던 때와 좌표·AV·프롬퍼터가 완전히
   }
 });
 
-test('④ 대기업·임원은 세로를 골라도 **무시한다**', () => {
-  for (const design of ['corporateMeeting', 'executiveBoardroom', null]) {
+test('④ 디자인이 없는 회의실은 세로를 골라도 **무시한다**', () => {
+  // undefined 는 넣지 않는다 — `lay()` 가 그 자리를 대회의실 기본값으로 채운다(null 이 같은 경우를 다룬다).
+  for (const design of [null, 'controlRoom', '없는것']) {
     for (const shape of ['boat', 'rect', 'u']) {
       for (const [W, D] of [[8000, 7000], [11000, 9000], [10000, 18000]]) {
         const a = lay(W, D, { tableShape: shape, seats: 14 }, design);
         const b = lay(W, D, { tableShape: shape, seats: 14, tableDir: 'along' }, design);
-        assert.deepEqual(b, a, `${design} ${shape} ${W}x${D}`);
+        assert.deepEqual(b, a, `${String(design)} ${shape} ${W}x${D}`);
       }
     }
   }
-  // 임원 U 테이블은 언제나 기준 방향(회전 없음)이다.
-  const ex = lay(11000, 9000, { seats: 14, tableDir: 'along' }, 'executiveBoardroom');
+  // 임원 U 테이블은 가로(기본)에서 기준 방향(회전 없음)이다. 세로는 F 절이 지킨다.
+  const ex = lay(11000, 9000, { seats: 14 }, EX);
   assert.equal(createBoardroomTable(of(ex, 'table')).rotY, 0);
 });
 
@@ -249,4 +259,89 @@ test('⑭ 기준 수치 고정 — 10 × 18m 세로 U자', () => {
   // 판독기가 돌려 읽어도 최소 크기 규칙은 그대로다.
   assert.equal(uTableBounds(of(r, 'table'), 99000, 99000), null);
   assert.equal(FURNITURE_CONTRACTS.largeUTable.dimensions.minWidth, 5000);
+});
+
+// ── F. 대기업·임원 회의실로 넓힘 (오너 요청, 2026-10-19) ─────────────────────
+// LED를 상석 정면 벽에 거는 방을 그리려고 넓혔다. 이 도구는 LED가 언제나 '앞벽'에 붙으므로,
+//   그런 방은 앞벽을 바꿔 입력하고(가로 W ↔ 깊이 D) 테이블을 세로로 세우면 된다.
+//   기본값(가로)은 넓히기 전과 **한 자리도 다르지 않아야 한다** — 동결된 컷이 그 위에 서 있다.
+
+test('⑮ 대기업·임원 가로(기본)는 넓히기 전과 한 자리도 다르지 않다', () => {
+  // 넓히기 전에는 두 디자인이 세로 값을 무시했다 = 디자인 없는 회의실과 같은 배치였다.
+  for (const design of [CO, EX]) {
+    for (const shape of ['boat', 'rect', 'round', 'none', 'u']) {
+      for (const [W, D] of [[8000, 6800], [10000, 10000], [12000, 10000], [10000, 18000]]) {
+        for (const seats of [0, 12, 20]) {
+          const before = lay(W, D, { tableShape: shape, seats }, null);
+          const base = lay(W, D, { tableShape: shape, seats }, design);
+          const across = lay(W, D, { tableShape: shape, seats, tableDir: 'across' }, design);
+          assert.deepEqual(base, before, `${design} ${shape} ${W}x${D} ${seats}석: 기본값이 달라졌다`);
+          assert.deepEqual(across, before, `${design} ${shape} ${W}x${D} ${seats}석: 가로가 달라졌다`);
+        }
+      }
+    }
+  }
+});
+
+test('⑯ 대기업 보트·사각형 세로 — 끝자리 상석 한 자리가 LED를 정면으로 본다', () => {
+  // 오너 사례: 앞벽 8m 회의실의 오른쪽 벽(6.8m)에 LED를 건다 → W 6.8 · D 8 로 입력한다.
+  for (const shape of ['boat', 'rect']) {
+    const r = lay(6800, 8000, { tableShape: shape, seats: 12, tableDir: 'along' }, CO);
+    const [t] = of(r, 'table');
+    assert.equal(t.rotY, 90, `${shape}: 테이블을 세우지 않았다`);
+    assert.equal(`${t.w}x${t.d}`, '4000x1500', shape);
+    // 대기업 전용 테이블 자산이 그대로 맡는다(세웠다고 기존 테이블로 떨어지지 않는다).
+    assert.equal(fitsCorporateTable(t), true, shape);
+    const chairs = of(r, 'chair');
+    assert.equal(chairs.length, 12, shape);
+    // rotY 0 = LED 벽(-Z)을 바라본다. 그런 자리는 LED 반대쪽 끝 한 자리뿐이다.
+    const head = chairs.filter(c => c.rotY === 0);
+    assert.equal(head.length, 1, `${shape}: LED 정면 상석이 ${head.length}자리다`);
+    assert.equal(head[0].x, 3400, '상석이 방 가운데 축에서 벗어났다');
+    assert.equal(head[0].z, 7150, '상석이 테이블 먼 끝에 있지 않다');
+    // 개인 모니터·프롬프터는 여전히 대회의실에만 놓인다.
+    assert.equal(of(r, 'monitor').length + of(r, 'prompter').length, 0, `${shape}: 대회의실 AV가 샜다`);
+  }
+});
+
+test('⑰ 임원 U자 세로 — 일체형 상판을 돌려 세우고 앞쪽 날개는 비운다', () => {
+  for (const [W, D] of [[8000, 10000], [6800, 8000], [10000, 15000]]) {
+    const r = lay(W, D, { tableShape: 'u', seats: 12, tableDir: 'along' }, EX);
+    const t = of(r, 'table');
+    const S = createBoardroomTable(t);
+    assert.ok(S, `${W}x${D}: 임원 U 테이블이 세로 U자를 못 읽는다`);
+    assert.equal(S.rotY, 270, `${W}x${D}: 돌리는 각도가 기록되지 않았다`);
+    // 앞쪽 날개(LED 쪽) 바깥에는 아무도 앉지 않는다 — LED를 등지는 자리를 만들지 않는다.
+    const front = t.reduce((a, b) => (b.z < a.z ? b : a));
+    for (const c of of(r, 'chair')) assert.ok(c.z > front.z - front.d / 2, `${W}x${D}: LED 쪽에 의자가 생겼다`);
+    // 뒤쪽 날개 좌석은 LED를 정면으로 본다.
+    assert.ok(of(r, 'chair').some(c => c.rotY === 0), `${W}x${D}: LED 정면 좌석이 없다`);
+    assert.equal(of(r, 'monitor').length + of(r, 'prompter').length, 0, `${W}x${D}: 대회의실 AV가 샜다`);
+    // 방 밖으로 나가지 않는다(러그는 가로 배치에서도 방보다 클 수 있다).
+    for (const it of r.items) {
+      if (it.type === 'rug') continue;
+      const hw = (it.w || 600) / 2, hd = (it.d || 600) / 2;
+      assert.ok(it.x - hw > -1 && it.x + hw < W + 1, `${W}x${D}: ${it.type} 이 좌우 벽을 넘었다`);
+      assert.ok(it.z - hd > -1 && it.z + hd < D + 1, `${W}x${D}: ${it.type} 이 앞뒤 벽을 넘었다`);
+    }
+  }
+});
+
+test('⑱ 대기업·임원 카메라는 테이블 방향과 상관없이 같은 자리에 선다', () => {
+  // 두 디자인의 카메라는 방·LED 치수만 본다. 세로를 골라도 시점이 흔들리지 않는다.
+  const modelOf = (design, shape, dir) => buildGLModel({
+    space: { W: 6800, H: 3400, D: 8000 },
+    led: { w: 3840, h: 2160, marginW: (6800 - 3840) / 2, mount: 911, cols: 4, rows: 4, depth: 79.5 },
+    items: lay(6800, 8000, { tableShape: shape, seats: 12, tableDir: dir }, design).items,
+    design, roomType: 'meeting',
+  });
+  for (const [design, shape] of [[CO, 'boat'], [EX, 'u']]) {
+    for (const pre of ['interior', 'corner-l', 'corner-r']) {
+      const a = cameraPlanForDesign(design, pre, modelOf(design, shape, 'across'));
+      const b = cameraPlanForDesign(design, pre, modelOf(design, shape, 'along'));
+      assert.ok(a && b, `${design} ${pre}: 카메라가 없다`);
+      assert.deepEqual([b.position, b.target, b.fov], [a.position, a.target, a.fov], `${design} ${pre}`);
+      assert.equal(b.ledFullyVisible, true, `${design} ${pre}: LED가 화면에서 잘린다`);
+    }
+  }
 });

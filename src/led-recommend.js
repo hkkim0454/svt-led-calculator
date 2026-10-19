@@ -16,8 +16,8 @@
 // 이 파일은 **모델과 무관한 물리 크기**만 정한다. 캐비닛 맞춤(실제 설치 크기)은 engine.js 가 한다.
 //   여기서 캐비닛 단위로 맞추지(snap) 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
-import { auditoriumLedSize, AUDITORIUM_LED_TOP_CLEAR } from './room-presets.js?v=478';
-import { LED_REQUEST_DEFAULT } from './led-request.js?v=478';
+import { auditoriumLedSize, AUDITORIUM_LED_TOP_CLEAR } from './room-presets.js?v=479';
+import { LED_REQUEST_DEFAULT } from './led-request.js?v=479';
 
 /**
  * 용도별 계수 — 한 곳에만 둔다. V1 에서는 넷 다 같지만, V2 에서 공간별로 고칠 수 있게 표로 남긴다.
