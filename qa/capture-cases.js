@@ -13,11 +13,12 @@ const 기본 = { model: CANONICAL_DEFAULTS.model, ledBaseMm: 1000, ledWmm: 4000,
 // 방별 옵션도 **컷마다 적어 둔다.** 지금 값은 각 용도의 릴리스 기본값과 같지만, 적어 두는
 //   것과 물려받는 것은 다르다 — 적어 두어야 앞 컷이나 제품 기본값이 바뀌어도 그림이
 //   흔들리지 않고, 바뀌었다는 사실이 `assertState` 에서 드러난다.
-const 회의실옵션 = Object.freeze({ tableShape: 'boat', seats: 12, credenza: true,
+// 상판 방향(`tableDir`) 조절칸은 회의실 세 디자인(대기업·임원·대회의실)이 모두 내놓는다
+//   (처음에는 대회의실 전용이었고 2026-10-19 에 넓혔다). 그래서 세 디자인 모두 가로를 적어 둔다 —
+//   앞 컷이 세로를 남겨도 동결된 컷이 흔들리지 않게.
+const 회의실옵션 = Object.freeze({ tableShape: 'boat', seats: 12, tableDir: 'across', credenza: true,
   sideMonitor: 'none', sideMonitorIn: '55', rug: true, plant: true });
-// 대회의실만 상판 방향(`tableDir`) 조절칸을 내놓는다. 다른 회의실 디자인에는 그 칸이 없으므로
-//   적어 두면 '요청했는데 없다'가 되어 확인 단계에서 걸린다.
-const 대회의실옵션 = Object.freeze({ ...회의실옵션, tableDir: 'across' });
+const 대회의실옵션 = 회의실옵션;
 const 강의실옵션 = Object.freeze({ deskType: 'single', rows: 4, cols: 4, aisle: true, podium: true, plant: false });
 const 상황실옵션 = Object.freeze({ consoleRows: 2, perRow: 4, tiers: 1, riserH: 200, tierStartRow: 0,
   backTable: true, plant: false });
