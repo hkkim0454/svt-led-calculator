@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions,
-  autoDepthForType, layoutRoom, FURNITURE, faceTowards, distributeSeats, personSpot, PERSON_BLOCKING, tierPlan,
+  autoDepthForType, layoutRoom, FURNITURE, faceTowards, distributeSeats, personSpot, PERSON_BLOCKING, PERSON_RIGHT_DESIGNS, tierPlan,
   AUDITORIUM_SEATING,
 } from '../src/room-presets.js';
 
@@ -366,14 +366,25 @@ test('사람 자리 — 정면 뷰와 같은 쪽(LED 왼쪽)에 먼저 선다', 
   assert.match(appSrc, /const personX = Math\.max\(px\(150\), Lx - px\(500\)\);/, '정면 뷰 사람 자리가 바뀌었다 — 3D 와 다시 맞출 것');
   const W = 10000, D = 8500;
   const led = { x: 3000, y: 1000, w: 4000, h: 2200, z: 60 };
-  for (const design of ['corporateMeeting', 'executiveBoardroom', 'largeConference']) {
+  for (const design of ['corporateMeeting', 'executiveBoardroom', null]) {
     const res = layoutRoom('meeting', { tableShape: 'boat', seats: 12, rug: true, plant: true }, { W, D, design });
-    const spot = personSpot({ W, D }, led, res.items);
+    const spot = personSpot({ W, D }, led, res.items, design);
     assert.ok(spot.x < led.x, `${design}: 사람이 LED 왼쪽에 서지 않는다(x=${spot.x})`);
     assert.equal(spot.x, led.x - 1400, design);
   }
   // 빈 방이어도 왼쪽이다.
   assert.equal(personSpot({ W, D }, led, []).x, led.x - 1400);
+});
+
+test('사람 자리 — 대회의실만 예외로 오른쪽에 먼저 선다(실내 카메라가 오른쪽에 서서)', () => {
+  assert.deepEqual([...PERSON_RIGHT_DESIGNS], ['largeConference']);
+  const W = 10000, D = 8500;
+  const led = { x: 3000, y: 1000, w: 4000, h: 2200, z: 60 };
+  const res = layoutRoom('meeting', { tableShape: 'boat', seats: 12, rug: true, plant: true }, { W, D, design: 'largeConference' });
+  assert.equal(personSpot({ W, D }, led, res.items, 'largeConference').x, led.x + led.w + 1400);
+  // 화면이 고른 디자인을 넘긴다.
+  const appSrc = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(appSrc, /y: mount \}, items, designId\);/);
 });
 
 test('사람 자리 — 왼쪽이 막혔을 때만 오른쪽으로 간다', () => {

@@ -1414,7 +1414,11 @@ function addPlant(items, W, D) {
 export const PERSON_BLOCKING = Object.freeze(new Set(['table', 'desk', 'console', 'chair', 'seat', 'podium', 'plant', 'stage', 'credenza',
   'highTable', 'stool', 'lounge', 'collabTable', 'mobileStand', 'seated']));
 
-export function personSpot(room, led, items = []) {
+// 사람을 LED **오른쪽**에 먼저 세우는 디자인. 대회의실은 실내 카메라가 가운데보다 오른쪽에 서서
+//   왼쪽에 세우면 화면 밖으로 나가므로 예전처럼 오른쪽을 먼저 본다(오너 결정 2026-10-19).
+export const PERSON_RIGHT_DESIGNS = Object.freeze(['largeConference']);
+
+export function personSpot(room, led, items = [], design = null) {
   const W = Math.max(2000, room.W), D = Math.max(2000, room.D);
   const margin = 600;
   const blocked = (x, z) => (items || []).some(it => {
@@ -1427,7 +1431,10 @@ export function personSpot(room, led, items = []) {
   //   LED **왼쪽**을 먼저 본다 — 정면 뷰가 사람을 LED 왼쪽에 세우므로, 뷰를 바꿔도 같은 쪽에
   //   서야 한다(오너 요청 2026-10-19). 예전에는 '하단 높이' 치수선을 피하려고 오른쪽을 먼저 봤다.
   //   왼쪽이 가구로 막혔을 때만 오른쪽으로 간다.
-  const xs = [led.x - 1400, led.x + led.w + 1400, led.x - 2300, led.x + led.w + 2300];
+  //   단, PERSON_RIGHT_DESIGNS(대회의실)는 오른쪽을 먼저 본다.
+  const left = [led.x - 1400, led.x - 2300], right = [led.x + led.w + 1400, led.x + led.w + 2300];
+  const [a, b] = PERSON_RIGHT_DESIGNS.includes(design) ? [right, left] : [left, right];
+  const xs = [a[0], b[0], a[1], b[1]];
   const zs = [2200, 2800, 1500, 3400];   // 벽에서 2.2 m쯤 떨어져 서면 치수 라벨과 겹치지 않는다
   for (const z of zs) {
     for (const x of xs) {

@@ -1571,7 +1571,7 @@ function applyStagedUi() {
 function personFor3D(r, mount, sW, D, items) {
   if (!pv3dShow.person) return null;
   const who = PEOPLE[pvPerson] || PEOPLE['go-youn-jung_01'];
-  const spot = personSpot({ W: sW, D }, { x: r.marginW, w: r.actualW, h: r.actualH, y: mount }, items);
+  const spot = personSpot({ W: sW, D }, { x: r.marginW, w: r.actualW, h: r.actualH, y: mount }, items, designId);
   return { x: spot.x, z: spot.z, heightMm: who.hMM, img: person3dImage() };
 }
 
