@@ -5,9 +5,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   MONITOR_INCHES, MONITOR_SIDES, BEZEL_MM, panelSize, sideMonitorLayout,
-  MONITOR_INCH_MIN, MONITOR_INCH_MAX, normalizeInches,
+  MONITOR_INCH_MIN, MONITOR_INCH_MAX, normalizeInches, frontMonitorBoxes,
 } from '../src/monitors.js';
-import { normalizeOptions } from '../src/room-presets.js';
+import { normalizeOptions, optionsForDesign } from '../src/room-presets.js';
+import { readFileSync } from 'node:fs';
+
+const appSrc = readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+const htmlSrc = readFileSync(new URL('../src/index.html', import.meta.url), 'utf8');
 
 test('인치 → 크기 — 16:9 기하가 맞다', () => {
   const p = panelSize(55);
@@ -136,4 +140,65 @@ test('배치 — 인치를 키우면 어느 순간 못 걸게 된다(조용히 �
     }
   }
   assert.ok(lastOk > 0, '이 방 크기에서는 적어도 하나는 걸려야 한다');
+});
+
+// ── 정면 뷰에도 같은 모니터 (오너 요청 2026-10-19) ─────────────────────────
+// 3D 에만 있던 LED 옆 모니터를 정면 뷰에도 그린다. 자리는 **같은 계산 하나**에서 나오고,
+//   정면 뷰는 그 결과를 벽 왼쪽 위 기준 좌표로 바꿔 그릴 뿐이다.
+
+test('정면 뷰 좌표 — 3D 결과를 벽 왼쪽 위 기준으로만 바꾼다(mm 까지 같다)', () => {
+  const wallH = 3400;
+  const sm = sideMonitorLayout({ roomW: 8000, ledX: 2080, ledW: 3840, ledCY: 1000 + 1080, side: 'both', inches: 55 });
+  const boxes = frontMonitorBoxes(sm.monitors, wallH);
+  assert.equal(boxes.length, 2);
+  boxes.forEach((b, i) => {
+    const mn = sm.monitors[i];
+    assert.equal(b.side, mn.side);
+    assert.equal(b.inches, 55);
+    // 사각형 중심이 3D 중심과 같고, 크기는 테두리 포함 바깥 크기다.
+    assert.ok(Math.abs(b.left + b.w / 2 - mn.x) < 1e-9, '가로 중심');
+    assert.ok(Math.abs(wallH - (b.top + b.h / 2) - mn.y) < 1e-9, '세로 중심(바닥 기준 높이)');
+    assert.equal(b.w, mn.panelW);
+    assert.equal(b.h, mn.panelH);
+    assert.ok(Math.abs(b.bezel - BEZEL_MM) < 1e-9, '화면까지 안쪽 여백 = 테두리');
+  });
+  // 기준 수치 — 8m 벽(높이 3.4m) · LED 3,840×2,160 가운데 · 하단 1,000: 좌 417~1,663 · 우 6,337~7,583, 위에서 964.
+  assert.deepEqual(boxes.map(b => [Math.round(b.left), Math.round(b.left + b.w), Math.round(b.top)]),
+    [[417, 1663, 964], [6337, 7583, 964]]);
+  // 걸 수 없으면 그릴 것도 없다.
+  assert.deepEqual(frontMonitorBoxes([], wallH), []);
+  assert.deepEqual(frontMonitorBoxes(undefined, wallH), []);
+});
+
+test('정면 뷰와 3D 가 **같은 호출 하나**로 모니터 자리를 정한다', () => {
+  // sideMonitorLayout 은 app.js 에서 한 곳(sideMonitorsFor)에서만 부른다.
+  assert.equal((appSrc.match(/sideMonitorLayout\(/g) || []).length, 1, 'sideMonitorLayout 을 두 곳에서 부른다');
+  assert.match(appSrc, /function sideMonitorsFor\(r, mount, sW\) \{\n  return sideMonitorLayout\(\{/);
+  // 두 뷰가 모두 그 함수를 쓴다(정면 뷰 1 + 3D 1).
+  assert.equal((appSrc.match(/const sm = sideMonitorsFor\(r, mount, sW\);/g) || []).length, 2);
+  // 정면 뷰는 벽 좌표 변환 함수를 거쳐 정면 벽에 그린다.
+  assert.match(appSrc, /frontMonitorBoxes\(sm\.monitors, sH\)/);
+  assert.match(appSrc, /\$\{sigHTML\}\n            \$\{monHTML\}/);
+});
+
+test('정면 뷰 도구 줄의 모니터 칸 — 회의실 옵션 표에서 읽고, 3D 와 같은 값을 쓴다', () => {
+  // 칸 자리는 정면 뷰 도구 줄(#pvToggles) 안이다. 안내 줄도 따로 있다.
+  const tog = htmlSrc.slice(htmlSrc.indexOf('id="pvToggles"'), htmlSrc.indexOf('id="pvImgFile"'));
+  assert.match(tog, /<span class="pvMonCtl" id="pvMonCtl" hidden/, '도구 줄에 모니터 칸이 없다');
+  assert.match(htmlSrc, /<div class="svBar" id="pvMonNote" hidden><\/div>/, '안내 줄이 없다');
+  // 칸 목록은 옵션 표에서 읽는다(용도 이름을 코드에 적지 않는다) — 회의실에만 그 옵션이 있다.
+  assert.match(appSrc, /optionsForDesign\(roomTypeId, designId\)\.filter\(o => FRONT_MON_KEYS\.includes\(o\.key\)\)/);
+  assert.match(appSrc, /const FRONT_MON_KEYS = Object\.freeze\(\['sideMonitor', 'sideMonitorIn'\]\);/);
+  for (const t of ['meeting']) {
+    const keys = optionsForDesign(t, null).map(o => o.key);
+    assert.ok(keys.includes('sideMonitor') && keys.includes('sideMonitorIn'), `${t} 에 모니터 옵션이 없다`);
+  }
+  for (const t of ['classroom', 'hall_s', 'hall_m', 'hall_l', 'control', 'ideation']) {
+    assert.ok(!optionsForDesign(t, null).some(o => o.key === 'sideMonitor'), `${t} 에 모니터 옵션이 생겼다`);
+  }
+  // 값은 3D 옵션 칸과 같은 길(normalizeOptions → roomOpts)로 고치고 저장한다.
+  assert.match(appSrc, /\$\('#pvMonCtl'\)\?\.addEventListener\('input', e => \{\n  const el = e\.target\.closest\('\[data-fmon\]'\); if \(!el\) return;\n  const raw = el\.tagName === 'INPUT' \? num\(el\.value\) : el\.value;\n  roomOpts = normalizeOptions\(roomTypeId, \{ \.\.\.roomOpts, \[el\.dataset\.fmon\]: raw \}\);\n  renderPreview\(\); saveLastSession\(\);/);
+  // 3D 뷰에서는 정면 칸·안내 줄을 숨긴다(3D 는 자기 칸과 안내 줄을 쓴다).
+  assert.match(appSrc, /box\.hidden = pvView === '3d' \|\| !opts\.length;/);
+  assert.match(appSrc, /const show = pvView !== '3d' && notes\.length > 0;/);
 });

@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>Seoul AV LED Configurator</title>
-<link rel="stylesheet" href="./styles.css?v=480"/>
+<link rel="stylesheet" href="./styles.css?v=481"/>
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"></div>
@@ -190,6 +190,7 @@
             <button class="pvTog on" data-tog="dims"><span class="dot"></span>치수</button>
             <button class="pvTog on" data-tog="handle" title="위아래 이동 손잡이 표시(끄면 캡처 시 안 찍힘)"><span class="dot"></span>↕ 이동</button>
             <button class="pvTog" id="pvRotateBtn" type="button" hidden title="사이니지 세로 설치(90° 회전) — 단독형·비디오월">⟳ 세로로</button>
+            <span class="pvMonCtl" id="pvMonCtl" hidden title="LED 옆 보조 모니터 — 3D 뷰의 같은 칸과 값을 함께 씁니다(회의실 전용)"></span>
             <button class="pvTog" id="pvImgBtn" type="button" title="LED 화면에 이미지 넣기(같은 배율이면 꽉 참)">이미지 넣기</button>
             <button class="pvTog" id="pvPngBtn" type="button" title="지금 보이는 정면 뷰를 PNG 이미지로 저장(제안서·인쇄용 3배 해상도, ↕ 손잡이는 빼고 저장)">PNG 저장</button>
           </div>
@@ -205,6 +206,7 @@
           <span class="svSummary" id="svSummary"></span>
         </div>
         <div class="svBar" id="ledFitBar" hidden></div>
+        <div class="svBar" id="pvMonNote" hidden></div>
         <div class="pv3dBar" id="pv3dBar" hidden>
           <span class="pv3dGroup">
             <label class="pv3dField"><span>공간 타입</span><select id="roomType"></select></label>
@@ -376,7 +378,7 @@
         Gbic(광 컨버터, QSFP-LR4) — CS4B 계열 컨트롤러(MMF 기본 CS4BPGS는 자동, 그 외 라인은 'CS4B(광전송)' 선택) 시 1920×2160 영역마다 1 SET(SBOX측 1 + LED측 1 = 2 EA) = ⌈가로/1920⌉ × ⌈세로/2160⌉ SET. 표기 수량은 총 EA(=SET×2), 포워드/백워드 이중화 시 ×2.
         중량·전력이 <code>—</code>인 모델은 데이터시트 실측값 입력이 필요합니다.<br>
         <strong>⚠ 사내 견적 보조용</strong> — 공식 견적은 삼성/설치 파트너 확인이 필요합니다.
-        <span class="verTag">화면 버전 v480</span>
+        <span class="verTag">화면 버전 v481</span>
       </div>
     </div>
   </div>
@@ -471,6 +473,6 @@
 
 <!-- 자산 변경 시 v= 숫자를 올려 캐시 무효화(브라우저가 옛 파일을 쓰지 않도록).
      app.js가 import하는 모든 모듈의 v=, 그리고 모듈끼리의 내부 import(processor-validator.js → processor-limits.js)의 v=도 함께 올릴 것. -->
-<script type="module" src="./app.js?v=480"></script>
+<script type="module" src="./app.js?v=481"></script>
 </body>
 </html>
