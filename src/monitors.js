@@ -91,3 +91,22 @@ export function sideMonitorLayout({
   }
   return { monitors, notes };
 }
+
+/**
+ * 정면 뷰용 — `sideMonitorLayout()` 결과를 **정면 벽 왼쪽 위 기준** 사각형(mm)으로 바꾼다.
+ *   자리를 새로 정하지 않는다. 3D 와 같은 결과를 좌표계만 바꿔 쓰므로 두 뷰의 모니터가 mm 까지 같다.
+ *   정면 뷰는 위에서 아래로 재므로 top = 벽 높이 − (중심 높이 + 바깥 세로 ÷ 2) 이다.
+ *
+ * @param monitors sideMonitorLayout().monitors
+ * @param wallH    벽(방) 높이(mm)
+ * @returns {Array<{side,inches,left,top,w,h,bezel}>} w·h = 테두리 포함 바깥 크기, bezel = 화면까지 안쪽 여백
+ */
+export function frontMonitorBoxes(monitors = [], wallH = 0) {
+  return (monitors || []).map(mn => ({
+    side: mn.side, inches: mn.inches,
+    left: mn.x - mn.panelW / 2,
+    top: wallH - (mn.y + mn.panelH / 2),
+    w: mn.panelW, h: mn.panelH,
+    bezel: (mn.panelW - mn.w) / 2,
+  }));
+}

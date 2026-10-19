@@ -1,31 +1,31 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
 import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=480';
+import { MODELS } from './models.js?v=481';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=480';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=481';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=480';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=480';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=481';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=481';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=480';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=480';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=481';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=481';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=480';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=481';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=480';
-import { createViewerGL } from './render3d-gl.js?v=480';
+} from './room-presets.js?v=481';
+import { createViewerGL } from './render3d-gl.js?v=481';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=480';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=480';
-import { normalizeDesign, designsFor } from './room-design.js?v=480';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=480';
-import { sideMonitorLayout, normalizeInches } from './monitors.js?v=480';
-import { ledImageFit } from './led-image.js?v=480';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=480';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=481';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=481';
+import { normalizeDesign, designsFor } from './room-design.js?v=481';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=481';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=481';
+import { ledImageFit } from './led-image.js?v=481';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=481';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -707,17 +707,65 @@ function resolvePreviewTarget() {
   return { m, r, svMode: false, svSizeInfo: null, name: m.name };
 }
 
+// LED 옆 보조 모니터 — 회의실 옵션에서 고른 위치·인치로 남은 벽 자리에 건다.
+//   크기는 '대각 인치 → 16:9' 순수 기하다(제품 스펙을 지어내지 않는다).
+//   **정면 뷰와 3D 뷰가 이 호출 하나를 같이 쓴다** — 두 뷰의 위치·크기가 mm 까지 같다.
+//   그 옵션이 없는 용도(회의실 밖)는 roomOpts 에 값이 없으므로 언제나 'none' 이다.
+function sideMonitorsFor(r, mount, sW) {
+  return sideMonitorLayout({
+    roomW: sW, ledX: r.marginW, ledW: r.actualW, ledCY: mount + r.actualH / 2,
+    side: roomOpts.sideMonitor || 'none', inches: normalizeInches(roomOpts.sideMonitorIn),
+  });
+}
+
+// 정면 뷰 도구 줄의 'LED 옆 모니터' 칸 — 3D '공간 설정'과 **같은 값(roomOpts)** 을 쓴다.
+//   어느 쪽에서 바꿔도 다른 쪽에 그대로 반영된다. 칸 이름·선택지는 옵션 표(room-presets)에서 읽고,
+//   그 옵션이 없는 용도(회의실 밖)와 3D 뷰에서는 숨긴다(오너 결정 2026-10-19).
+const FRONT_MON_KEYS = Object.freeze(['sideMonitor', 'sideMonitorIn']);
+function syncFrontMonitorCtl() {
+  const box = $('#pvMonCtl'); if (!box) return;
+  const opts = optionsForDesign(roomTypeId, designId).filter(o => FRONT_MON_KEYS.includes(o.key));
+  box.hidden = pvView === '3d' || !opts.length;
+  if (box.hidden) return;
+  const sig = opts.map(o => o.key).join(',');
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig;
+    box.innerHTML = opts.map(o => {
+      if (o.type === 'number') {
+        const listId = o.suggest ? `fmonSug-${o.key}` : '';
+        const list = o.suggest
+          ? `<datalist id="${listId}">${o.suggest.map(n => `<option value="${n}">${n}인치</option>`).join('')}</datalist>` : '';
+        return `<label class="pvMonField"><span>${esc(o.label)}</span><input class="pvSel" type="number" data-fmon="${o.key}" min="${o.min}" max="${o.max}" step="1"${listId ? ` list="${listId}"` : ''}/>${list}</label>`;
+      }
+      const choices = o.choices.map(c => `<option value="${c.value}">${esc(c.label)}</option>`).join('');
+      return `<label class="pvMonField"><span>${esc(o.label)}</span><select class="pvSel" data-fmon="${o.key}">${choices}</select></label>`;
+    }).join('');
+  }
+  for (const el of box.querySelectorAll('[data-fmon]')) {
+    if (el === document.activeElement && el.tagName === 'INPUT') continue;   // 입력 중인 숫자 칸은 건드리지 않는다
+    el.value = String(roomOpts[el.dataset.fmon]);
+  }
+}
+// 정면 뷰 안내 줄 — 자리가 모자라 걸지 못한 모니터를 알린다. 3D 에서는 3D 안내 줄이 같은 문구를 보인다.
+function syncFrontMonitorNote(notes = []) {
+  const bar = $('#pvMonNote'); if (!bar) return;
+  const show = pvView !== '3d' && notes.length > 0;
+  bar.hidden = !show;
+  bar.textContent = show ? notes.join(' · ') : '';
+}
+
 function renderPreview() {
   invalidatePrintShot();   // 화면이 바뀌면 인쇄용 캡처를 버리고 잠시 뒤 다시 만든다
   // 권장 크기 줄도 함께 새로 고친다 — 깊이·용도 옵션·디자인만 바꾸면 renderAll 없이 이 함수만 돈다(PHASE 11-c).
   renderLedRecommendation();
+  syncFrontMonitorCtl();
   // 3D 뷰가 켜져 있으면 캔버스 렌더러가 대신 그린다(정면 뷰 로직은 그대로 둔다).
-  if (pvView === '3d') return renderPreview3D();
+  if (pvView === '3d') { syncFrontMonitorNote(); return renderPreview3D(); }
   const stage = $('#stage');
   const sW = spaceWmm(), sH = spaceHmm();
   const t = resolvePreviewTarget();
   $('#pvModelName').textContent = t.name;
-  if (t.error) { stage.innerHTML = `<div class="previewEmpty">${esc(t.error)}</div>`; return; }
+  if (t.error) { syncFrontMonitorNote(); stage.innerHTML = `<div class="previewEmpty">${esc(t.error)}</div>`; return; }
   const { m, r, svMode, svSizeInfo } = t;
 
   const mmL = v => fmt(Math.round(v)) + 'mm';
@@ -819,6 +867,17 @@ function renderPreview() {
       }
     }
   }
+
+  // LED 옆 보조 모니터(정면벽 자식) — 3D 와 같은 계산(sideMonitorsFor)을 벽 좌표로만 바꿔 그린다.
+  //   자리가 모자라 걸지 못한 쪽은 안내 줄(#pvMonNote)로 알린다(3D 의 안내와 같은 문구).
+  const sm = sideMonitorsFor(r, mount, sW);
+  const monHTML = frontMonitorBoxes(sm.monitors, sH).map(b => {
+    const bz = Math.max(1, px(b.bezel));
+    return `<div class="rs3Mon" data-side="${b.side}" style="left:${px(b.left)}px;top:${px(b.top)}px;width:${px(b.w)}px;height:${px(b.h)}px">`
+      + `<div class="rs3MonScr" style="inset:${bz}px"><div class="rs3Glow"></div></div>`
+      + `<span class="rs3MonIn" style="font-size:${Math.max(7, px(b.w) * 0.08)}px">${b.inches}"</span></div>`;
+  }).join('');
+  syncFrontMonitorNote(sm.notes);
 
   // 캐비닛 번호(2D 오버레이) — 열=맨 윗줄 칸, 행=맨 왼쪽 칸. 둘 다 칸의 '가운데'에 정렬(이사 요청).
   const dNum = Math.min(px(20), Dp * 0.02);
@@ -1014,6 +1073,7 @@ function renderPreview() {
               ${svSizeHTML}
             </div>
             ${sigHTML}
+            ${monHTML}
           </div>
           <div class="rs3Person ${pvPerson}" style="left:${personX}px;top:${SHp - px(personHMM)}px;height:${px(personHMM)}px;transform:translate(-50%,0) translateZ(${personDeff}px)">${pvPersonImg[pvPerson] ? `<img class="rs3PersonImg" src="${pvPersonImg[pvPerson]}" alt="사람" draggable="false"/>` : `<img class="rs3PersonImg" src="${personBuiltinSrc(pvPerson)}" alt="${esc(person.label || '사람')}" draggable="false" onerror="console.error('[사람 이미지 누락] '+this.src+' — 파일이 없어 표시 실패');this.style.outline='2px dashed #E5484D'"/>`}</div>
         </div>
@@ -1121,12 +1181,8 @@ function renderPreview3D() {
     items = ann.items; viewSummary = ann.summary;
   }
 
-  // LED 옆 보조 모니터 — 회의실 옵션에서 고른 위치·인치로 남은 벽 자리에 건다.
-  //   크기는 '대각 인치 → 16:9' 순수 기하다(제품 스펙을 지어내지 않는다).
-  const sm = sideMonitorLayout({
-    roomW: sW, ledX: r.marginW, ledW: r.actualW, ledCY: mount + r.actualH / 2,
-    side: roomOpts.sideMonitor || 'none', inches: normalizeInches(roomOpts.sideMonitorIn),
-  });
+  // LED 옆 보조 모니터 — 정면 뷰와 같은 함수(sideMonitorsFor)로 정한다.
+  const sm = sideMonitorsFor(r, mount, sW);
 
   lastLedBox = { x: r.marginW, w: r.actualW, roomW: sW };
   // 앞벽 기둥이 LED 화면 가로 범위와 겹치면 알려 준다(기둥이 화면 앞을 가린다).
@@ -1775,6 +1831,18 @@ $('#roomOpts')?.addEventListener('input', e => {
   renderPreview(); saveLastSession();
 });
 $('#roomOpts')?.addEventListener('change', () => renderRoomOptions());
+// 정면 뷰 도구 줄의 'LED 옆 모니터' 칸 — 3D 옵션 칸과 같은 길로 roomOpts 를 고친다.
+$('#pvMonCtl')?.addEventListener('input', e => {
+  const el = e.target.closest('[data-fmon]'); if (!el) return;
+  const raw = el.tagName === 'INPUT' ? num(el.value) : el.value;
+  roomOpts = normalizeOptions(roomTypeId, { ...roomOpts, [el.dataset.fmon]: raw });
+  renderPreview(); saveLastSession();
+});
+// 숫자 칸은 입력을 마치면 다듬은 값(범위 안의 정수)으로 다시 보인다.
+$('#pvMonCtl')?.addEventListener('change', e => {
+  const el = e.target.closest('input[data-fmon]'); if (!el) return;
+  el.value = String(roomOpts[el.dataset.fmon]);
+});
 
 // 벽면 4개 토글.
 document.addEventListener('click', e => {
