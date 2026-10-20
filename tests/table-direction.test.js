@@ -236,7 +236,8 @@ test('⑬ 기준 수치 고정 — 10 × 18m 보트형 가로·세로', () => {
   const across = lay(10000, 18000, { tableShape: 'boat', seats: 40 });
   const along = lay(10000, 18000, { tableShape: 'boat', seats: 40, tableDir: 'along' });
   assert.equal(across.capacity, 20);
-  assert.equal(along.capacity, 26);
+  // 세로는 화면 쪽 끝 자리를 비운다(DEC-181) — 정원이 26 → 25 로 한 자리 준다.
+  assert.equal(along.capacity, 25);
   const ta = of(across, 'table')[0], tl = of(along, 'table')[0];
   assert.equal(`${ta.w}x${ta.d}`, '6800x1500');
   assert.equal(ta.rotY, 0);
@@ -293,7 +294,11 @@ test('⑯ 대기업 보트·사각형 세로 — 끝자리 상석 한 자리가 
     // 대기업 전용 테이블 자산이 그대로 맡는다(세웠다고 기존 테이블로 떨어지지 않는다).
     assert.equal(fitsCorporateTable(t), true, shape);
     const chairs = of(r, 'chair');
-    assert.equal(chairs.length, 12, shape);
+    // 화면 쪽 끝 자리를 비우므로(DEC-181) 이 방에는 11석까지 들어가고, 넘친 1석은 안내한다.
+    assert.equal(chairs.length, 11, shape);
+    assert.ok(r.notes.some(t => t.includes('11석까지')), `${shape}: 정원 안내가 없다`);
+    // 화면을 등진 자리(rotY 180 = +Z 를 바라봄)는 하나도 없다.
+    assert.equal(chairs.filter(c => c.rotY === 180).length, 0, `${shape}: 화면을 등진 끝자리가 남았다`);
     // rotY 0 = LED 벽(-Z)을 바라본다. 그런 자리는 LED 반대쪽 끝 한 자리뿐이다.
     const head = chairs.filter(c => c.rotY === 0);
     assert.equal(head.length, 1, `${shape}: LED 정면 상석이 ${head.length}자리다`);
