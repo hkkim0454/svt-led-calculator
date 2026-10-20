@@ -9,11 +9,11 @@
 // ── 단위 ────────────────────────────────────────────────────────────────────
 // 계산기의 모든 길이는 mm다. Three.js는 1 단위가 1 m일 때 조명·카메라 기본값이 가장 잘 맞는다.
 // 그래서 씬에 넣기 직전에 딱 한 번 여기서 바꾼다. 씬 안에서는 mm를 쓰지 않는다.
-import { floorFinishFor, moodFor } from './materials.js?v=483';
-import { DEFAULT_RENDER_MODE } from './render-mode.js?v=483';
+import { floorFinishFor, moodFor } from './materials.js?v=484';
+import { DEFAULT_RENDER_MODE } from './render-mode.js?v=484';
 
-import { cameraPlanForDesign } from './design-camera.js?v=483';
-import { controlWallPlan, wantsControlWalls, ACOUSTIC_WALL_SIDE } from './control-walls.js?v=483';
+import { cameraPlanForDesign } from './design-camera.js?v=484';
+import { controlWallPlan, wantsControlWalls, ACOUSTIC_WALL_SIDE } from './control-walls.js?v=484';
 
 export const MM_PER_UNIT = 1000;                          // 1000 mm = 1 unit (= 1 m)
 export const u = mm => (Number(mm) || 0) / MM_PER_UNIT;   // mm → unit
@@ -501,6 +501,70 @@ export const FOV_RANGE = Object.freeze({ min: 24, max: 75, step: 1, default: FOV
  * 화각 값을 허용 범위로 자른다. 값이 없으면(null·undefined·빈 문자열) 기본값을 쓴다.
  *   `Number(null)`은 0이라 그냥 Number로 바꾸면 '값 없음'이 하한으로 잘려 버린다 — 먼저 걸러낸다.
  */
+// ── 눈높이(오너 요청 2026-10-20) ──
+//   정면·좌측 코너·우측 코너는 **앉은 사람의 눈높이**에서 본다. 기본 1.2 m — 정면 뷰의
+//   '눈높이(앉은) 1.2 m' 기준선과 같은 값이다. 화면에서 서서 보기(1.6 m)나 직접 값을 고를 수 있다.
+//   값이 없으면(null) 예전처럼 각 시점(공간 디자인 계획 포함)이 정한 높이를 그대로 쓴다.
+export const EYE_PRESET_IDS = Object.freeze(['front', 'corner-l', 'corner-r']);
+export const EYE3D = Object.freeze({ seated: 1200, standing: 1600, min: 600, max: 2400 });
+
+/** 눈높이(mm) 값을 허용 범위로 자른다. 값이 없거나 숫자가 아니면 null(= 시점이 정한 높이). */
+export function clampEyeMm(mm) {
+  if (mm === null || mm === undefined || mm === '') return null;
+  const v = Number(mm);
+  if (!Number.isFinite(v) || v <= 0) return null;
+  return Math.min(EYE3D.max, Math.max(EYE3D.min, Math.round(v)));
+}
+
+/**
+ * 시점 자세의 카메라 높이를 바꾼다. 서 있던 자리(가로·깊이)와 바라보는 방향(좌우)은 그대로 둔다.
+ *   시점 조작기는 카메라가 바라보는 점보다 낮아지는 것(올려다보기)을 막는다(CONTROLS_MAX_POLAR).
+ *   그래서 바라보는 점이 눈보다 높으면 **눈높이 바로 아래로** 내려 앞을 똑바로 보게 한다 —
+ *   그러지 않으면 조작기가 카메라를 다시 끌어올려 고른 눈높이가 화면에 서지 않는다.
+ */
+export function poseAtEye(pose, eyeMm, room, items = []) {
+  const eye = clampEyeMm(eyeMm);
+  if (!pose || eye == null || pose.ortho) return pose;
+  const H = Number(room?.H) || 0;
+  let [px, , pz] = pose.position;
+  // 카메라 바로 곁(1.2 m 안 — 객석 한 줄 간격)에 좌석이 있으면 **그 좌석에 앉는다** — 객석 한가운데서 서 있던 자리를
+  //   그대로 낮추면 앞 좌석 등받이에 눈이 가려진다. 앉은 자리에서는 앞줄 너머로 화면이 보인다.
+  const seat = nearestSeat(items, px * MM_PER_UNIT, pz * MM_PER_UNIT, 1200);
+  if (seat) { px = seat.x / MM_PER_UNIT; pz = seat.z / MM_PER_UNIT; }
+  // 눈높이는 **카메라가 선 자리의 바닥**에서 잰다 — 계단식 객석(단) 위라면 그 단 윗면이 바닥이다.
+  const y = clamp((floorUnder(items, px * MM_PER_UNIT, pz * MM_PER_UNIT) + eye) / 1000, 0.6, Math.max(0.6, H - 0.2));
+  const [tx, ty, tz] = pose.target;
+  const flat = Math.hypot(px - tx, pz - tz);
+  // 상한보다 0.005 rad 더 여유를 둔다(반올림으로 상한에 걸려 조작기가 움직이지 않게).
+  const maxTy = y - flat * Math.tan(Math.PI / 2 - CONTROLS_MAX_POLAR + 0.005);
+  return { ...pose, position: [px, y, pz], target: [tx, Math.min(ty, maxTy), tz] };
+}
+
+// 앉을 자리로 옮겨 주는 것은 **강당 고정 객석(seat)** 뿐이다. 회의실 의자는 테이블에 붙어 있어
+//   그 자리로 옮기면 카메라가 화면에 너무 가까워진다(그리고 회의실에는 앞을 가리는 줄이 없다).
+const SITTABLE = new Set(['seat']);
+/** (x, z)(mm) 에서 가장 가까운 객석(limit mm 안). 없으면 null. */
+export function nearestSeat(items, x, z, limit) {
+  let best = null, bd = limit;
+  for (const it of items || []) {
+    if (!it || !SITTABLE.has(it.type)) continue;
+    const dd = Math.hypot((Number(it.x) || 0) - x, (Number(it.z) || 0) - z);
+    if (dd <= bd) { bd = dd; best = it; }
+  }
+  return best;
+}
+
+/** (x, z)(mm) 자리의 바닥 높이(mm) — 그 자리를 덮는 단(riser) 윗면 중 가장 높은 것. 없으면 0. */
+export function floorUnder(items, x, z) {
+  let top = 0;
+  for (const it of items || []) {
+    if (!it || it.type !== 'riser') continue;
+    const w = Number(it.w) || 0, d = Number(it.d) || 0;
+    if (Math.abs(x - it.x) <= w / 2 && Math.abs(z - it.z) <= d / 2) top = Math.max(top, (Number(it.y) || 0) + (Number(it.h) || 0));
+  }
+  return top;
+}
+
 export function clampFov(deg, fallback = FOV_DEG) {
   if (deg === null || deg === undefined || deg === '') return fallback;
   const v = Number(deg);
@@ -713,15 +777,17 @@ export function presetPose(id, model, aspect = 16 / 9, opts = {}) {
   // 공간 디자인이 화각을 정했으면 그 계획을 쓴다(대기업 회의실 = 뒤에서 보는 제안 구도).
   //   정하지 않았으면 null이라 아래 기존 계산이 그대로 돈다 — **다른 공간은 그대로다.**
   //   아이소·평면도는 이 아래로 내려오지 않으므로 애초에 영향이 없다.
+  // 눈높이를 고른 시점(정면·좌우 코너)은 마지막에 카메라 높이만 바꾼다(poseAtEye).
+  const atEye = pose => (EYE_PRESET_IDS.includes(p.id) ? poseAtEye(pose, opts.eye, room, model.items) : pose);
   const plan = cameraPlanForDesign(model.design, p.id, model, a);
   if (plan) {
     // 사용자가 화각을 직접 바꿨으면 그 비율만큼 따라간다(기존 실내 시점과 같은 규칙).
     const fov = clampFov(plan.fov * (clampFov(opts.fov) / FOV_DEG), plan.fov);
-    return {
+    return atEye({
       id: p.id, ortho: false,
       position: plan.position, target: plan.target, up: [0, 1, 0],
       fov, orthoHeight: null,
-    };
+    });
   }
   const s = INSIDE[p.id] || INSIDE.interior;
   const yaw = s.yaw * DEG;
@@ -741,5 +807,5 @@ export function presetPose(id, model, aspect = 16 / 9, opts = {}) {
     clamp(s.eye, 0.6, room.H - 0.2),
     clamp(led.depth + dist * Math.cos(yaw), 0.8, Math.max(0.8, room.D - 0.3)),
   ];
-  return { id: p.id, ortho: false, position, target, up: [0, 1, 0], fov, orthoHeight: null };
+  return atEye({ id: p.id, ortho: false, position, target, up: [0, 1, 0], fov, orthoHeight: null });
 }
