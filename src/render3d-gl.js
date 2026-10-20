@@ -18,17 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=482';
-import { createMaterialLibrary } from './materials-gl.js?v=482';
-import { MOODS } from './materials.js?v=482';
-import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=482';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=483';
+import { createMaterialLibrary } from './materials-gl.js?v=483';
+import { MOODS } from './materials.js?v=483';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=483';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
   stageWashForDesign,
-} from './design-lighting.js?v=482';
-import { ledImageFit } from './led-image.js?v=482';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=482';
+} from './design-lighting.js?v=483';
+import { ledImageFit } from './led-image.js?v=483';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=483';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -37,7 +37,7 @@ import {
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
   CONTROLS_MAX_POLAR, drawnItems,
-} from './gl-model.js?v=482';
+} from './gl-model.js?v=483';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -657,8 +657,9 @@ function drawPillOnCanvas(c, x, y, text, key, k) {
  *
  * @param canvas   <canvas>
  * @param onError  WebGL을 못 쓰는 환경 등에서 부른다(화면에 안내 문구를 띄우도록)
+ * @param onPick   캔버스를 '눌렀다 뗐을 때'(끌지 않고) 부른다 — (누른 가구 항목 또는 null, { shift })
  */
-export function createViewerGL(canvas, { onError } = {}) {
+export function createViewerGL(canvas, { onError, onPick } = {}) {
   let renderer;
   try {
     // preserveDrawingBuffer — PNG로 내보낼 때 그린 내용을 다시 읽을 수 있어야 한다.
@@ -773,6 +774,52 @@ export function createViewerGL(canvas, { onError } = {}) {
   // 캔버스 위에서는 오른쪽 버튼 메뉴가 뜨지 않게(오른쪽 끌기 = 이동이므로)
   const onCtx = e => e.preventDefault();
   canvas.addEventListener('contextmenu', onCtx);
+
+  // ── 가구 고르기(오너 요청 2026-10-19) ──
+  //   왼쪽 버튼을 **끌지 않고** 눌렀다 떼면 그 자리의 가구를 찾아 onPick 으로 알린다.
+  //   끌기(회전·이동)는 고르기로 치지 않는다 — 5px 넘게 움직였으면 무시한다.
+  const raycaster = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let pickDown = null;
+  const onPickDown = e => { pickDown = (e.button === 0 && e.isPrimary !== false) ? { x: e.clientX, y: e.clientY, id: e.pointerId } : null; };
+  const onPickUp = e => {
+    const d = pickDown; pickDown = null;
+    if (!onPick || !d || d.id !== e.pointerId || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5) return;
+    onPick(pickAt(e.clientX, e.clientY), { shift: e.shiftKey || e.ctrlKey || e.metaKey });
+  };
+  canvas.addEventListener('pointerdown', onPickDown);
+  canvas.addEventListener('pointerup', onPickUp);
+  function pickAt(cx, cy) {
+    const furn = group?.getObjectByName('furniture');
+    if (!furn) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    ndc.set(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    for (const hit of raycaster.intersectObject(furn, true)) {
+      const list = hit.object.userData?.items;
+      if (list && hit.instanceId != null && list[hit.instanceId]) return list[hit.instanceId];
+    }
+    return null;
+  }
+
+  // 고른 가구 표시 — 바닥에 파란 고리. 방(group)과 따로 두어 모델을 바꿔도 남고, 화면(app)이 다시 정한다.
+  const selGroup = new THREE.Group();
+  selGroup.name = 'selection';
+  scene.add(selGroup);
+  const selGeo = new THREE.RingGeometry(0.27, 0.34, 40);
+  selGeo.rotateX(-Math.PI / 2);
+  const selMat = new THREE.MeshBasicMaterial({ color: 0x2f7ff6, transparent: true, opacity: 0.95, depthTest: false });
+  function setSelectionMarks(points) {
+    selGroup.clear();
+    for (const p of points || []) {
+      const m = new THREE.Mesh(selGeo, selMat);
+      m.position.set(u(p.x), u(p.y || 0) + 0.012, u(p.z));
+      m.renderOrder = 10;   // 의자에 가려도 보이게(깊이 검사 없음)
+      selGroup.add(m);
+    }
+    needsRender = true;
+  }
 
   // 프리셋 성격에 맞춰 회전 범위를 조정한다.
   function applyControlLimits(presetId) {
@@ -1389,8 +1436,14 @@ export function createViewerGL(canvas, { onError } = {}) {
     presets: CAMERA_PRESETS,
     /** 테스트·디버깅용 — 씬 내부를 들여다볼 수 있게. */
     _internals: { scene, renderer, get camera() { return camera; }, get controls() { return controls; }, get group() { return group; } },
+    /** 고른 가구 자리 [{ x, y, z }](mm)에 고리를 그린다. 빈 배열이면 지운다. */
+    setSelection(points) { setSelectionMarks(points); },
+
     dispose() {
       disposed = true;
+      canvas.removeEventListener('pointerdown', onPickDown);
+      canvas.removeEventListener('pointerup', onPickUp);
+      selGroup.clear(); selGeo.dispose(); selMat.dispose();
       cancelAnimationFrame(raf);
       ro?.disconnect();
       window.removeEventListener('resize', resize);
