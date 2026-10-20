@@ -355,7 +355,7 @@ input:focus{outline:none;background:var(--field-fill-focus);box-shadow:0 0 0 4px
 .rs3Dlbl.key{background:#14161a;color:#fff;font-size:calc(11.5px / var(--fit,1));font-weight:600;padding:2px 6px;border-radius:6px}
 .rs3Dlbl.sub{background:rgba(255,255,255,.94);color:#5b6069;font-size:calc(10px / var(--fit,1));font-weight:600;padding:1px 5px;border-radius:5px;border:1px solid rgba(16,18,22,.12)}
 .rs3Dlbl.count{background:#2f7ff6;color:#fff;font-size:calc(8.6px / var(--fit,1));font-weight:700;padding:1px 6px;border-radius:999px}   /* 캐비넷 수 표기(글자 축소, 이사 요청 2026-09-15) */
-.rs3Dlbl.count.br{transform:translate(-100%,-100%)}   /* 우측 하단 앵커(우하단 모서리 기준, 이사 요청 2026-09-15) */
+.rs3Dlbl.count.br{transform:translate(-100%,0)}   /* 우측 하단 앵커: LED 우하단 모서리 바로 아래, 오른쪽 끝 정렬(이사 요청 2026-09-15 → 위치 변경 2026-10-20) */
 .rs3Dlbl.person{background:rgba(255,255,255,.94);color:#5b6069;font-size:calc(7px / var(--fit,1));font-weight:600;padding:1px 5px;border-radius:5px;border:1px solid rgba(16,18,22,.12)}
 .rs3Dlbl.vlbl{transform:translate(-50%,-50%) rotate(-90deg)}
 .rs3Frame.noGrid .rs3GridLayer{display:none}

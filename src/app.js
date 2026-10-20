@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=487';
-import { MODELS } from './models.js?v=487';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=488';
+import { MODELS } from './models.js?v=488';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=487';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=488';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=487';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=487';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=488';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=488';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=487';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=487';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=488';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=488';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=487';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=488';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=487';
-import { createViewerGL } from './render3d-gl.js?v=487';
+} from './room-presets.js?v=488';
+import { createViewerGL } from './render3d-gl.js?v=488';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=487';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=487';
-import { normalizeDesign, designsFor } from './room-design.js?v=487';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=487';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=487';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=487';
-import { ledImageFit } from './led-image.js?v=487';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=487';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=488';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=488';
+import { normalizeDesign, designsFor } from './room-design.js?v=488';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=488';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=488';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=488';
+import { ledImageFit } from './led-image.js?v=488';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=488';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -1078,13 +1078,13 @@ function renderPreview() {
   // 캐비닛 수 라벨은 LED만. 사이니지는 중앙 '장' 표기 대신 우상단 인치 라벨(아래 svSizeHTML)로 표시(이사 요청 2026-09-14).
   //   위치: 중앙 → '왼쪽 하단' 안쪽(넓은 벽에서 중앙이 화면을 가리지 않게, 이사 요청 2026-09-14). 좌하단 앵커.
   if (!svMode) {
-    // 완성된 디스플레이(LED) 우측하단 안쪽 코너. translate(-100%,-100%)로 우하단 앵커 → 라벨은 앵커 왼쪽·위로 그려짐.
-    //   우측/하단 프레임을 넘지 않도록 앵커를 프레임 안쪽으로 추가 clamp(넉넉한 여유, 이사 요청 2026-09-16).
+    // 완성된 디스플레이(LED) 우측하단 모서리 **바로 아래**. translate(-100%,0)로 우상단 앵커 → 라벨은 앵커 왼쪽·아래로 그려짐.
+    //   LED 오른쪽 끝에 라벨 오른쪽 끝을 맞추고, 벽 밖으로 나가지 않게 앵커를 프레임 안쪽으로 clamp(오너 요청 2026-10-20).
     //   정면벽 좌표를 **원근 변환(proj)** 해서 앵커를 잡는다 — 다른 치수 라벨과 같은 좌표계다.
     //   예전에는 변환 없이 벽 좌표를 그대로 써서, 벽이 넓을수록 라벨이 LED 오른쪽 밖으로 밀려났다(오너 지적 2026-10-20).
-    const cnr = proj(Lx + Lw - px(60), Ly + Lh - px(60), 0);
+    const cnr = proj(Lx + Lw, Ly + Lh, 0);
     const bx = Math.min(clx(cnr.x), visR - 34 / effFit);
-    const by = Math.min(cly(cnr.y), visB - 22 / effFit);
+    const by = Math.min(cly(cnr.y) + 6 / effFit, visB - 22 / effFit);
     //   앞에 모델명을 붙여 어떤 제품의 배열인지 캡처만 보고도 알 수 있게 한다(오너 요청 2026-10-16).
     dims.push(`<div class="rs3Dlbl count br" style="left:${bx}px;top:${by}px">${esc(m.name)} ${r.cols} × ${r.rows} = ${r.total} 캐비닛</div>`);
   }
