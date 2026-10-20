@@ -54,10 +54,10 @@ export function distributeSeats(total, caps) {
 
 // ── 가구 기본 치수(mm) ──────────────────────────────────────────────────────
 // 실제 사무가구 표준값에 맞춘 기준 치수. 렌더 모양의 기준이자 '몇 명 앉나' 계산의 근거.
-import { isOccupied } from './viewangle.js?v=484';
-import { conferenceAVItems } from './conference-av.js?v=484';
-import { controlAVItems } from './control-av.js?v=484';
-import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=484';
+import { isOccupied } from './viewangle.js?v=485';
+import { conferenceAVItems } from './conference-av.js?v=485';
+import { controlAVItems } from './control-av.js?v=485';
+import { MONITOR_INCHES, MONITOR_INCH_MIN, MONITOR_INCH_MAX } from './monitors.js?v=485';
 
 export const FURNITURE = Object.freeze({
   chairPitch: 700,        // 회의용 의자 1인 간격
@@ -295,6 +295,7 @@ export const ROOM_TYPES = Object.freeze([
           { value: 'rect', label: '사각형' },
           { value: 'round', label: '원형' },
           { value: 'u', label: 'U자형' },
+          { value: 'v', label: 'V자형' },
           { value: 'none', label: '없음' },
         ] },
       { key: 'seats', label: '좌석 수', type: 'number', default: 12, min: 0, max: 60 },
@@ -518,12 +519,15 @@ function layoutMeeting(o, W, D) {
   }
 
   if (o.tableShape === 'u') return layoutUTable(o, W, D, cz, items);
+  if (o.tableShape === 'v') return layoutVTable(o, W, D, cz, items);
 
   // 사각형 · 보트형 — 긴 변 양쪽 + 양 끝에 앉는다.
   //   테이블 길이는 '방 크기'가 아니라 '앉을 사람 수'에 맞춘다(방을 꽉 채우지 않게).
   //   셈법은 **가로·세로가 똑같다** — 어느 쪽이 긴 변인지만 다르다(rectTableFit 하나로 푼다).
   const along = tableDirOf(o) === 'along';
-  const fit = rectTableFit(along ? usableD : usableW, along ? usableW : usableD, o.seats);
+  // 세로면 **화면 쪽 끝에는 앉히지 않는다**(오너 2026-10-20) — 그 자리는 화면을 등지게 된다.
+  //   뒤쪽 끝(상석) 한 자리만 쓴다. 가로는 양 끝이 옆벽 쪽이라 예전대로 둘 다 쓴다.
+  const fit = rectTableFit(along ? usableD : usableW, along ? usableW : usableD, o.seats, along ? 1 : 2);
   const { tLong, tShort, perSide, ends, capacity, n } = fit;
   // 세로면 테이블을 90° 돌려 세운다 — 긴 변이 깊이축(Z)으로 간다.
   //   상판 도형(보트의 불룩함·다리 자리)은 제 좌표계에서 만들어지므로 돌리기만 하면 된다.
@@ -563,16 +567,66 @@ function layoutMeeting(o, W, D) {
  * 사각·보트형 테이블의 크기와 정원. **긴 변이 어느 축인지는 여기서 모른다** —
  *   부르는 쪽이 '긴 쪽으로 쓸 수 있는 길이'와 '짧은 쪽'을 넘긴다. 가로·세로가 같은 셈법을 쓴다.
  */
-export function rectTableFit(longAvail, shortAvail, seats) {
+export function rectTableFit(longAvail, shortAvail, seats, maxEnds = 2) {
   const F = FURNITURE;
   const maxLong = clamp(longAvail - F.chairClear * 2, 1600, 9000);
   const tShort = clamp(Math.min(1500, shortAvail - F.chairClear * 2), 900, 1800);
-  const ends = (tShort >= 900) ? 2 : 0;
+  // 양 끝 좌석 수. maxEnds = 1 이면 뒤쪽 끝(상석)만 쓴다(세로 배치 — 화면 쪽 끝은 비운다).
+  const ends = (tShort >= 900) ? clamp(maxEnds, 0, 2) : 0;
   const capacity = fitCount(maxLong - 400, F.chairPitch) * 2 + ends;
   const n = clamp(seats, 0, capacity);
   const perSideNeeded = Math.ceil(Math.max(0, n - ends) / 2);
   const tLong = clamp(perSideNeeded * F.chairPitch + 500, 1600, maxLong);
   return { tLong, tShort, perSide: fitCount(tLong - 400, F.chairPitch), ends, capacity, n };
+}
+
+// V자형 — I형(일자) 테이블 두 개를 V 로 놓고, 벌어진 쪽이 LED 를 향한다(오너 2026-10-20).
+//   꼭짓점 뒤에 **상석 1석**이 화면을 바라보고, 나머지는 두 테이블의 **바깥쪽**에만 앉는다(A안) —
+//   V 안쪽을 비워 두어야 모든 자리에서 화면까지 시야가 열린다.
+//   두 테이블은 안쪽 모서리가 꼭짓점에서 맞닿게 둔다(겹치면 상판이 깜빡인다).
+export const V_TABLE = Object.freeze({ halfAngle: 20, tw: 900, minL: 1600, maxL: 6000 });
+function layoutVTable(o, W, D, cz, seed = []) {
+  const F = FURNITURE, V = V_TABLE;
+  const items = [...seed], notes = [];
+  const th = V.halfAngle * Math.PI / 180, sin = Math.sin(th), cos = Math.cos(th);
+  const tw = V.tw;
+  const headBack = tw * sin + F.chairClear;          // 꼭짓점 ~ 상석 의자 중심(깊이)
+  // 테이블 길이 상한 — 깊이: 화면 앞 여유 ~ 상석 뒤 벽 여유, 폭: 벌어진 끝 + 바깥 의자가 옆벽 여유 안.
+  const depthRoom = D - F.frontClear - F.wallClear - headBack;
+  const halfW = W / 2 - F.wallClear;
+  const maxL = clamp(Math.min(depthRoom / cos, (halfW - (tw + F.chairClear) * cos) / sin), V.minL, V.maxL);
+  const armCap = fitCount(maxL - 400, F.chairPitch);
+  const capacity = 1 + armCap * 2;
+  const n = clamp(o.seats, 0, capacity);
+  const armN = n > 1 ? Math.ceil((n - 1) / 2) : 0;
+  const L = clamp(armN * F.chairPitch + 500, V.minL, maxL);
+  // 앞뒤로는 테이블 + 상석까지를 쓸 수 있는 깊이 가운데에 둔다.
+  const span = L * cos + headBack;
+  const zApex = clamp(cz - span / 2 + L * cos, F.frontClear + L * cos, D - F.wallClear - headBack);
+  const ax = W / 2;
+  const nArm = [armN, Math.max(0, n - 1 - armN)];    // 오른쪽·왼쪽
+  [1, -1].forEach((s, k) => {
+    // 꼭짓점에서 화면 쪽으로 가는 방향과, 그 테이블의 바깥쪽 방향(단위 벡터, x·z mm).
+    const dir = [s * sin, -cos], out = [s * cos, sin];
+    // 안쪽 모서리가 꼭짓점을 지나도록 중심선을 바깥으로 tw/2 옮긴다.
+    const c0 = [ax + out[0] * tw / 2, zApex + out[1] * tw / 2];
+    items.push({ type: 'table', shape: 'rect', x: c0[0] + dir[0] * L / 2, z: c0[1] + dir[1] * L / 2,
+      rotY: 90 + s * V.halfAngle, w: L, d: tw });
+    const cnt = nArm[k], gap = cnt > 0 ? L / cnt : 0;
+    for (let i = 0; i < cnt; i++) {
+      const t = gap * (i + 0.5);
+      const ex = c0[0] + dir[0] * t + out[0] * tw / 2, ez = c0[1] + dir[1] * t + out[1] * tw / 2;   // 바깥 모서리
+      items.push(chairAt(ex + out[0] * F.chairClear, ez + out[1] * F.chairClear, ex, ez));
+    }
+  });
+  if (n >= 1) items.push(chairAt(ax, zApex + headBack, ax, zApex));   // 상석 — 화면을 바라본다
+  if (n < o.seats) notes.push(`이 방 크기에서는 V자형으로 ${capacity}석까지 들어갑니다.`);
+  if (o.rug) {
+    const halfX = L * sin + (tw + F.chairClear) * cos + 400;
+    items.push({ type: 'rug', x: ax, z: zApex - L * cos / 2 + headBack / 2, rotY: 0, w: halfX * 2, d: span + 1200 });
+  }
+  if (o.plant) addPlant(items, W, D);
+  return { items, placed: { chairs: n }, capacity, notes };
 }
 
 // U자형 — LED 벽을 향해 열린 ㄷ 모양. 바깥쪽에 앉는다.
