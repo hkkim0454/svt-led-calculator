@@ -31,7 +31,8 @@ test('인치 → 크기 — 16:9 기하가 맞다', () => {
 
 test('추천 인치·위치 목록', () => {
   // 이 목록은 **입력칸에 띄우는 추천**이지 고를 수 있는 값의 제한이 아니다.
-  assert.deepEqual([...MONITOR_INCHES], [32, 43, 50, 55, 65, 75, 86, 98, 110]);
+  // 오너 지정(2026-10-20): 50 · 55 · 65 · 75 · 85 · 98 · 115. 예전 목록은 32~110(9개)이었다.
+  assert.deepEqual([...MONITOR_INCHES], [50, 55, 65, 75, 85, 98, 115]);
   assert.deepEqual([...MONITOR_SIDES], ['none', 'left', 'right', 'both']);
   // 추천 목록은 전부 입력 허용 범위 안이고, 작은 값부터 차례로 커진다.
   for (const n of MONITOR_INCHES) {
@@ -201,4 +202,21 @@ test('정면 뷰 도구 줄의 모니터 칸 — 회의실 옵션 표에서 읽�
   // 3D 뷰에서는 정면 칸·안내 줄을 숨긴다(3D 는 자기 칸과 안내 줄을 쓴다).
   assert.match(appSrc, /box\.hidden = pvView === '3d' \|\| !opts\.length;/);
   assert.match(appSrc, /const show = pvView !== '3d' && notes\.length > 0;/);
+});
+
+test('인치 칸 — 누르면 아래에 추천 단추가 펼쳐지고, 직접 입력도 된다(정면 뷰 · 3D 같은 부품)', () => {
+  // 브라우저 기본 목록(datalist)은 숫자 칸에서 잘 보이지 않아 쓰지 않는다.
+  assert.ok(!/<datalist/.test(appSrc), 'datalist 가 남아 있다');
+  // 두 칸 모두 같은 부품(suggestInputHTML)으로 만든다.
+  assert.match(appSrc, /\$\{suggestInputHTML\(o, 'data-fmon', null, 'pvSel'\)\}/, '정면 뷰 인치 칸');
+  assert.match(appSrc, /\$\{suggestInputHTML\(o, 'data-ropt', v\)\}/, '3D 인치 칸');
+  // 단추 = 옵션 표의 추천 목록, 숫자 칸은 그대로 남는다(직접 입력).
+  assert.match(appSrc, /<span class="sugWrap" data-sugs="\$\{o\.suggest\.join\(','\)\}">/);
+  assert.match(appSrc, /`<button type="button" class="sugChip\$\{n === v \? ' on' : ''\}" data-sug="\$\{n\}">/);
+  assert.match(appSrc, /type="number" \$\{attr\}="\$\{o\.key\}"/);
+  // 단추를 누르면 직접 쳐 넣을 때와 같은 길(input · change)을 탄다.
+  assert.match(appSrc, /const el = sugOpen\.querySelector\('input'\);\n  el\.value = chip\.dataset\.sug;\n  openSuggest\(null\);\n  el\.dispatchEvent\(new Event\('input', \{ bubbles: true \}\)\);\n  el\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\);/);
+  // 옵션 표가 이 목록을 그대로 쓴다.
+  const o = optionsForDesign('meeting', null).find(x => x.key === 'sideMonitorIn');
+  assert.deepEqual([...o.suggest], [50, 55, 65, 75, 85, 98, 115]);
 });

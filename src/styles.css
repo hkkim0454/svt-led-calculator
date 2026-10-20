@@ -1107,6 +1107,13 @@ body.pvZoomOpen .pvZoomBtn{display:none}   /* 이미 크게 보기 상태면 버
 /* 정면 뷰 도구 줄의 'LED 옆 모니터' 칸 — 토글 버튼 줄과 같은 크기·모양 */
 .pvMonCtl{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
 .pvMonField{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);white-space:nowrap}
+/* 숫자 칸 + 추천 목록(LED 옆 모니터 인치) — 칸을 누르면 바로 아래에 추천 값 단추가 펼쳐진다 */
+.sugWrap{position:relative;display:inline-flex}
+.sugList{position:fixed;top:0;left:0;z-index:60;display:flex;flex-wrap:wrap;gap:4px;width:max-content;max-width:min(232px,calc(100vw - 16px));
+  padding:6px;background:var(--panel-solid,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(16,18,22,.16)}
+.sugChip{font:inherit;font-size:12px;font-weight:600;padding:5px 9px;border-radius:8px;border:1px solid var(--line);
+  background:var(--field-fill,#fff);color:var(--ink);cursor:pointer;white-space:nowrap}
+.sugChip:hover,.sugChip.on{border-color:#2f7ff6;color:#2f7ff6}
 .pvMonField input[type=number].pvSel{width:64px;height:auto;padding:7px 8px;font-size:12px;font-weight:600;line-height:normal;cursor:text}
 /* ↕ 손잡이: 디스플레이를 위아래로 끌어 하단 높이 조정. 화면상 크기 고정(1/fit 역보정). */
 .rs3HeightHandle{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;cursor:ns-resize;
