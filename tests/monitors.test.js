@@ -220,3 +220,9 @@ test('인치 칸 — 누르면 아래에 추천 단추가 펼쳐지고, 직접 �
   const o = optionsForDesign('meeting', null).find(x => x.key === 'sideMonitorIn');
   assert.deepEqual([...o.suggest], [50, 55, 65, 75, 85, 98, 115]);
 });
+
+test('정면 뷰 캐비닛 수 라벨 — LED 오른쪽 아래 안쪽에 원근 변환한 좌표로 붙는다(오너 지적 2026-10-20)', () => {
+  // 변환 없이 벽 좌표를 쓰면 벽이 넓을수록 라벨이 LED 밖(오른쪽)으로 밀려난다.
+  assert.match(appSrc, /const cnr = proj\(Lx \+ Lw - px\(60\), Ly \+ Lh - px\(60\), 0\);\n    const bx = Math\.min\(clx\(cnr\.x\), visR - 34 \/ effFit\);\n    const by = Math\.min\(cly\(cnr\.y\), visB - 22 \/ effFit\);/);
+  assert.ok(!/clx\(Lx \+ Lw - px\(60\)\)/.test(appSrc), '변환하지 않은 옛 좌표가 남아 있다');
+});
