@@ -22,6 +22,8 @@ export const CONFIG_DEFAULTS = Object.freeze({
   roomDesign: null,
   wallThk: 100,          // 옆벽(좌·우·뒤) 두께(mm) — 3D 뷰 전용. 방 안쪽 치수(W×H×D)는 그대로 둔다
   wallThkFront: 100,     // 앞벽(LED 벽) 두께(mm) — 3D 뷰 전용. 기본은 옆벽과 같은 100mm(오너 2026-10-02)
+  // 3D 정면·좌우 코너의 카메라 눈높이(mm). 기본은 앉은 눈높이 1.2 m(오너 2026-10-20). null = 시점마다 정한 높이.
+  eye3d: 1200,
   ledOffsetX: 0,         // LED 가로 위치 — 앞벽 가운데에서 몇 mm(+ = 오른쪽). 0 = 가운데(engine.ledPlacement)
   seatEdit: null,        // 3D 에서 지운 의자 { sig, removed:['x:z',…] } — seat-edit.js. null = 지운 것 없음
   columns: null,         // 벽에 붙은 기둥 [{ wall, pos, w, d }](mm) — 3D 뷰 전용. null = 없음
@@ -91,6 +93,7 @@ export function normalizeConfig(raw) {
     // 앞벽 두께가 없는 옛 저장값은 옆벽 두께를 그대로 쓴다 — 예전엔 한 값으로 네 벽을 그렸다.
     wallThkFront: asNum(r.wallThkFront, asNum(r.wallThk, D.wallThkFront)),
     ledOffsetX: asNum(r.ledOffsetX, D.ledOffsetX),
+    eye3d: r.eye3d === null ? null : asNum(r.eye3d, D.eye3d),
     // 지운 의자 — 형태만 확인한다(지금 배치와 맞는지는 화면이 seat-edit.reconcileSeatEdit 로 본다).
     seatEdit: (r.seatEdit && typeof r.seatEdit === 'object' && typeof r.seatEdit.sig === 'string' && Array.isArray(r.seatEdit.removed))
       ? { sig: r.seatEdit.sig, removed: r.seatEdit.removed.filter(k => typeof k === 'string').slice(0, 2000) }

@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=483';
-import { MODELS } from './models.js?v=483';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=484';
+import { MODELS } from './models.js?v=484';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=483';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=484';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=483';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=483';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=484';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=484';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=483';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=483';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=484';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=484';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=483';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=484';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=483';
-import { createViewerGL } from './render3d-gl.js?v=483';
+} from './room-presets.js?v=484';
+import { createViewerGL } from './render3d-gl.js?v=484';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=483';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=483';
-import { normalizeDesign, designsFor } from './room-design.js?v=483';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=483';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=483';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=483';
-import { ledImageFit } from './led-image.js?v=483';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=483';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=484';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=484';
+import { normalizeDesign, designsFor } from './room-design.js?v=484';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=484';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=484';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=484';
+import { ledImageFit } from './led-image.js?v=484';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=484';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -507,7 +507,8 @@ let presetId = PREVIEW_DEFAULT_PRESET;   // 3D 카메라 시점 프리셋
 let customViews = [];                 // 사용자가 저장한 시점(구성과 함께 저장된다)
 let viewEditMode = false;             // 시점 편집 모드 — 켜면 '+'(저장)와 '×'(삭제)가 보인다
 // 시점 옵션 — 화각(도)과 평면도 원근 여부. 3D 뷰 전용이라 구성 저장에는 넣지 않는다.
-let view3dOpts = { fov: FOV_RANGE.default, topPerspective: true };
+// eye = 정면·좌우 코너의 카메라 눈높이(mm). 기본은 앉은 눈높이(오너 2026-10-20). null = 시점마다 정한 높이.
+let view3dOpts = { fov: FOV_RANGE.default, topPerspective: true, eye: CONFIG_DEFAULTS.eye3d };
 // 표현 방식 — '심플'(평평한 다이어그램)과 '실사'(그림자·재질) 중 하나. 형상·치수는 같다.
 let render3dMode = DEFAULT_RENDER_MODE;
 const pv3dShow = {
@@ -1584,7 +1585,45 @@ function buildViewOptionFields() {
     viewer3d?.setViewOptions(view3dOpts);
   });
   wrap.appendChild(btn);
+  wrap.append(...buildEyeField());
   return wrap;
+}
+
+// 눈높이 — 정면·좌측 코너·우측 코너 시점의 카메라 높이(오너 요청 2026-10-20).
+//   기본은 의자에 앉았을 때의 눈높이 1.2 m. '자동'은 시점마다 정해 둔 높이(예전 그림)다.
+function buildEyeField() {
+  const box = document.createElement('div');
+  box.className = 'pv3dWalls pv3dEye';
+  box.innerHTML = '<span class="pv3dWallsLab">눈높이</span>'
+    + [[String(EYE3D.seated), '앉음', '의자에 앉았을 때의 눈높이(1.2 m)'], [String(EYE3D.standing), '서서', '서서 볼 때의 눈높이(1.6 m)'],
+       ['auto', '자동', '시점마다 정해 둔 높이(예전 시점)']]
+      .map(([v, t, title]) => `<button type="button" class="pvTog pv3dWallBtn" data-eye3d="${v}" title="${title}">${t}</button>`).join('');
+  const lab = document.createElement('label');
+  lab.className = 'pv3dField';
+  lab.title = '정면·좌측 코너·우측 코너 시점의 카메라 높이(바닥에서 mm). 비우면 시점마다 정해 둔 높이입니다';
+  const t = document.createElement('span'); t.textContent = '눈높이 (mm)';
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.id = 'eye3d'; inp.step = '50'; inp.min = String(EYE3D.min); inp.max = String(EYE3D.max);
+  inp.placeholder = '자동';
+  const apply = v => {
+    view3dOpts.eye = clampEyeMm(v);
+    syncEyeField();
+    viewer3d?.setViewOptions({ eye: view3dOpts.eye });
+    saveLastSession();
+  };
+  box.addEventListener('click', e => {
+    const b = e.target.closest('button[data-eye3d]'); if (!b) return;
+    apply(b.dataset.eye3d === 'auto' ? null : b.dataset.eye3d);
+  });
+  inp.addEventListener('change', () => apply(inp.value));
+  lab.append(t, inp);
+  return [box, lab];
+}
+function syncEyeField() {
+  const inp = $('#eye3d');
+  if (inp && document.activeElement !== inp) inp.value = view3dOpts.eye == null ? '' : String(view3dOpts.eye);
+  const on = view3dOpts.eye == null ? 'auto' : String(view3dOpts.eye);
+  for (const b of document.querySelectorAll('button[data-eye3d]')) b.classList.toggle('on', b.dataset.eye3d === on);
 }
 
 // 대리 입력칸을 원본 값에 맞춘다(01 카드에서 바꿨을 때 따라오도록).
@@ -1631,6 +1670,7 @@ function buildInspector() {
   // [시점] 화각 · 평면도 원근
   const s4 = inspectorSection('표현 · 시점');
   s4.body.appendChild(buildViewOptionFields());
+  syncEyeField();
 
   // 좁은 화면에서 패널을 접었다 펴는 버튼(넓은 화면에서는 CSS가 숨긴다).
   const toggle = document.createElement('button');
@@ -3904,6 +3944,7 @@ function gatherConfig() {
     wallThk: num($('#wallThk')?.value ?? wallThk3d.wallThk) || CONFIG_DEFAULTS.wallThk,
     wallThkFront: num($('#wallThkFront')?.value ?? wallThk3d.wallThkFront) || CONFIG_DEFAULTS.wallThkFront,
     ledOffsetX,
+    eye3d: view3dOpts.eye,
     seatEdit: { sig: seatEdit.sig, removed: [...seatEdit.removed] },
     columns: columns3d.map(c => ({ ...c })),
     customViews: customViews.map(v => ({ ...v })),
@@ -3944,6 +3985,9 @@ function applyConfig(raw) {
   if ($('#wallThk')) $('#wallThk').value = c.wallThk;
   if ($('#wallThkFront')) $('#wallThkFront').value = c.wallThkFront;
   ledOffsetX = c.ledOffsetX;
+  view3dOpts.eye = clampEyeMm(c.eye3d);
+  syncEyeField();
+  viewer3d?.setViewOptions({ eye: view3dOpts.eye }, { animate: false });
   seatEdit = c.seatEdit ? { sig: c.seatEdit.sig, removed: [...c.seatEdit.removed] } : { sig: null, removed: [] };
   seatSel = new Set();
   if ($('#ledOffsetX')) $('#ledOffsetX').value = String(Math.round(ledOffsetX));

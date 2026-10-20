@@ -18,17 +18,17 @@
 
 import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=483';
-import { createMaterialLibrary } from './materials-gl.js?v=483';
-import { MOODS } from './materials.js?v=483';
-import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=483';
+import { buildFurnitureGroup, disposeFurniture } from './furniture-gl.js?v=484';
+import { createMaterialLibrary } from './materials-gl.js?v=484';
+import { MOODS } from './materials.js?v=484';
+import { roomFinishForDesign, consoleFinishForDesign, auditoriumSurfaceFinish } from './design-finish.js?v=484';
 import {
   applyDesignLighting, shadowSettingsForDesign, keyLightPlacementForDesign,
   fillLightPlacementForDesign,
   stageWashForDesign,
-} from './design-lighting.js?v=483';
-import { ledImageFit } from './led-image.js?v=483';
-import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=483';
+} from './design-lighting.js?v=484';
+import { ledImageFit } from './led-image.js?v=484';
+import { renderMode, lightLevels, DEFAULT_RENDER_MODE } from './render-mode.js?v=484';
 // 단위 환산·카메라 상수·모델 변환은 Three.js가 필요 없는 순수 계산이라 따로 뒀다
 //   (Three.js는 브라우저 전용이라 npm test 에서 못 불러온다 — gl-model.js 는 불러올 수 있다).
 import {
@@ -36,8 +36,8 @@ import {
   CAMERA_PRESETS, DEFAULT_PRESET, cameraPreset, stepPreset, presetPose, ACCENT_WALL_SIDE,
   TOP_PITCH_DEG, orthoFitHeight,
   BASEBOARD_MM, CEILING_THK_MM, GRID_LIFT_MM, showCeiling, LIGHTS, shadowMapSize, clampFov, FOV_RANGE,
-  CONTROLS_MAX_POLAR, drawnItems,
-} from './gl-model.js?v=483';
+  CONTROLS_MAX_POLAR, drawnItems, clampEyeMm,
+} from './gl-model.js?v=484';
 
 // 그림자 기본 설정 — 디자인이 정하지 않은 공간은 **항상 이 값으로 되돌아온다.**
 const SHADOW_DEFAULTS = Object.freeze({ radius: 4, bias: -0.0006, normalBias: 0.02 });
@@ -862,7 +862,7 @@ export function createViewerGL(canvas, { onError, onPick } = {}) {
   let raf = 0;
   let disposed = false;
   // 시점 옵션 — 화각(도)과 평면도 원근 여부. 화면(app.js)이 정하고 프리셋 계산에 넘긴다.
-  let viewOpts = { fov: FOV_DEG, topPerspective: false };
+  let viewOpts = { fov: FOV_DEG, topPerspective: false, eye: null };
 
   const size = () => ({
     w: Math.max(1, canvas.clientWidth || canvas.parentElement?.clientWidth || 800),
@@ -1314,8 +1314,10 @@ export function createViewerGL(canvas, { onError, onPick } = {}) {
     setViewOptions(next = {}, { animate = true } = {}) {
       const fov = clampFov(next.fov ?? viewOpts.fov);
       const topPerspective = next.topPerspective ?? viewOpts.topPerspective;
-      if (fov === viewOpts.fov && topPerspective === viewOpts.topPerspective) return false;
-      viewOpts = { fov, topPerspective };
+      // 눈높이(mm) — 정면·좌우 코너에만 쓴다(gl-model.poseAtEye). null 이면 시점이 정한 높이.
+      const eye = 'eye' in next ? clampEyeMm(next.eye) : viewOpts.eye;
+      if (fov === viewOpts.fov && topPerspective === viewOpts.topPerspective && eye === viewOpts.eye) return false;
+      viewOpts = { fov, topPerspective, eye };
       if (model) applyPreset(presetId, { animate });
       return true;
     },
