@@ -1,31 +1,31 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm } from './engine.js?v=276';
-import { MODELS } from './models.js?v=481';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=482';
+import { MODELS } from './models.js?v=482';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=481';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=482';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=481';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=481';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=482';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=482';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=481';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=481';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=482';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=482';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=481';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=482';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=481';
-import { createViewerGL } from './render3d-gl.js?v=481';
+} from './room-presets.js?v=482';
+import { createViewerGL } from './render3d-gl.js?v=482';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=481';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=481';
-import { normalizeDesign, designsFor } from './room-design.js?v=481';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=481';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=481';
-import { ledImageFit } from './led-image.js?v=481';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=481';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=482';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=482';
+import { normalizeDesign, designsFor } from './room-design.js?v=482';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=482';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=482';
+import { ledImageFit } from './led-image.js?v=482';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=482';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -527,6 +527,8 @@ function syncWallsToDesign(prevDesign, force = false) {
 let columns3d = [];
 // 벽 두께(mm) — 3D 패널이 만들어지기 전에 불러온 구성 값도 여기 담아 둔다.
 const wallThk3d = {};
+// LED 가로 위치 — 앞벽 가운데에서 몇 mm(+ = 오른쪽). 구성과 함께 저장한다. 자리 계산은 engine.ledPlacement.
+let ledOffsetX = CONFIG_DEFAULTS.ledOffsetX;
 // 마지막으로 그린 LED 가로 범위(mm) — 새 기둥을 LED 옆에 세울 때만 쓴다.
 let lastLedBox = null;
 let viewer3d = null;   // createViewerGL() 인스턴스(3D 뷰를 처음 열 때 만든다)
@@ -667,7 +669,18 @@ function expandSpaceTo(needW, needH, opts = {}) {
 // 지금 미리보기에 그릴 대상(모델 또는 사이니지)과 배열 결과를 구한다.
 //   정면 뷰(renderPreview)와 3D 뷰(renderPreview3D)가 똑같은 값을 쓰도록 한 곳에서만 계산한다.
 //   반환: { m, r, svMode, svSizeInfo, name, error }  — error가 있으면 그릴 수 없는 상태.
+// 미리보기(정면 뷰·3D 뷰)가 쓸 LED 결과. 가운데 정렬로 구한 뒤 **LED 가로 위치**만 반영한다.
+//   r.marginW 는 '벽 왼쪽 ~ LED 왼쪽'(두 뷰·보조 모니터·사람·기둥이 모두 이 값을 본다), r.marginR 은 오른쪽 여백.
+//   가운데(0)이면 r 을 그대로 돌려준다 — 기본 화면이 한 픽셀도 바뀌지 않게.
 function resolvePreviewTarget() {
+  const t = resolvePreviewTargetCentered();
+  if (!t.r) { syncLedPosCtl(null); return t; }
+  const p = ledPlacement(spaceWmm(), t.r.actualW, ledOffsetX);
+  syncLedPosCtl(p);
+  if (p.offset === 0) return { ...t, r: { ...t.r, marginR: t.r.marginW } };
+  return { ...t, r: { ...t.r, marginW: p.left, marginR: p.right } };
+}
+function resolvePreviewTargetCentered() {
   const sW = spaceWmm(), sH = spaceHmm();
   // 사이니지가 선택돼 있으면(svCode) LED 대신 3D 방 안에 사이니지를 그린다.
   //   합성 r(캐비닛 배열과 같은 형태의 벽 정보)을 만들어 기존 렌더를 그대로 재사용한다.
@@ -982,15 +995,17 @@ function renderPreview() {
 
   // 상단 가로 치수선(LED 가로) + 좌우 여백 — 같은 좌우 선상(topDimV)에 한 줄로(이사 요청).
   hDim(Lx, Lx + Lw, topDimV, 0, mmL(r.actualW), 'key');
-  vDim(Lx + Lw + px(300), Ly, Ly + Lh, 0, mmL(r.actualH), 'key');
+  // 세로 치수선은 LED 오른쪽 300mm 에 둔다. LED 를 오른쪽 벽에 붙여 그 자리가 벽 밖이면 왼쪽으로 옮긴다
+  //   (가운데 정렬일 때는 marginR === marginW 라 언제나 오른쪽 — 예전 화면 그대로).
+  const vDimU = (r.marginR !== r.marginW && r.marginR < 400) ? Lx - px(300) : Lx + Lw + px(300);
+  vDim(vDimU, Ly, Ly + Lh, 0, mmL(r.actualH), 'key');
   if (mount > 0) {
-    if (topGapMM > 40) vDim(Lx + Lw + px(300), 0, Ly, 0, mmL(topGapMM), 'sub');
-    vDim(Lx + Lw + px(300), Ly + Lh, SHp, 0, mmL(mount), 'sub');
+    if (topGapMM > 40) vDim(vDimU, 0, Ly, 0, mmL(topGapMM), 'sub');
+    vDim(vDimU, Ly + Lh, SHp, 0, mmL(mount), 'sub');
   }
-  if (r.marginW > 40) {
-    hDim(0, Lx, topDimV, 0, mmL(r.marginW), 'sub');            // 좌 여백(벽 왼쪽~LED 왼쪽) — mm(벽공간만 m, 나머지 mm)
-    hDim(Lx + Lw, SWp, topDimV, 0, mmL(r.marginW), 'sub');     // 우 여백(LED 오른쪽~벽 오른쪽) — mm
-  }
+  // 좌·우 여백은 따로 잰다 — LED 를 옆으로 옮기면 두 값이 달라진다(가운데면 같은 값).
+  if (r.marginW > 40) hDim(0, Lx, topDimV, 0, mmL(r.marginW), 'sub');            // 좌 여백(벽 왼쪽~LED 왼쪽) — mm(벽공간만 m, 나머지 mm)
+  if (r.marginR > 40) hDim(Lx + Lw, SWp, topDimV, 0, mmL(r.marginR), 'sub');     // 우 여백(LED 오른쪽~벽 오른쪽) — mm
   // 벽 크기(가로·세로): 방 좌측 모서리(u=0)에서 시작 → 세로선은 좌측 천장·바닥 모서리선과,
   //   가로선은 바닥 좌·우 모서리선과 만나고, 좌하단에서 L자로 코너가 맞물림(이사 요청).
   hDim(0, SWp, SHp, dWall, mL(sW), 'sub');
@@ -1323,6 +1338,51 @@ function buildWallToggles() {
   return box;
 }
 
+// LED 가로 위치 — 앞벽 위에서 LED 를 좌우로 옮긴다(오너 요청 2026-10-19). 높이는 '디스플레이 하단 높이'가 정한다.
+//   버튼은 빠른 선택(왼쪽 벽에 붙임·가운데·오른쪽 벽에 붙임), 칸은 가운데에서 옮길 거리(mm, + = 오른쪽)다.
+//   가구는 방 가운데에 그대로 둔다(오너 선택). 계산 결과는 바뀌지 않고 위치만 바뀐다.
+function buildLedPosField() {
+  const wrap = document.createDocumentFragment();
+  const box = document.createElement('div');
+  box.className = 'pv3dWalls pv3dLedPos';
+  box.innerHTML = '<span class="pv3dWallsLab">LED 위치</span>'
+    + [['left', '왼쪽', 'LED 를 왼쪽 벽에 붙입니다'], ['center', '가운데', 'LED 를 앞벽 가운데에 둡니다'],
+       ['right', '오른쪽', 'LED 를 오른쪽 벽에 붙입니다']]
+      .map(([k, t, title]) => `<button type="button" class="pvTog pv3dWallBtn" data-ledpos="${k}" title="${title}">${t}</button>`).join('');
+  box.addEventListener('click', e => {
+    const b = e.target.closest('button[data-ledpos]'); if (!b) return;
+    const t = resolvePreviewTargetCentered();
+    const max = t.r ? ledPlacement(spaceWmm(), t.r.actualW, 0).maxOffset : 0;
+    ledOffsetX = b.dataset.ledpos === 'left' ? -max : b.dataset.ledpos === 'right' ? max : 0;
+    renderPreview(); saveLastSession();
+  });
+  const lab = document.createElement('label');
+  lab.className = 'pv3dField';
+  lab.title = '앞벽 가운데에서 LED 를 옮길 거리(mm). + 는 오른쪽, - 는 왼쪽입니다. 벽 밖으로는 나가지 않습니다';
+  const t = document.createElement('span'); t.textContent = 'LED 가로 이동 (mm)';
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.id = 'ledOffsetX'; inp.step = '50';
+  inp.value = String(Math.round(ledOffsetX));
+  inp.addEventListener('input', () => { ledOffsetX = num(inp.value); renderPreview(); });
+  // 다 넣고 나면 벽 안에 들어가는 값으로 맞춰 둔다(칸에 보이는 값 = 실제 위치).
+  inp.addEventListener('change', () => {
+    const c = resolvePreviewTargetCentered();
+    if (c.r) ledOffsetX = ledPlacement(spaceWmm(), c.r.actualW, ledOffsetX).offset;
+    renderPreview(); saveLastSession();
+  });
+  lab.append(t, inp);
+  wrap.append(box, lab);
+  return wrap;
+}
+// 칸과 버튼을 실제 위치에 맞춘다. 입력 중인 칸은 건드리지 않는다.
+function syncLedPosCtl(p) {
+  const inp = $('#ledOffsetX');
+  if (inp && document.activeElement !== inp) inp.value = String(Math.round(p ? p.offset : ledOffsetX));
+  const on = !p ? '' : (p.maxOffset > 0 && p.offset <= -p.maxOffset + 0.5) ? 'left'
+    : (p.maxOffset > 0 && p.offset >= p.maxOffset - 0.5) ? 'right' : p.offset === 0 ? 'center' : '';
+  for (const b of document.querySelectorAll('button[data-ledpos]')) b.classList.toggle('on', b.dataset.ledpos === on);
+}
+
 // 벽 두께(mm) — 3D 뷰 전용 표시 설정. 방 안쪽 치수(W×H×D)는 건드리지 않는다.
 //   앞벽(LED 벽)과 옆벽(좌·우·뒤)을 따로 받는다(오너 2026-10-02). 둘 다 기본 100mm.
 function buildWallThkField() {
@@ -1479,6 +1539,7 @@ function buildInspector() {
   if (designField) s1.body.appendChild(designField);
   s1.body.appendChild(buildSizeProxy());
   s1.body.appendChild(buildWallThkField());
+  s1.body.appendChild(buildLedPosField());
 
   // [좌석 설정] 타입별 옵션(줄 수·줄당 좌석·통로 등) — renderRoomOptions가 채우는 그릇
   const s2 = inspectorSection('좌석 설정');
@@ -3772,6 +3833,7 @@ function gatherConfig() {
     // 3D 패널을 아직 열지 않았으면 입력칸이 없다 — 불러온 값(wallThk3d)을 그대로 다시 저장한다.
     wallThk: num($('#wallThk')?.value ?? wallThk3d.wallThk) || CONFIG_DEFAULTS.wallThk,
     wallThkFront: num($('#wallThkFront')?.value ?? wallThk3d.wallThkFront) || CONFIG_DEFAULTS.wallThkFront,
+    ledOffsetX,
     columns: columns3d.map(c => ({ ...c })),
     customViews: customViews.map(v => ({ ...v })),
     // 3D 축척 인물 표시 여부(PHASE 6-a). 다른 3D 표시 토글은 화면 보조선이라 저장하지 않지만,
@@ -3810,6 +3872,8 @@ function applyConfig(raw) {
   wallThk3d.wallThk = c.wallThk; wallThk3d.wallThkFront = c.wallThkFront;
   if ($('#wallThk')) $('#wallThk').value = c.wallThk;
   if ($('#wallThkFront')) $('#wallThkFront').value = c.wallThkFront;
+  ledOffsetX = c.ledOffsetX;
+  if ($('#ledOffsetX')) $('#ledOffsetX').value = String(Math.round(ledOffsetX));
   columns3d = (c.columns || []).map(x => ({ ...x }));
   renderColumnEditor();
   customViews = Array.isArray(c.customViews) ? c.customViews.map(v => ({ ...v })) : [];

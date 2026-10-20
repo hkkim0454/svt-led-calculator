@@ -14,7 +14,7 @@ test('정상 구성은 값이 그대로 왕복(roundtrip)된다', () => {
     spareRate: '7', spareEdited: true, sboxSpare: 2, signalMode: 'uhd',
     selectedId: 'IF015RM', selectedModel: { id: 'IF015RM', name: 'IF015R-M' },
     etcCost: 500000, etcSell: 700000, visibleLines: ['IF', 'MM'], indirectDisabled: ['연금보험료'],
-    wallThk: 120, wallThkFront: 300,
+    wallThk: 120, wallThkFront: 300, ledOffsetX: -650,
     columns: [{ wall: 'front', pos: 1200, w: 600, d: 600 }, { wall: 'left', pos: 4000, w: 800, d: 400 }],
     customViews: [{ id: 'v1', label: '내 시점', position: [1, 2, 3], target: [0, 1, 0], fov: 40 }],
   };
