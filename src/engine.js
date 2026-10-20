@@ -439,3 +439,16 @@ export function bom(model, total, opts = {}) {
     jitQty: null,    // TODO(SPEC:BOM): define Jig count rule
   };
 }
+
+// LED 가로 위치 — 앞벽 위에서 LED 를 좌우로 옮긴다(오너 요청 2026-10-19).
+//   offset 은 '가운데에서 몇 mm' 이고 + 가 오른쪽(방 안에서 LED 벽을 바라본 기준)이다.
+//   벽 밖으로 나가지 않게 [-여백/2, +여백/2] 로 자른다. 계산 결과(캐비닛·해상도·전력)는 바꾸지 않고
+//   **위치만** 정한다. offset 0 이면 computeConfig 의 marginW(가운데 정렬)와 같다.
+export function ledPlacement(wallW, ledW, offset = 0) {
+  const free = Math.max(0, (Number(wallW) || 0) - (Number(ledW) || 0));
+  const half = free / 2;
+  const raw = Number(offset);
+  const off = Number.isFinite(raw) ? Math.min(half, Math.max(-half, raw)) : 0;
+  const left = half + off;
+  return { left, right: free - left, offset: off, maxOffset: half };
+}

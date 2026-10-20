@@ -22,6 +22,7 @@ export const CONFIG_DEFAULTS = Object.freeze({
   roomDesign: null,
   wallThk: 100,          // 옆벽(좌·우·뒤) 두께(mm) — 3D 뷰 전용. 방 안쪽 치수(W×H×D)는 그대로 둔다
   wallThkFront: 100,     // 앞벽(LED 벽) 두께(mm) — 3D 뷰 전용. 기본은 옆벽과 같은 100mm(오너 2026-10-02)
+  ledOffsetX: 0,         // LED 가로 위치 — 앞벽 가운데에서 몇 mm(+ = 오른쪽). 0 = 가운데(engine.ledPlacement)
   columns: null,         // 벽에 붙은 기둥 [{ wall, pos, w, d }](mm) — 3D 뷰 전용. null = 없음
   customViews: null,     // 3D 뷰에서 사용자가 저장한 시점 목록. null = 없음
   // 3D 뷰에 세우는 축척 기준 인물(서 있는 사람)을 보일지. **기본은 켬**이다 —
@@ -88,6 +89,7 @@ export function normalizeConfig(raw) {
     wallThk: asNum(r.wallThk, D.wallThk),
     // 앞벽 두께가 없는 옛 저장값은 옆벽 두께를 그대로 쓴다 — 예전엔 한 값으로 네 벽을 그렸다.
     wallThkFront: asNum(r.wallThkFront, asNum(r.wallThk, D.wallThkFront)),
+    ledOffsetX: asNum(r.ledOffsetX, D.ledOffsetX),
     // 기둥은 형태만 확인한다(자리·크기를 방에 맞춰 자르는 것은 3D 쪽 columnBoxes 가 한다).
     columns: Array.isArray(r.columns)
       ? r.columns.filter(c => c && typeof c === 'object' && ['front', 'back', 'left', 'right'].includes(c.wall))
