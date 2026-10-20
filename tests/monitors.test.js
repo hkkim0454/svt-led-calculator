@@ -221,8 +221,11 @@ test('인치 칸 — 누르면 아래에 추천 단추가 펼쳐지고, 직접 �
   assert.deepEqual([...o.suggest], [50, 55, 65, 75, 85, 98, 115]);
 });
 
-test('정면 뷰 캐비닛 수 라벨 — LED 오른쪽 아래 안쪽에 원근 변환한 좌표로 붙는다(오너 지적 2026-10-20)', () => {
+test('정면 뷰 캐비닛 수 라벨 — LED 오른쪽 아래 모서리 바로 밑에 원근 변환한 좌표로 붙는다(오너 요청 2026-10-20)', () => {
   // 변환 없이 벽 좌표를 쓰면 벽이 넓을수록 라벨이 LED 밖(오른쪽)으로 밀려난다.
-  assert.match(appSrc, /const cnr = proj\(Lx \+ Lw - px\(60\), Ly \+ Lh - px\(60\), 0\);\n    const bx = Math\.min\(clx\(cnr\.x\), visR - 34 \/ effFit\);\n    const by = Math\.min\(cly\(cnr\.y\), visB - 22 \/ effFit\);/);
-  assert.ok(!/clx\(Lx \+ Lw - px\(60\)\)/.test(appSrc), '변환하지 않은 옛 좌표가 남아 있다');
+  assert.match(appSrc, /const cnr = proj\(Lx \+ Lw, Ly \+ Lh, 0\);\n    const bx = Math\.min\(clx\(cnr\.x\), visR - 34 \/ effFit\);\n    const by = Math\.min\(cly\(cnr\.y\) \+ 6 \/ effFit, visB - 22 \/ effFit\);/);
+  assert.ok(!/clx\(Lx \+ Lw/.test(appSrc), '변환하지 않은 옛 좌표가 남아 있다');
+  // 라벨은 앵커의 왼쪽·아래로 그린다(LED 안쪽으로 들어오지 않는다).
+  const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+  assert.match(css, /\.rs3Dlbl\.count\.br\{transform:translate\(-100%,0\)\}/);
 });
