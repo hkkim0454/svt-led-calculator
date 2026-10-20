@@ -16,8 +16,9 @@ const MM_PER_INCH = 25.4;
  * 이것은 **고를 수 있는 값의 제한이 아니라 입력칸에 띄우는 추천 목록**이다.
  * `panelSize()`는 대각 인치를 16:9 기하로 환산할 뿐이므로 목록에 없는 크기도
  * 그대로 계산한다. 화면에서도 아래 MONITOR_INCH_MIN~MAX 범위라면 직접 입력할 수 있다.
+ * 화면에서는 인치 칸을 누르면 이 목록이 칸 아래에 펼쳐져 눌러 고를 수 있다(오너 지정 2026-10-20).
  */
-export const MONITOR_INCHES = Object.freeze([32, 43, 50, 55, 65, 75, 86, 98, 110]);
+export const MONITOR_INCHES = Object.freeze([50, 55, 65, 75, 85, 98, 115]);
 
 /** 직접 입력으로 받아 주는 인치 범위. 이 밖의 값은 화면에서 이 범위로 잘린다. */
 export const MONITOR_INCH_MIN = 10;

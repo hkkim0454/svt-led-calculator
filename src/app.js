@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=485';
-import { MODELS } from './models.js?v=485';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=486';
+import { MODELS } from './models.js?v=486';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=485';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=486';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=485';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=485';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=486';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=486';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=485';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=485';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=486';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=486';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=485';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=486';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=485';
-import { createViewerGL } from './render3d-gl.js?v=485';
+} from './room-presets.js?v=486';
+import { createViewerGL } from './render3d-gl.js?v=486';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=485';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=485';
-import { normalizeDesign, designsFor } from './room-design.js?v=485';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=485';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=485';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=485';
-import { ledImageFit } from './led-image.js?v=485';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=485';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=486';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=486';
+import { normalizeDesign, designsFor } from './room-design.js?v=486';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=486';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=486';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=486';
+import { ledImageFit } from './led-image.js?v=486';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=486';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -741,6 +741,67 @@ function sideMonitorsFor(r, mount, sW) {
 // 정면 뷰 도구 줄의 'LED 옆 모니터' 칸 — 3D '공간 설정'과 **같은 값(roomOpts)** 을 쓴다.
 //   어느 쪽에서 바꿔도 다른 쪽에 그대로 반영된다. 칸 이름·선택지는 옵션 표(room-presets)에서 읽고,
 //   그 옵션이 없는 용도(회의실 밖)와 3D 뷰에서는 숨긴다(오너 결정 2026-10-19).
+// 숫자 칸 + 추천 목록 — 숫자를 직접 쳐 넣을 수도 있고, 칸을 누르면 바로 아래에 추천 값 단추가
+//   펼쳐져 눌러 고를 수도 있다(오너 요청 2026-10-20, LED 옆 모니터 인치). 추천이 없으면 숫자 칸만 낸다.
+//   단추를 누르면 칸에 값을 넣고 input·change 를 보낸다 — 직접 쳐 넣을 때와 **같은 처리 길**을 탄다.
+function suggestInputHTML(o, attr, value = null, cls = '') {
+  const input = `<input${cls ? ` class="${cls}"` : ''} type="number" ${attr}="${o.key}" min="${o.min}" max="${o.max}" step="1"`
+    + `${value != null ? ` value="${value}"` : ''} autocomplete="off"/>`;
+  return (o.suggest || []).length ? `<span class="sugWrap" data-sugs="${o.suggest.join(',')}">${input}</span>` : input;
+}
+// 목록은 **페이지 맨 바깥의 팝업 하나**(#sugPop)로 띄운다. 카드의 반투명 효과(backdrop-filter)는
+//   안쪽 요소의 화면 기준 위치(fixed)를 카드 기준으로 바꿔 버리고, 3D 설정 패널은 넘침을 자른다 —
+//   그 안에 두면 목록이 엉뚱한 곳에 뜨거나 잘린다. 칸 바로 아래에 띄우고, 아래가 모자라면 위로 펼친다.
+let sugOpen = null;   // 지금 목록을 펼친 칸(.sugWrap)
+function sugPop() {
+  let pop = document.getElementById('sugPop');
+  if (!pop) {
+    pop = document.createElement('div');
+    pop.id = 'sugPop'; pop.className = 'sugList'; pop.hidden = true;
+    document.body.appendChild(pop);
+  }
+  return pop;
+}
+function openSuggest(wrap) {
+  const pop = sugPop();
+  sugOpen = wrap && wrap.dataset.sugs ? wrap : null;
+  pop.hidden = !sugOpen;
+  if (!sugOpen) return;
+  const v = String(wrap.querySelector('input')?.value ?? '');
+  pop.innerHTML = wrap.dataset.sugs.split(',').map(n =>
+    `<button type="button" class="sugChip${n === v ? ' on' : ''}" data-sug="${n}">${n}"</button>`).join('');
+  placeSuggest();
+}
+function placeSuggest() {
+  if (!sugOpen) return;
+  if (!sugOpen.isConnected) { openSuggest(null); return; }
+  const pop = sugPop();
+  const w = sugOpen.getBoundingClientRect(), r = pop.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth, vh = window.innerHeight;
+  const below = w.bottom + 4, above = w.top - r.height - 4;
+  pop.style.top = `${(below + r.height > vh - 8 && above > 8) ? above : below}px`;
+  pop.style.left = `${Math.max(8, Math.min(w.left, vw - r.width - 8))}px`;
+}
+window.addEventListener('scroll', placeSuggest, true);   // 화면이 움직이면 칸을 따라 다시 맞춘다
+window.addEventListener('resize', placeSuggest);
+document.addEventListener('focusin', e => {
+  const wrap = e.target.closest?.('.sugWrap');
+  if (wrap) openSuggest(wrap);
+  else if (!e.target.closest?.('#sugPop')) openSuggest(null);
+});
+document.addEventListener('mousedown', e => { if (!e.target.closest?.('.sugWrap, #sugPop')) openSuggest(null); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') openSuggest(null); });
+document.addEventListener('click', e => {
+  const inp = e.target.closest?.('.sugWrap input');
+  if (inp) { openSuggest(inp.closest('.sugWrap')); return; }
+  const chip = e.target.closest?.('#sugPop .sugChip'); if (!chip || !sugOpen) return;
+  const el = sugOpen.querySelector('input');
+  el.value = chip.dataset.sug;
+  openSuggest(null);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+});
+
 const FRONT_MON_KEYS = Object.freeze(['sideMonitor', 'sideMonitorIn']);
 function syncFrontMonitorCtl() {
   const box = $('#pvMonCtl'); if (!box) return;
@@ -752,10 +813,7 @@ function syncFrontMonitorCtl() {
     box.dataset.sig = sig;
     box.innerHTML = opts.map(o => {
       if (o.type === 'number') {
-        const listId = o.suggest ? `fmonSug-${o.key}` : '';
-        const list = o.suggest
-          ? `<datalist id="${listId}">${o.suggest.map(n => `<option value="${n}">${n}인치</option>`).join('')}</datalist>` : '';
-        return `<label class="pvMonField"><span>${esc(o.label)}</span><input class="pvSel" type="number" data-fmon="${o.key}" min="${o.min}" max="${o.max}" step="1"${listId ? ` list="${listId}"` : ''}/>${list}</label>`;
+        return `<label class="pvMonField"><span>${esc(o.label)}</span>${suggestInputHTML(o, 'data-fmon', null, 'pvSel')}</label>`;
       }
       const choices = o.choices.map(c => `<option value="${c.value}">${esc(c.label)}</option>`).join('');
       return `<label class="pvMonField"><span>${esc(o.label)}</span><select class="pvSel" data-fmon="${o.key}">${choices}</select></label>`;
@@ -1836,11 +1894,7 @@ function renderRoomOptions() {
     if (o.type === 'number') {
       // suggest 가 있으면 **고정 목록이 아니라 추천 목록**을 띄운다.
       //   직접 타이핑한 값도 그대로 쓰이고, 추천은 자주 쓰는 규격을 빨리 고르라고 두는 것이다.
-      const listId = o.suggest ? `roptSug-${o.key}` : '';
-      const list = o.suggest
-        ? `<datalist id="${listId}">${o.suggest.map(n => `<option value="${n}">${n}인치</option>`).join('')}</datalist>`
-        : '';
-      return `<label class="pv3dField"><span>${esc(o.label)}</span><input type="number" data-ropt="${o.key}" min="${o.min}" max="${o.max}" step="1" value="${v}"${listId ? ` list="${listId}"` : ''}/>${list}</label>`;
+      return `<label class="pv3dField"><span>${esc(o.label)}</span>${suggestInputHTML(o, 'data-ropt', v)}</label>`;
     }
     const opts = o.choices.map(c => `<option value="${c.value}"${c.value === v ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
     return `<label class="pv3dField"><span>${esc(o.label)}</span><select data-ropt="${o.key}">${opts}</select></label>`;
