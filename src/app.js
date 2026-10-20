@@ -1,31 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=482';
-import { MODELS } from './models.js?v=482';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=483';
+import { MODELS } from './models.js?v=483';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=482';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=483';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=482';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=482';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=483';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=483';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=482';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=482';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=483';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=483';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=482';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=483';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=482';
-import { createViewerGL } from './render3d-gl.js?v=482';
+} from './room-presets.js?v=483';
+import { createViewerGL } from './render3d-gl.js?v=483';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=482';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=482';
-import { normalizeDesign, designsFor } from './room-design.js?v=482';
-import { FOV_RANGE, clampFov } from './gl-model.js?v=482';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=482';
-import { ledImageFit } from './led-image.js?v=482';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=482';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=483';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=483';
+import { normalizeDesign, designsFor } from './room-design.js?v=483';
+import { FOV_RANGE, clampFov } from './gl-model.js?v=483';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=483';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=483';
+import { ledImageFit } from './led-image.js?v=483';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=483';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -529,6 +530,11 @@ let columns3d = [];
 const wallThk3d = {};
 // LED 가로 위치 — 앞벽 가운데에서 몇 mm(+ = 오른쪽). 구성과 함께 저장한다. 자리 계산은 engine.ledPlacement.
 let ledOffsetX = CONFIG_DEFAULTS.ledOffsetX;
+// 3D 에서 지운 의자(오너 요청 2026-10-19). sig = 그때의 의자 배치 지문 — 배치가 새로 만들어지면 기록을 버린다.
+//   구성과 함께 저장한다. 고르기(seatSel)는 화면 상태라 저장하지 않는다.
+let seatEdit = { sig: null, removed: [] };
+let seatSel = new Set();
+let seatItemsByKey = new Map();   // 지금 그려진 의자(열쇠 → 항목) — 고리 위치와 고르기 판정에 쓴다
 // 마지막으로 그린 LED 가로 범위(mm) — 새 기둥을 LED 옆에 세울 때만 쓴다.
 let lastLedBox = null;
 let viewer3d = null;   // createViewerGL() 인스턴스(3D 뷰를 처음 열 때 만든다)
@@ -1164,6 +1170,7 @@ function renderPreview3D() {
   if (!viewer3d && !gl3dFailed) {
     viewer3d = createViewerGL(canvas, {
       onError: e => { gl3dFailed = true; console.error('[3D] WebGL 초기화 실패 —', e); },
+      onPick: onSeatPick,
     });
     if (!viewer3d) gl3dFailed = true;
     // 시점 옵션(화각·평면도 원근)을 뷰어에 알려 준다 — 첫 배치 전에 걸어 둬야 첫 화면부터 반영된다.
@@ -1183,7 +1190,10 @@ function renderPreview3D() {
 
   // 시야각 시뮬레이션 — 켜져 있으면 좌석마다 'LED가 제대로 보이는지'를 판정해 꼬리표를 단다.
   //   좌표·개수는 건드리지 않는다(새 배열에 grade만 더한다). 계산은 viewangle.js에 있다.
-  let items = lay.items, viewSummary = null;
+  // 지운 의자는 그림에서만 뺀다(배치는 그대로). 배치가 새로 만들어졌으면 기록을 비운다.
+  seatEdit = reconcileSeatEdit(seatEdit, lay.items);
+  const removedN = removedSeatCount(lay.items, seatEdit.removed);
+  let items = removeSeats(lay.items, seatEdit.removed), viewSummary = null;
   if (pv3dShow.viewAngle) {
     const ann = annotateSeatViews(items, {
       cx: r.marginW + r.actualW / 2, cy: mount + r.actualH / 2,
@@ -1225,13 +1235,16 @@ function renderPreview3D() {
     renderMode: render3dMode,
     person: personFor3D(r, mount, sW, D, items),
   }));
+  // 고를 수 있는 의자 목록을 새로 만들고, 사라진 의자는 고르기에서 뺀다.
+  seatItemsByKey = new Map(pv3dShow.seats === false ? [] : items.filter(isSeatItem).map(it => [seatKey(it), it]));
+  syncSeatSelection();
 
   // 배치 결과 안내 — 실제 놓인 좌석 수와, 방이 좁아 줄였을 때의 알림.
   //   좌석 수는 room-presets가 낸 값을 그대로 보여준다(여기서 새로 세지 않는다).
   syncSizeProxy();
   const note = $('#room3dNote');
   if (note) {
-    const seats = lay.placed.seats ?? lay.placed.chairs ?? lay.placed.consoles ?? 0;
+    const seats = (lay.placed.seats ?? lay.placed.chairs ?? lay.placed.consoles ?? 0) - removedN;
     const rowInfo = (lay.placed.rows && lay.placed.perRow)
       ? `${lay.placed.perRow}석 × ${lay.placed.rows}줄` : '';
     // 시야각 요약 — 등급별 좌석 수와 실제로 잰 값(거리·이탈각·화면 점유각).
@@ -1243,12 +1256,12 @@ function renderPreview3D() {
         + ` 최대 이탈 ${Math.round(S.maxOffAxis)}° · 최소 화면 점유 ${S.minSubtend.toFixed(1)}°)`;
     }
     note.textContent = [
-      seats ? `배치 ${seats}석${rowInfo ? ` (${rowInfo})` : ''}` : '',
+      seats ? `배치 ${seats}석${rowInfo ? ` (${rowInfo})` : ''}${removedN ? ` · ${removedN}석 삭제` : ''}` : '',
       vs,
       ...lay.notes,
       ...sm.notes,
       colHit.length ? `기둥 ${colHit.join('·')}이(가) LED 화면 앞을 가립니다` : '',
-      '끌기=회전 · 휠=확대 · ‘맞춤’=시점 복귀',
+      '끌기=회전 · 휠=확대 · ‘맞춤’=시점 복귀 · 의자 클릭=선택',
     ].filter(Boolean).join(' · ');
   }
 }
@@ -1337,6 +1350,62 @@ function buildWallToggles() {
   }
   return box;
 }
+
+// ── 3D 의자 고르기·지우기(오너 요청 2026-10-19) ──
+//   의자(객석·스툴·라운지 포함)만 고른다. 클릭 = 하나만, Shift(또는 Ctrl)+클릭 = 더하기/빼기,
+//   빈 곳 클릭 = 고르기 해제. Delete 키나 '선택 삭제'로 지우고 '삭제 되돌리기'로 모두 살린다.
+function onSeatPick(item, { shift } = {}) {
+  const k = item && isSeatItem(item) ? seatKey(item) : null;
+  if (!k || !seatItemsByKey.has(k)) { if (!shift && seatSel.size) { seatSel = new Set(); syncSeatSelection(); } return; }
+  const next = shift ? new Set(seatSel) : new Set();
+  if (seatSel.has(k) && (shift || seatSel.size === 1)) next.delete(k); else next.add(k);
+  seatSel = next;
+  syncSeatSelection();
+}
+function syncSeatSelection() {
+  seatSel = new Set([...seatSel].filter(k => seatItemsByKey.has(k)));
+  viewer3d?.setSelection([...seatSel].map(k => seatItemsByKey.get(k)));
+  const info = $('#seatSelInfo');
+  if (info) info.textContent = seatSel.size ? `${seatSel.size}개 선택` : '3D 에서 의자를 누르세요';
+  const del = $('[data-seatact="del"]'), back = $('[data-seatact="restore"]');
+  if (del) del.disabled = !seatSel.size;
+  if (back) { back.disabled = !seatEdit.removed.length; back.textContent = seatEdit.removed.length ? `삭제 되돌리기 (${seatEdit.removed.length})` : '삭제 되돌리기'; }
+}
+function deleteSelectedSeats() {
+  if (!seatSel.size) return;
+  seatEdit = { ...seatEdit, removed: [...new Set([...seatEdit.removed, ...seatSel])] };
+  seatSel = new Set();
+  renderPreview(); saveLastSession();
+}
+function restoreSeats() {
+  if (!seatEdit.removed.length) return;
+  seatEdit = { ...seatEdit, removed: [] };
+  renderPreview(); saveLastSession();
+}
+function buildSeatEditBar() {
+  const box = document.createElement('div');
+  box.className = 'pv3dSeatEdit';
+  box.innerHTML = `<div class="pv3dWalls"><span class="pv3dWallsLab">의자</span><span id="seatSelInfo" class="pv3dSeatInfo"></span></div>
+    <div class="pv3dSeatBtns">
+      <button type="button" class="tiny ghost danger" data-seatact="del" disabled title="고른 의자를 지웁니다(Delete 키)">선택 삭제</button>
+      <button type="button" class="tiny ghost" data-seatact="restore" disabled title="지운 의자를 모두 되살립니다">삭제 되돌리기</button>
+    </div>
+    <div class="pv3dColsHint">의자를 누르면 고릅니다. Shift+클릭으로 여러 개를 고르고 Delete 키로 지웁니다. 방 크기나 좌석 수를 바꾸면 지운 기록이 비워집니다</div>`;
+  box.addEventListener('click', e => {
+    const a = e.target.closest('button[data-seatact]')?.dataset.seatact;
+    if (a === 'del') deleteSelectedSeats();
+    else if (a === 'restore') restoreSeats();
+  });
+  return box;
+}
+// Delete·Backspace — 3D 뷰에서 의자를 골라 둔 동안만. 입력칸에 쓰는 중이면 건드리지 않는다.
+window.addEventListener('keydown', e => {
+  if ((e.key !== 'Delete' && e.key !== 'Backspace') || pvView !== '3d' || !seatSel.size) return;
+  const t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  e.preventDefault();
+  deleteSelectedSeats();
+});
 
 // LED 가로 위치 — 앞벽 위에서 LED 를 좌우로 옮긴다(오너 요청 2026-10-19). 높이는 '디스플레이 하단 높이'가 정한다.
 //   버튼은 빠른 선택(왼쪽 벽에 붙임·가운데·오른쪽 벽에 붙임), 칸은 가운데에서 옮길 거리(mm, + = 오른쪽)다.
@@ -1545,6 +1614,7 @@ function buildInspector() {
   const s2 = inspectorSection('좌석 설정');
   const opts = $('#roomOpts');
   if (opts) s2.body.appendChild(opts);
+  s2.body.appendChild(buildSeatEditBar());
 
   // [설치 요소] 무대는 좌석 옵션 안에 있으므로 renderRoomOptions가 옮겨 준다.
   const s3 = inspectorSection('설치 요소');
@@ -3834,6 +3904,7 @@ function gatherConfig() {
     wallThk: num($('#wallThk')?.value ?? wallThk3d.wallThk) || CONFIG_DEFAULTS.wallThk,
     wallThkFront: num($('#wallThkFront')?.value ?? wallThk3d.wallThkFront) || CONFIG_DEFAULTS.wallThkFront,
     ledOffsetX,
+    seatEdit: { sig: seatEdit.sig, removed: [...seatEdit.removed] },
     columns: columns3d.map(c => ({ ...c })),
     customViews: customViews.map(v => ({ ...v })),
     // 3D 축척 인물 표시 여부(PHASE 6-a). 다른 3D 표시 토글은 화면 보조선이라 저장하지 않지만,
@@ -3873,6 +3944,8 @@ function applyConfig(raw) {
   if ($('#wallThk')) $('#wallThk').value = c.wallThk;
   if ($('#wallThkFront')) $('#wallThkFront').value = c.wallThkFront;
   ledOffsetX = c.ledOffsetX;
+  seatEdit = c.seatEdit ? { sig: c.seatEdit.sig, removed: [...c.seatEdit.removed] } : { sig: null, removed: [] };
+  seatSel = new Set();
   if ($('#ledOffsetX')) $('#ledOffsetX').value = String(Math.round(ledOffsetX));
   columns3d = (c.columns || []).map(x => ({ ...x }));
   renderColumnEditor();

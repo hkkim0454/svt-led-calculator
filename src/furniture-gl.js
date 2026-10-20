@@ -15,12 +15,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as THREE from './vendor/three/three.module.min.js';
-import { u } from './gl-model.js?v=482';
-import { createMaterialLibrary } from './materials-gl.js?v=482';
-import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=482';
-import { GRADE_COLORS } from './viewangle.js?v=482';
-import { createGeometryCache } from './geometry-gl.js?v=482';
-import { resolveFurnitureForDesign } from './furniture-routing.js?v=482';
+import { u } from './gl-model.js?v=483';
+import { createMaterialLibrary } from './materials-gl.js?v=483';
+import { PART_MATERIAL, PART_FINISH, PART_FINISH_ALIASES, finishForPart } from './materials.js?v=483';
+import { GRADE_COLORS } from './viewangle.js?v=483';
+import { createGeometryCache } from './geometry-gl.js?v=483';
+import { resolveFurnitureForDesign } from './furniture-routing.js?v=483';
 import {
   credenzaFinishForDesign,
   avFinishForDesign,
@@ -30,13 +30,13 @@ import {
   trainingFinishForDesign,
   auditoriumSurfaceFinish,
   ideationSurfaceFinish,
-} from './design-finish.js?v=482';
+} from './design-finish.js?v=483';
 import {
   FURNITURE_COLORS, DIMS, FURNITURE_ASSETS,
   assetFor, assetParts, assetKey, createConferenceTable, createCorporateTable, fitsCorporateTable,
   createBoardroomTable,
   createLargeUTable,
-} from './furniture-assets.js?v=482';
+} from './furniture-assets.js?v=483';
 
 const DEG = Math.PI / 180;
 
@@ -495,6 +495,7 @@ export function buildFurnitureGroup(items, opts = {}) {
       for (let i = 0; i < list.length; i++) im.setMatrixAt(i, partMatrix(list[i], part, m4));
       im.instanceMatrix.needsUpdate = true;
       im.frustumCulled = false;   // 인스턴스 전체 경계가 부정확해 통째로 사라지는 것을 막는다
+      im.userData.items = list;   // 3D 뷰에서 누른 인스턴스가 어느 물건인지 알아낼 때 쓴다(그림에는 영향 없음)
       g.add(im);
     }
   }
