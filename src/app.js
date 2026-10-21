@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=488';
-import { MODELS } from './models.js?v=488';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement } from './engine.js?v=489';
+import { MODELS } from './models.js?v=489';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=488';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=489';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=488';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=488';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=489';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=489';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=488';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=488';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=489';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=489';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=488';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=489';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=488';
-import { createViewerGL } from './render3d-gl.js?v=488';
+} from './room-presets.js?v=489';
+import { createViewerGL } from './render3d-gl.js?v=489';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=488';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=488';
-import { normalizeDesign, designsFor } from './room-design.js?v=488';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=488';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=488';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=488';
-import { ledImageFit } from './led-image.js?v=488';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=488';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=489';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=489';
+import { normalizeDesign, designsFor } from './room-design.js?v=489';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=489';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=489';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=489';
+import { ledImageFit } from './led-image.js?v=489';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=489';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -4634,7 +4634,18 @@ $('#caseList')?.addEventListener('click', async e => {
   }
 });
 
-window.addEventListener('resize', renderPreview);
+// 창 크기 신호(resize)는 **폭이 바뀌었을 때만** 다시 그린다(오너 제보 2026-10-21, 갤럭시 폴드 · 삼성 인터넷).
+//   모바일 브라우저는 스크롤할 때 주소창을 접었다 펴며 **높이만** 바뀐 resize 를 계속 보낸다. 그때마다
+//   정면 뷰를 통째로 다시 그리면 사진·치수가 잠깐 비어 깜빡이고, 다시 그리며 흔들린 높이가 주소창을 또
+//   움직여 깜빡임이 이어졌다. 그림 크기는 폭으로만 정해지므로(#stage.clientWidth) 높이 변화는 무시해도 된다.
+//   폴드를 접고 펴는 것처럼 폭이 바뀌면 지금처럼 한 번 다시 그린다(아래 칸 폭 감시도 그대로 있다).
+let lastWindowW = window.innerWidth;
+window.addEventListener('resize', () => {
+  const w = window.innerWidth;
+  if (w === lastWindowW) return;
+  lastWindowW = w;
+  renderPreview();
+});
 
 // 미리보기는 '칸의 실제 폭'(#stage.clientWidth)에 맞춰 그림을 통째로 축소한다.
 //   그런데 window의 resize는 폭이 바뀌는 모든 경우에 오지 않는다 —
