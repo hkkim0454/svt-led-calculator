@@ -1522,3 +1522,17 @@ button.primary:hover{background:linear-gradient(135deg,#2b62d4,#5f4fe4)}
   .toolbar .tbBreak{display:none}
   .toolbar .cfgTag{order:-1;flex:0 0 auto;max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* 터치 기기(휴대폰·태블릿·폴드): 유리 흐림(backdrop-filter)을 끈다 — 스크롤 깜빡임(오너 제보 2026-10-21, DEC-188).
+   카드·단계 표시줄·버튼이 스크롤마다 뒤 배경을 다시 흐리게 계산하고, 그 안에 CSS 3D 정면 뷰가 있으면
+   크롬 계열 모바일 브라우저(삼성 인터넷 등)가 그림 조각을 늦게 그려 비거나 깜빡인다(큰 고해상도 화면일수록 심함).
+   흐림 대신 조금 더 불투명한 바탕을 쓴다. 마우스를 쓰는 PC 화면은 그대로다. */
+@media (hover:none) and (pointer:coarse){
+  :root{--glass-blur:none;--glass-fill:rgba(255,255,255,.88);--glass-fill-2:rgba(255,255,255,.8)}
+  .pv3dPresetBar,.pv3dMini,.pv3dTools .tiny{-webkit-backdrop-filter:none;backdrop-filter:none}
+  /* 정면 뷰 그림은 이 칸 안에서만 다시 그린다(이미 넘침을 자르는 칸이라 보이는 모습은 같다). */
+  .rs3Frame{contain:paint;isolation:isolate}
+}
+@media (hover:none) and (pointer:coarse) and (prefers-color-scheme: dark){
+  :root{--glass-fill:rgba(44,44,46,.92);--glass-fill-2:rgba(58,58,60,.86)}
+}
