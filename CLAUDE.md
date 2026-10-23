@@ -17,13 +17,15 @@
 - Phase: **PHASE 10 종료**(2026-09-27) —
   `PHASE 10 COMPLETE — PRODUCT-WIDE VISUAL CONSISTENCY RELEASED / LARGE CONFERENCE VISUAL EXCEPTION DEFERRED`.
   10-a 부터 10-e 까지 전부 병합했다. 지금 트랙은 **LED Recommendation Expansion** 이다.
-- **PHASE 11-e 완료** — `COMPLETE — RECOMMENDATION V1 RELEASE READY / FREEZE RECOMMENDED`(DEC-185).
+- **PHASE 11-e 완료** — 최종 감사 판정 `PHASE 11-f PRE-FREEZE AUDIT PASS — CONTRACT HARDENING RECOMMENDED`(DEC-185). 제품 결함은 없고(P0 0 · P1 0), 동결 계약을 지키는 검사 공백 4건을 찾았다.
   최종 감사는 **`main` `19991f5` · v487** 기준으로 다시 쟀다(처음 보고서의 기준 `7a0b18a` · v478 이후
   제품 코드 병합 9건이 있어서다). 감사 중 병합된 v488(PR #158, 정면 뷰 라벨 위치) · v489(PR #160, 모바일 스크롤 깜빡임)는 차이만 다시 쟀다. P0 0 · P1 0.
-- **PHASE 11-f 진행 중** — `PHASE 11-f — Release and Freeze Recommendation V1`(DEC-186). 문서만 바꾸는 Draft PR 이고
-  **오너가 병합하면** `PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN` 이 된다. 그때부터 권장 크기 규칙·
-  자동/직접 상태 규칙·권장 상자 동작은 **동결**이다(범위와 정책은 `docs/aidlc-state.md` 의 PHASE 11-f 절).
-- `main` 기준 커밋: **`065c8c3`**(PR #160) · 화면 버전 **v489** · `npm test` **1268/1268** · 작업 트리 clean.
+- **PHASE 11-e.1 완료·병합**(DEC-189, PR #162) — 검사 공백 4건(G1 16:9 · G2 하한 · G3 벽 넘침 여유 · G4 배열 직접 지정 숨김)을
+  검사만 더해 메웠다. 변이 37/40 검출 = 제품 경로에서 일어날 수 있는 변이 100%(남은 3건은 도달 불가, 근거 기록). 제품 코드 무변경.
+- **PHASE 11-f — 동결은 아직 선언하지 않았다**(DEC-186). 동결 범위 · 정책 문서는 브랜치 `claude/phase11f-release-freeze` 에만 있고
+  PR 은 없다(PR #159 는 오너 결정으로 닫았다). **공식 동결(`PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN`)은
+  오너의 별도 결정으로 한다.**
+- `main` 기준 커밋: **`b2e6223`**(PR #162) · 화면 버전 **v490** · `npm test` **1276/1276** · 작업 트리 clean.
 - **대회의실은 기능 상태가 `ready` 이고 시각 예외만 `DEFERRED` 다.** 제안 세 컷의 하단 띠
   61.6 / 67.0 / 67.2% 가 권장 55% 를 넘지만, 그 기준과 기존 계약 ㉒(상판 점유)·㉓(LED 담기)를
   동시에 만족하는 해가 지금의 계약 집합 안에 없다. 경위는 `docs/aidlc-state.md` 의 DEC-150 절과
@@ -64,8 +66,9 @@
 | 11-c | **완료·병합·배포**(PR #142, `main` `1ef76fe`, v476, `npm test` 1221/1221). 권장 크기 엔진(DEC-170). `src/led-recommend.js` 의 `recommendLedSize()`. 강당은 기존 규칙 그대로, 대회의실(4,200×2,400)·상황실(4,800×2,700)만 MP012F 5×5 를 권장하고 나머지 넷은 4,000×2,300 이다. 권장은 제안일 뿐이고 ② 칸 아래 줄에 현재 입력·권장·실제 설치 크기를 나눠 보이며, '권장 크기 적용'을 눌렀을 때만 넣는다(적용 = 직접 상태). Frozen 19컷 정순·역순·새 페이지 모두 차이 0 |
 | 11-d | **완료·병합·배포**(PR #145, `main` `a84b900`, v478, `npm test` 1229/1229, DEC-172). 권장 상자에 현재 입력 · 상태(자동/직접 입력) · 권장 크기 · 실제 설치를 나눠 보이고, '자동으로 되돌리기' 버튼을 더했다. 권장 크기 적용은 직접 입력이 되고, 되돌리기는 권장값이 아니라 자동값(강당 권장값 · 그 밖 4,000×2,300)으로 간다. 물리 한계 이유와 최소 가독성 경고를 글자로 보인다. 추천 공식은 바꾸지 않았다. 배포 확인: Pages 23/23 · Frozen 19컷 정순·역순·새 페이지 19/19 차이 0 · JS 오류 0 · 아홉 디자인 `ready` · P0 0 · P1 0 |
 | 11-d.1 | **완료·병합**(PR #146, `main` `d9fa1ea`, v478, `npm test` 1230/1230, DEC-173) — 권장값 '같음' 판정 계약 보강. 현재값이 권장값보다 큰 직접 입력 상태 검사가 없어 `=== → >=` 변이를 놓쳤다(15/16). 같음 · 폭이 큼 · 높이가 큼 · 둘 다 큼 계약표를 더해 16/16 검출. 검사·문서만 바꿨고(`src` · `qa` 차이 0, 제품 기능 코드 무변경) 화면 버전은 v478 그대로다. P0 0 · P1 0 |
-| 11-e | **완료**(DEC-185) — `PHASE 11-e — Recommendation V1 Final Release Gate`. `main` `19991f5` · v487 기준 최종 감사. 검사 1266/1266 · 11-a·11-c·11-d 회귀 10/10·12/12·9/9 · 브라우저 28/28(로컬 · 배포본) · 변이 33/40(빠진 7건 = 제품 경로에서 일어날 수 없는 3 + 검사 공백 4, P2) · 삼성 자료 잠금 통과 · Frozen 19컷 v487 정순·역순·새 페이지 19/19 같음, v478 → v487 변화 11컷은 전부 DEC-175 · DEC-180 의 기록된 의도 변경 · v488 · v489 차이 재측정(Frozen 19컷 각각 0컷 · 시나리오 28/28) · 아홉 디자인 `ready` · P0 0 · P1 0. 판정 `RELEASE READY / FREEZE RECOMMENDED` |
-| 11-f | **Draft PR, 오너 검토 대기**(DEC-186) — `PHASE 11-f — Release and Freeze Recommendation V1`. 문서만 바꾼다(`src`·`tests`·`qa` 차이 0, 화면 버전 v489 그대로). 병합하면 `PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN` |
+| 11-e | **완료**(DEC-185) — `PHASE 11-e — Recommendation V1 Final Release Gate`. `main` `19991f5` · v487 기준 최종 감사. 검사 1266/1266 · 11-a·11-c·11-d 회귀 10/10·12/12·9/9 · 브라우저 28/28(로컬 · 배포본) · 변이 33/40(빠진 7건 = 제품 경로에서 일어날 수 없는 3 + 검사 공백 4, P2) · 삼성 자료 잠금 통과 · Frozen 19컷 v487 정순·역순·새 페이지 19/19 같음, v478 → v487 변화 11컷은 전부 DEC-175 · DEC-180 의 기록된 의도 변경 · v488 · v489 차이 재측정(Frozen 19컷 각각 0컷 · 시나리오 28/28) · 아홉 디자인 `ready` · P0 0 · P1 0. 판정 `PHASE 11-f PRE-FREEZE AUDIT PASS — CONTRACT HARDENING RECOMMENDED` |
+| 11-e.1 | **완료·병합**(PR #162, `main` `b2e6223`, DEC-189) — `Recommendation V1 Freeze Contract Hardening`. 검사만 7건 추가(`tests/led-recommend-freeze.test.js`). 변이 37/40 = 도달 가능 100%. `src` · `qa` 차이 0, 화면 버전 v490 그대로 |
+| 11-f | **동결 결정 대기**(DEC-186) — `PHASE 11-f — Release and Freeze Recommendation V1`. 동결 문서는 브랜치 `claude/phase11f-release-freeze` 에만 있다(PR 없음, #159 닫음). 오너가 동결을 결정하면 PR 을 다시 열어 `PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN` 으로 확정한다 |
 
 ## 저장소 구조
 
@@ -116,7 +119,7 @@ docs/           SPEC.md, aidlc-state.md, audit.md.
     않는다.** 그래서 옛 주소는 갱신이 멈춘 옛 화면을 계속 보여 준다(2026-09-23 확인).
   - 화면이 최신인지 보는 법: 페이지 아래쪽 `화면 버전 vNNN` 이 `src/index.html` 의 값과
     같은지 확인한다. 다르면 **Ctrl+Shift+R** 로 캐시를 비우고 다시 본다.
-    지금 `main` 기준값은 **v489** 이다(`065c8c3`).
+    지금 `main` 기준값은 **v490** 이다(`b2e6223`).
   - **배포 구조** — 배포용 GitHub Actions 는 **없다**. Pages 가 브랜치 내용을
     그대로 서비스하고, 저장소 루트의 `index.html` 이 `/src/index.html` 로 자동으로 보낸다.
     그래서 `main` 에 병합하는 것이 곧 배포다.

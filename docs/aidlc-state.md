@@ -19,13 +19,13 @@
   **PHASE 11-d.1**(같음 판정 계약 보강, DEC-173, PR #146)도 병합했다(`main` `d9fa1ea` · 화면 버전 v478 ·
   `npm test` 1230/1230 · 검사·문서만 변경). 그 뒤 제품 기능 병합 9건(v479~v487, DEC-174~183)이 이어졌다.
   **PHASE 11-e — Recommendation V1 Final Release Gate** 는 `main` `19991f5`(v487) 기준으로 다시 재고 v488(PR #158) · v489(PR #160) 차이를 더해 재어
-  `COMPLETE — RECOMMENDATION V1 RELEASE READY / FREEZE RECOMMENDED` 로 판정했다(DEC-185).
-  **PHASE 11-f — Release and Freeze Recommendation V1**(DEC-186)은 문서 전용 Draft PR 로 오너 검토를 기다린다.
-  오너가 병합하면 `PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN` 이다
+  `PHASE 11-f PRE-FREEZE AUDIT PASS — CONTRACT HARDENING RECOMMENDED` 로 판정했다(DEC-185). 이어서 **PHASE 11-e.1**(DEC-189, PR #162)이 검사 공백 4건을 메웠다
+  (변이 37/40 = 도달 가능 100%, 제품 코드 무변경). **공식 동결은 아직 선언하지 않았다** — PHASE 11-f(DEC-186) 문서는
+  브랜치 `claude/phase11f-release-freeze` 에만 있고, 동결은 오너의 별도 결정으로 한다(PR #159 는 닫았다)
 - **Released / Frozen 디자인**: **아홉 벌**(대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
-- **기준선**: `main` `065c8c3`(PR #160) · 화면 버전 **v489** · `npm test` **1268/1268** · 작업 트리 clean
-- **작업 가지**: `claude/phase11f-release-freeze`(PHASE 11-f, 문서만 · Draft PR, 오너 검토 대기 · 자동 병합 안 함)
+- **기준선**: `main` `b2e6223`(PR #162) · 화면 버전 **v490** · `npm test` **1276/1276** · 작업 트리 clean
+- **작업 가지**: `claude/phase11f-release-freeze`(PHASE 11-f 동결 문서, PR 없음 · 오너의 동결 결정 대기)
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
   (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · 배포용 Actions 없음 — `main` 병합이 곧 배포)
 - **정기 작업**: `.github/workflows/supabase-keepalive.yml` 하나(DEC-169) — 사흘마다 Supabase 를 조회해 무료 요금제 자동 멈춤을 막는다
@@ -504,9 +504,10 @@ PHASE 10-e 명세 §5 는 임원 회의실의 정체성을 'U-table / monitor ro
 
 ## Recommendation V1 릴리스·동결 (PHASE 11-f, DEC-186, 2026-10-20)
 
-`PHASE 11-f — Release and Freeze Recommendation V1` · **DRAFT PR — 오너 검토 대기**.
-이 문서 변경을 오너가 병합하는 순간 상태는 **`PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN`** 이다.
-이 단계는 문서만 바꾼다(`src` · `tests` · `qa` 차이 0, 화면 버전 v489 그대로). 근거는 아래 PHASE 11-e 감사다.
+`PHASE 11-f — Release and Freeze Recommendation V1` · **PHASE 11-f PRE-FREEZE AUDIT PASS — CONTRACT HARDENING RECOMMENDED** → 검사 보강(11-e.1) 완료 · **동결 결정 대기**.
+이 절은 동결할 때 쓸 범위 · 정책 · 기준을 적어 둔 것이다. **아직 동결을 선언하지 않았다.** 오너가 동결을 결정하면
+이 문서를 PR 로 올려 병합하고, 그때 상태가 **`PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN`** 이 된다.
+문서만 바꾼다(`src` · `tests` · `qa` 차이 0, 화면 버전 v490 그대로). 근거는 아래 PHASE 11-e 감사와 PHASE 11-e.1 이다.
 
 ### 동결 범위 — 무엇을 얼리는가
 
@@ -572,7 +573,8 @@ PHASE 10-e 명세 §5 는 임원 회의실의 정체성을 'U-table / monitor ro
    - 벽 넘침 경고 여유 0.5 mm → 500 mm.
    - 배열 직접 지정에서 권장 상자 숨김(브라우저 시나리오 R18 만 잡는다).
 
-   검사만 더하는 **PHASE 11-e.1**(제품 코드 무변경)로 메울 것을 권한다. 오너 결정 사항이다.
+   → **PHASE 11-e.1 에서 메웠다**(DEC-189, PR #162). 새 `tests/led-recommend-freeze.test.js` 7건이 넷 모두 잡는다
+   (변이 M17 · M18 · M33 · M40 검출). 그래서 이 항목은 P2 에서 뺀다 — 남은 P2 는 위 1~5 다.
 
 ### V2 범위 (지금은 하지 않는다)
 
@@ -585,7 +587,7 @@ PHASE 10-e 명세 §5 는 임원 회의실의 정체성을 'U-table / monitor ro
 
 ## Recommendation V1 최종 릴리스 게이트 (PHASE 11-e, DEC-185, 2026-10-20)
 
-`PHASE 11-e — Recommendation V1 Final Release Gate` · **COMPLETE — RECOMMENDATION V1 RELEASE READY / FREEZE RECOMMENDED**
+`PHASE 11-e — Recommendation V1 Final Release Gate` · **COMPLETE** · 판정 **PHASE 11-f PRE-FREEZE AUDIT PASS — CONTRACT HARDENING RECOMMENDED**
 
 ### 기준선을 다시 잡은 까닭
 
@@ -644,6 +646,8 @@ TLS 검증을 끄지 않고, 인증서를 검증하는 `curl` 로 배포 파일�
 그 뒤 PR #160(`065c8c3`, v489, 모바일 스크롤 때 정면 뷰 깜빡임 — 폭이 바뀐 resize 에서만 다시 그림, DEC-187)이 이어서 병합되었다.
 권장 크기 파일은 버전 번호만 바뀌었다. v489 결과: `npm test` 1268/1268 · 권장 크기 시나리오 28/28(로컬) ·
 배포 `src` 127/127 바이트 동일 · Frozen 19컷 v488 대비 19/19 차이 0(그 PR 의 병합 전 검증, 병합 내용은 검증한 머리와 같다).
+이어서 PR #161(`c3841de`, v490, 터치 기기에서 유리 흐림 끄기, DEC-188)은 `styles.css` 만 바꿨다 — 권장 크기 파일은 버전 번호만,
+Frozen 19컷 v489 대비 19/19 차이 0. PR #162(`b2e6223`, 11-e.1)는 검사만 더했다.
 
 ### 판정
 
@@ -652,7 +656,19 @@ Recommendation V1(11-a · 11-c · 11-d · 11-d.1)은 v487 · v488 · v489 에서
 `src/led-recommend.js` · `src/led-request.js` 는 `7a0b18a` 이후 import 버전 번호 말고 바뀐 줄이 0 이고, `auditoriumLedSize` ·
 `auditoriumStageSize` 는 함수 본문이 글자 단위로 같다. `app.js` 의 적용 · 되돌리기 · 상태 저장 줄도 버전 번호 말고는 그대로다.
 다만 권장 규칙이 읽는 '가장 먼 시청 자리'는 배치에서 오므로, 새 배치 옵션(V자형 · 세로 끝자리)을 고르면 그 배치에 맞는 권장값이 나온다(규칙은 같다).
-**릴리스 가능 · 동결 권장.** 검사 공백 4건은 동작 결함이 아니라 P2 로 기록한다.
+**제품 PASS · 동결 전 계약 보강 권고.** 제품 결함(P0 · P1)은 없다. 다만 동결 계약을 지키는 검사에 공백 4건이 있어,
+공식 동결 전에 검사부터 보강하기로 했다(오너 결정, release-process 결정이지 제품 결함 때문이 아니다).
+처음 돌린 변이 실행의 '40/40 검출'은 실행기가 검사를 잘못 불러 무효이며 증거로 쓰지 않는다. 공식 결과는 고친 실행기의 33/40 이다.
+
+### 후속 — PHASE 11-e.1 동결 계약 보강 (DEC-189, PR #162, `main` `b2e6223`)
+
+| 항목 | 결과 |
+|---|---|
+| 추가한 검사 | `tests/led-recommend-freeze.test.js` 7건 — G1 16:9(반올림 계약 전수 · 16:9 오차 전수 · 15 m = 4,500×2,500) · G2 하한(13.5 m = 4,000×2,300 · 경계 전수) · G3 벽 넘침 여유 0.5 mm · G4 배열 직접 지정 숨김 |
+| `npm test` | 1276/1276 |
+| 변이 40건(고친 실행기, 기준선 1276/1276 확인 뒤) | **37/40 검출 = 도달 가능 37/37(100%)** |
+| 제외 3건과 근거 | M06 기본 구조틀 여백 — 모델이 없으면 권장 상자를 그리지 않아 도달 불가 · M10 근거 이름 동률 — 화면 문구에 쓰이지 않음(`data-basis` 만) · M22 '객석' 항목 — `seat` 은 강당 배치에만 있고 강당은 마지막 줄 위치를 쓴다 |
+| 제품 코드 | `src` · `qa` 차이 0, 화면 버전 v490 그대로 |
 
 ## 테이블 방향 옵션 확대: 대기업·임원 회의실 (DEC-174, 2026-10-19)
 
