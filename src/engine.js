@@ -226,6 +226,25 @@ export function fitCabinets(model, spaceW, spaceH, opts = {}) {
   return { cols, rows, fits: cols >= 1 && rows >= 1 };
 }
 
+/**
+ * 요청한 cols×rows 배열을 놓으려면 공간이 얼마나 필요한가 — fitCabinets('fill') 의 역산이다.
+ * `floor((공간 - 2*여백) / 캐비닛) >= n` 은 `n*캐비닛 + 2*여백 <= 공간` 과 같으므로 같은 규칙이다.
+ * 배열 직접 지정에서 요청이 들어가지 않을 때 '왜 안 들어가는지'를 화면에 보이기 위한 값이다(계산은 바꾸지 않는다).
+ * 세로 공간은 computeConfig 와 같이 벽 높이에서 하단 높이(baseHeight)를 뺀 값이다.
+ */
+export function arrayRequirement(model, spaceW, spaceH, cols, rows, opts = {}) {
+  const clr = opts.edgeClearanceMm ?? frameClearanceMm(model.series);
+  const baseHeight = Math.max(0, opts.baseHeight || 0);
+  const availW = Math.max(0, spaceW);
+  const availH = Math.max(0, spaceH - baseHeight);
+  const bareW = cols * model.cabW, bareH = rows * model.cabH;     // 여백을 뺀 배열 크기
+  const needW = bareW + 2 * clr, needH = bareH + 2 * clr;         // 구조틀 여백(좌우·상하 각 변) 포함
+  return {
+    clr, availW, availH, bareW, bareH, needW, needH,
+    shortW: Math.max(0, needW - availW), shortH: Math.max(0, needH - availH),
+  };
+}
+
 /** Full spec readout for a given model + space + options. */
 export function computeConfig(model, spaceW, spaceH, opts = {}) {
   const pf = opts.powerFactor ?? DEFAULTS.powerFactor;
