@@ -5,7 +5,7 @@
 //   · 방 크기·좌석 수가 바뀌어 의자 배치가 새로 만들어지면 지운 기록을 버린다 —
 //     바뀐 배치에서 엉뚱한 의자가 사라지지 않게 하려는 것이다(seatLayoutSig 로 알아본다).
 // ─────────────────────────────────────────────────────────────────────────────
-import { SEAT_ITEM_TYPES } from './gl-model.js?v=490';
+import { SEAT_ITEM_TYPES } from './gl-model.js?v=491';
 
 /** 의자 자리 열쇠 — mm 를 반올림한 'x:z'. */
 export function seatKey(it) {
