@@ -21,8 +21,8 @@
 //              → (결정성용) 검증된 데이터 먼저 → 모델 id 사전순. 카탈로그 배열 순서는 결과에 영향이 없다.
 //   경고       추천 모델의 면적 손실이 30% 이상이면 FIT_LOSS_WARNING. 요청 크기는 절대 고치지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
-import { computeConfig } from './engine.js?v=499';
-import { ledFitProblem } from './led-request.js?v=499';
+import { computeConfig } from './engine.js?v=500';
+import { ledFitProblem } from './led-request.js?v=500';
 
 /** 기본 근거리 상수(m / 피치 mm). 가장 가까운 시청자 ≥ 피치 × 2.5 m 이면 적합. */
 export const NEAR_VIEW_K = 2.5;

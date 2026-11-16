@@ -22,11 +22,13 @@
   `PHASE 11-f PRE-FREEZE AUDIT PASS — CONTRACT HARDENING RECOMMENDED` 로 판정했다(DEC-185). 이어서 **PHASE 11-e.1**(DEC-189, PR #162)이 검사 공백 4건을 메웠다
   (변이 도달 가능 37/37, 제품 코드 무변경 · COMPLETE / MERGED). 오너가 공식 동결을 승인해(2026-10-23)
   **PHASE 11-f 는 COMPLETE / RELEASED / FROZEN**(DEC-186 · DEC-190) — 최종 판정 **`PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN`**.
-  다음 단계: **NEXT PHASE: OWNER DECISION REQUIRED**
+  그 뒤 **PHASE 12 — 모델 · 픽셀 피치 추천(V2)** 을 시작했다: 12-0 · 12-0.1 정책 감사 · 고정, **12-a 엔진 COMPLETE / MERGED**
+  (PR #170 · #171, DEC-197 · DEC-198), **12-c 제안 전용 화면 COMPLETE / READY FOR OWNER REVIEW**(DEC-200). 아래 PHASE 12 절 참고.
 - **Released / Frozen 디자인**: **아홉 벌**(대기업 회의실 · 임원 회의실 · 대회의실 · 상황실 · 교육장 ·
   아이디에이션 · 소강당 · 중강당 · 대강당) — 전부 `status: ready`
-- **기준선**: `main` `b2e6223`(PR #162) · 화면 버전 **v490** · `npm test` **1276/1276** · 작업 트리 clean (동결 기준선)
-- **작업 가지**: `claude/phase11f-release-freeze`(PHASE 11-f 동결 문서 · Draft PR, 오너 병합 대기 · 자동 병합 안 함)
+- **기준선**: `main` `e625d82`(PR #172) · 화면 버전 **v499** · `npm test` **1322/1322** · 작업 트리 clean
+  (V1 동결 기준선은 `b2e6223` · v490 · 1276 그대로 기록에 둔다)
+- **작업 가지**: `claude/phase12c-model-recommend-ui`(PHASE 12-c · v500 · 1334/1334 · Draft PR, 오너 검토 대기 · 자동 병합 안 함)
 - **배포 기준 주소**: `https://hkkim0454.github.io/svt-led-calculator/src/index.html`
   (옛 `Samsung-led-calculator` 주소는 기준이 아니다 · 배포용 Actions 없음 — `main` 병합이 곧 배포)
 - **정기 작업**: `.github/workflows/supabase-keepalive.yml` 하나(DEC-169) — 사흘마다 Supabase 를 조회해 무료 요금제 자동 멈춤을 막는다
@@ -502,6 +504,38 @@ PHASE 10-e 명세 §5 는 임원 회의실의 정체성을 'U-table / monitor ro
 정책 · 회귀 위험 · 단계별 로드맵 · 오너 결정이 필요한 항목이며, 강당 셋은 기준선으로 쓴다.
 **규칙을 구현하거나 숫자를 확정하지 않고, 소스·검사·화면 버전·LED 기본값·계산 결과도
 바꾸지 않는다.** 착수는 오너의 별도 지시를 받는다.
+
+## Model / Pixel Pitch Recommendation V2 (PHASE 12, DEC-197 · DEC-198 · DEC-200)
+
+V1 이 정한 **요청 크기**(② LED 설치 크기)를 읽기만 하고, 그 크기에 어떤 LED 모델 · 피치가 맞는지 **제안**한다.
+V1(크기)과 V2(모델)는 다른 층이다 — V2 는 V1 요청 크기 · 자동/직접 상태 · 적용/되돌리기를 바꾸지 않는다.
+
+| 단계 | 상태 | 내용 |
+|---|---|---|
+| 12-0 · 12-0.1 | 완료 | 정책 감사 · 오너 정책 고정(읽기 전용) |
+| 12-a | **COMPLETE / MERGED** | `src/model-recommend.js` — PR #170(v497) · #171(v498). 12-b(점수화 · 결정성 검사) 포함 |
+| 12-c | **COMPLETE / READY FOR OWNER REVIEW** | 제안 전용 화면 — `src/model-recommend-view.js` · 02 카드 `#modelRec` (v500) |
+| 12-d | 예정 | 추천 모델 적용(직접 누르는 버튼, 새 상태 없음) — 오너 승인 후 |
+
+**엔진 계약(12-a, 동결 대상)**
+- 근거리 안전 = 역할 기준 가장 가까운 시청자 ≥ 피치 × **2.5** m. 1분각 3.44 는 설명용 정보만. `ovd_m` 미사용.
+- 역할 기준: 회의실 · 아이디에이션은 실제 사용 자리 전부, 교육장 · 상황실은 LED 를 향해 앉은 자리만(강사석 제외).
+- 필수 조건: LED 제품 → 카탈로그 `onSale === true` · 단종 아님 → 배열 성립 → 벽 · 천장 안 → 근거리 안전. 탈락 이유를 돌려준다.
+- 순위: 맞춤 효율 70% 이상 묶음 → S-Box 적은 순 → 캐비닛 적은 순 → 맞춤 효율 → 굵은 피치 → (결정성) 검증 데이터 · 모델 id.
+- 경고: 면적 손실 30% 이상 `FIT_LOSS_WARNING`, 하한 미만만 남으면 `FIT_BELOW_FLOOR`.
+- 상태: `RECOMMENDED` · `NO_SAFE_CANDIDATE` · `OUT_OF_V2_INITIAL_SCOPE`(강당 셋만) · `UNSUPPORTED_ROOM_TYPE`(그 밖의 모든 값).
+- 제외: 가격 · 먼 거리 · 해상도 순위, 임원실 격 가중, 강당 추천, 새 모델 자동/직접 상태.
+- 기준 결과: 대기업 · 임원 · 대회의실 IF015R-M · 상황실 MP012F · 교육장 MM012F-S · 아이디에이션 NO_SAFE_CANDIDATE · 강당 OUT_OF_V2_INITIAL_SCOPE.
+
+**화면 계약(12-c, READY FOR OWNER REVIEW)**
+- 자리: 02 모델 라이브러리 카드 안 모델 목록 위의 별도 칸 `#modelRec`. ② '권장 크기' 상자(#ledRec, V1)와 섞지 않는다.
+- 보이는 값: 현재 선택 · 추천(모델 · 피치) · 예상 실제 설치 · 예상 해상도(숫자만) · 캐비닛 배열 · 예상 S-Box · 추천 이유(엔진 이유만 한국어로) · 경고.
+  현재 = 추천이면 '현재 선택 모델이 추천 모델과 같습니다.'
+- 특수 상태: 안전 후보 없음 → 모델 없이 '추천 모델이 없습니다' + 이유 · 강당 → '지원 범위에 포함되지 않습니다'(V1 은 그대로) ·
+  모르는 공간 → '이 공간 유형에서는 모델 추천을 사용할 수 없습니다'. 배열 직접 지정 · 사이니지에서는 숨긴다.
+- **읽기만 한다**: 그리기는 selectedId · ② 칸 · ledSizeAuto · 하단 높이 · 방 치수 · 저장값을 바꾸지 않는다. 적용 버튼 없음.
+- 요청 크기는 계산과 같은 `opts()` 값(② 칸 · 비우면 벽면)을 읽는다. 배치 정보는 V1 의 `ledLayoutInfo` 와 따로 기억한다.
+- 갱신: `renderPreview()` 에서 V1 상자와 함께 다시 그린다 — 용도 · 치수 · 깊이 · 옵션 · 디자인 · 모델 · ② 칸 · V1 적용 · 되돌리기가 모두 이 길을 지난다.
 
 ## Recommendation V1 릴리스·동결 (PHASE 11-f, DEC-186 · DEC-190, 2026-10-23)
 
