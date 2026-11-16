@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=492';
-import { MODELS } from './models.js?v=492';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=493';
+import { MODELS } from './models.js?v=493';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=492';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=493';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=492';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=492';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=493';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=493';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=492';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=492';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=493';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=493';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=492';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=493';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=492';
-import { createViewerGL } from './render3d-gl.js?v=492';
+} from './room-presets.js?v=493';
+import { createViewerGL } from './render3d-gl.js?v=493';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=492';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=492';
-import { normalizeDesign, designsFor } from './room-design.js?v=492';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=492';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=492';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=492';
-import { ledImageFit } from './led-image.js?v=492';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=492';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=493';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=493';
+import { normalizeDesign, designsFor } from './room-design.js?v=493';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=493';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=493';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=493';
+import { ledImageFit } from './led-image.js?v=493';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=493';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -4138,14 +4138,15 @@ function persistConfig(name) {
   renderConfigList();
 }
 
-function saveCurrentConfig() {
+// 기본 이름 제안: 모델명_열X행 (예: IF015R_4X4). 배열 수량은 현재 설정으로 산출.
+function defaultConfigName() {
   const m = models.find(x => x.id === selectedId);
-  // 기본 이름 제안: 모델명_열X행 (예: IF015R_4X4). 배열 수량은 현재 설정으로 산출.
-  let suggested = m?.name || '구성';
-  if (m) {
-    const r = computeConfig(m, spaceWmm(), spaceHmm(), opts());
-    if (r && r.cols > 0 && r.rows > 0) suggested = `${m.name}_${r.cols}X${r.rows}`;
-  }
+  if (!m) return '구성';
+  const r = computeConfig(m, spaceWmm(), spaceHmm(), opts());
+  return (r && r.cols > 0 && r.rows > 0) ? `${m.name}_${r.cols}X${r.rows}` : m.name;
+}
+function saveCurrentConfig() {
+  let suggested = defaultConfigName();
   // 불러온 구성(로컬·공유함·링크)이 있으면: 덮어쓰기 저장 / 다른 이름으로 저장 선택.
   //   공유함에서 불러온 구성은 로컬 목록에 없어도 이 선택을 제공한다(덮어쓰기 = 내 목록에 같은 이름으로 저장).
   if (currentConfigName) {
@@ -4200,15 +4201,25 @@ function b64urlDecode(s) {
   return new TextDecoder().decode(bytes);
 }
 // 구성 레코드들로 공유 링크(현재 사이트 주소 + #share=...)를 만든다.
+//   직접 넣은 기타 자재 원가·견적(etcCost·etcSell)도 금액이라 링크에는 0 으로 비워 보낸다(DEC-193).
 function buildShareLink(records) {
-  const payload = JSON.stringify(exportBundle(records));
+  const safe = records.map(r => ({ ...r, data: { ...r.data, etcCost: 0, etcSell: 0 } }));
+  const payload = JSON.stringify(exportBundle(safe));
   return location.origin + location.pathname + '#share=' + b64urlEncode(payload);
 }
 // 구성 하나를 공유: 링크 생성 → 클립보드 복사(막히면 직접 복사 안내).
 async function shareConfig(name) {
   const rec = readConfigs().find(r => r.name === name);
   if (!rec) return;
-  const link = buildShareLink([rec]);
+  await copyShareLink(buildShareLink([rec]));
+}
+// 상단 '링크 공유' — 저장하지 않고 지금 화면의 구성을 바로 링크로 만든다(오너 요청 2026-11-16).
+//   이름은 불러온 구성이 있으면 그 이름, 없으면 '구성 저장'의 기본 제안(모델명_열X행)이다. 내 목록은 바꾸지 않는다.
+async function shareCurrentLink() {
+  const rec = makeRecord(currentConfigName || defaultConfigName(), gatherConfig());
+  await copyShareLink(buildShareLink([rec]));
+}
+async function copyShareLink(link) {
   try {
     await navigator.clipboard.writeText(link);
     alert('공유 링크가 복사되었습니다.\n카톡·메일에 붙여넣어 보내면, 상대가 링크를 열어 이 구성을 바로 불러올 수 있습니다.');
@@ -4244,6 +4255,7 @@ function resetConfig() {
 }
 $('#btnConfigReset')?.addEventListener('click', resetConfig);
 $('#btnConfigSave')?.addEventListener('click', saveCurrentConfig);
+$('#btnShareLink')?.addEventListener('click', shareCurrentLink);
 $('#btnConfigLoad')?.addEventListener('click', () => { renderConfigList(); cfgDlg?.showModal(); });
 $('#cfgClose')?.addEventListener('click', () => cfgDlg.close());
 $('#cfgCancel')?.addEventListener('click', () => cfgDlg.close());
