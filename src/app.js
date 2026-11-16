@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement, clearanceLoss } from './engine.js?v=498';
-import { MODELS } from './models.js?v=498';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement, clearanceLoss } from './engine.js?v=499';
+import { MODELS } from './models.js?v=499';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords, slimShareRecord, unslimShareRecord } from './config.js?v=498';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords, slimShareRecord, unslimShareRecord } from './config.js?v=499';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=498';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=498';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=499';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=499';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=498';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=498';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=499';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=499';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=498';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=499';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=498';
-import { createViewerGL } from './render3d-gl.js?v=498';
+} from './room-presets.js?v=499';
+import { createViewerGL } from './render3d-gl.js?v=499';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=498';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=498';
-import { normalizeDesign, designsFor } from './room-design.js?v=498';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=498';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=498';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=498';
-import { ledImageFit } from './led-image.js?v=498';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=498';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=499';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=499';
+import { normalizeDesign, designsFor } from './room-design.js?v=499';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=499';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=499';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=499';
+import { ledImageFit } from './led-image.js?v=499';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=499';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -837,6 +837,7 @@ function renderPreview() {
   invalidatePrintShot();   // 화면이 바뀌면 인쇄용 캡처를 버리고 잠시 뒤 다시 만든다
   // 권장 크기 줄도 함께 새로 고친다 — 깊이·용도 옵션·디자인만 바꾸면 renderAll 없이 이 함수만 돈다(PHASE 11-c).
   renderLedRecommendation();
+  renderLedClearanceNote();
   syncFrontMonitorCtl();
   // 3D 뷰가 켜져 있으면 캔버스 렌더러가 대신 그린다(정면 뷰 로직은 그대로 둔다).
   if (pvView === '3d') { syncFrontMonitorNote(); return renderPreview3D(); }
@@ -3279,9 +3280,9 @@ function renderLedSizeFitWarning(bar) {
 }
 // 한 장 더 들어갈 크기를 넣었는데 구조틀 여백 때문에 한 열(행) 줄었을 때 그 이유를 한 줄로 알린다.
 //   정말 공간이 모자란 경우는 말하지 않는다(그때는 위 '벽에 들어가지 않습니다' 안내가 맡는다).
-function ledClearanceNoteHTML(m, r) {
+function ledClearanceLines(m, r) {
   const o = opts();
-  if (o.mode !== 'ledsize') return '';
+  if (o.mode !== 'ledsize') return [];
   const loss = clearanceLoss(m, o.ledW, o.ledH, r.cols, r.rows);
   // '이상'으로 안내하므로 필요한 크기는 올림해서 보인다(소수 mm 를 내림하면 그 값을 넣어도 한 장이 모자란다).
   const line = (axis, unit, josa, cur, d) => {
@@ -3292,7 +3293,22 @@ function ledClearanceNoteHTML(m, r) {
   const parts = [];
   if (loss.w) parts.push(line('LED 가로', '열', '로', r.cols, loss.w));
   if (loss.h) parts.push(line('LED 세로', '행', '으로', r.rows, loss.h));
+  return parts;
+}
+// 03 미리보기 위 자동 채움 줄에 붙이는 안내.
+function ledClearanceNoteHTML(m, r) {
+  const parts = ledClearanceLines(m, r);
   return parts.length ? `<span class="notice fitClr" data-ledfit="clearance">${parts.join('<br>')}</span>` : '';
+}
+// ② LED 설치 크기 칸 바로 아래에 같은 안내를 보인다 — 값을 넣는 자리에서 바로 이유를 알 수 있게.
+//   '권장 크기' 상자(#ledRec, PHASE 11 동결 계약)는 건드리지 않고 그 아래에 별도 칸(#ledClrNote)으로 둔다.
+function renderLedClearanceNote() {
+  const box = $('#ledClrNote'); if (!box) return;
+  const m = (!svCode && mode !== 'manual') ? models.find(x => x.id === selectedId) : null;
+  const r = m ? computeConfig(m, spaceWmm(), spaceHmm(), opts()) : null;
+  const parts = (r && r.fits) ? ledClearanceLines(m, r) : [];
+  box.hidden = !parts.length;
+  box.innerHTML = parts.join('<br>');
 }
 /** 03 미리보기 위 배열 요약 — 자동 채움과 배열 직접 지정이 같이 쓴다. r 은 computeConfig 결과. */
 function ledArraySummaryHTML(m, r) {
@@ -3384,7 +3400,7 @@ function renderLedFitBar() {
     : '';
   bar.innerHTML = head + summary + expand;
 }
-function renderAll() { ensureSelectionVisible(); clampManualArray(); clampBaseHeight(); syncCS4B(); syncSpareRate(); renderFilters(); renderModelList(); renderPreview(); renderReadout(); renderProcessors(); renderCompare(); renderQuote(); renderDataFlow(); renderPower(); syncSignageMode(); syncSignageCard(); renderLedFitBar(); renderLedRecommendation(); saveLastSession(); }
+function renderAll() { ensureSelectionVisible(); clampManualArray(); clampBaseHeight(); syncCS4B(); syncSpareRate(); renderFilters(); renderModelList(); renderPreview(); renderReadout(); renderProcessors(); renderCompare(); renderQuote(); renderDataFlow(); renderPower(); syncSignageMode(); syncSignageCard(); renderLedFitBar(); renderLedRecommendation(); renderLedClearanceNote(); saveLastSession(); }
 
 /* events */
 // LED 설치 크기(②)는 벽면을 넘을 수 없다. 하단 높이를 지정하면 세로 = 벽면−하단높이까지만.
