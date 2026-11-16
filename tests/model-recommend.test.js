@@ -333,6 +333,15 @@ test('결정성 — 1,000회 반복과 카탈로그 순서 섞기', () => {
   assert.deepEqual(ids(run([byId('IE015AE'), byId('IF015RM')])), ['IF015RM', 'IE015AE']);
 });
 
-test('UI 없음 — 이번 단계는 화면에 연결하지 않는다', () => {
-  assert.doesNotMatch(APP, /model-recommend/);
+// PHASE 12-a 의 'UI 없음' 계약을 PHASE 12-c 에서 의도적으로 바꿨다(DEC-200):
+//   이제 엔진은 화면에 연결되지만, 그리는 경로는 모델 상태를 바꾸지 않는다(제안만).
+test('엔진은 화면에 연결되지만 모델 상태를 바꾸지 않는다(PHASE 12-c)', () => {
+  assert.match(APP, /import \{ recommendModel, nearestViewerMm \} from '\.\/model-recommend\.js/);
+  const i = APP.indexOf('function renderModelRecommendation(');
+  const j = APP.indexOf('function renderLedClearanceNote(');
+  assert.ok(i > 0 && j > i, '추천 카드 함수가 없다');
+  const path = APP.slice(APP.indexOf('let modelRecMemo'), j);
+  assert.doesNotMatch(path, /selectedId\s*=[^=]/, 'selectedId 를 바꾼다');
+  assert.doesNotMatch(path, /saveLastSession|localStorage/, '저장값을 바꾼다');
+  assert.doesNotMatch(path, /applyRecommended|data-apply-model/, '이번 단계에 적용 기능이 있다');
 });

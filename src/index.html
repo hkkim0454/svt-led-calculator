@@ -8,7 +8,7 @@
 <meta http-equiv="Pragma" content="no-cache"/>
 <meta http-equiv="Expires" content="0"/>
 <title>Seoul AV LED Configurator</title>
-<link rel="stylesheet" href="./styles.css?v=499"/>
+<link rel="stylesheet" href="./styles.css?v=500"/>
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"></div>
@@ -135,6 +135,7 @@
       <div class="card editorCard" data-step="02">
         <h2><span class="idx">02</span> 모델 라이브러리</h2>
         <div class="secHead"><h3>사용할 LED 모델을 고르세요.</h3><p>줄을 누르면 그 모델로 계산되고, ⓘ 를 누르면 스펙과 카탈로그를 봅니다.</p></div>
+        <div class="modelRec" id="modelRec" role="region" aria-label="LED 모델 추천" aria-live="polite" hidden></div>
         <div class="lineFilter" id="lineFilter"></div>
         <div class="svPickRow">
           <span class="svPickRowLbl">삼성 LCD 사이니지</span>
@@ -380,7 +381,7 @@
         Gbic(광 컨버터, QSFP-LR4) — CS4B 계열 컨트롤러(MMF 기본 CS4BPGS는 자동, 그 외 라인은 'CS4B(광전송)' 선택) 시 1920×2160 영역마다 1 SET(SBOX측 1 + LED측 1 = 2 EA) = ⌈가로/1920⌉ × ⌈세로/2160⌉ SET. 표기 수량은 총 EA(=SET×2), 포워드/백워드 이중화 시 ×2.
         중량·전력이 <code>—</code>인 모델은 데이터시트 실측값 입력이 필요합니다.<br>
         <strong>⚠ 사내 견적 보조용</strong> — 공식 견적은 삼성/설치 파트너 확인이 필요합니다.
-        <span class="verTag">화면 버전 v499</span>
+        <span class="verTag">화면 버전 v500</span>
       </div>
     </div>
   </div>
@@ -475,6 +476,6 @@
 
 <!-- 자산 변경 시 v= 숫자를 올려 캐시 무효화(브라우저가 옛 파일을 쓰지 않도록).
      app.js가 import하는 모든 모듈의 v=, 그리고 모듈끼리의 내부 import(processor-validator.js → processor-limits.js)의 v=도 함께 올릴 것. -->
-<script type="module" src="./app.js?v=499"></script>
+<script type="module" src="./app.js?v=500"></script>
 </body>
 </html>

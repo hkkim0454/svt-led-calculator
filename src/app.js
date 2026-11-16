@@ -1,32 +1,35 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement, clearanceLoss } from './engine.js?v=499';
-import { MODELS } from './models.js?v=499';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement, clearanceLoss } from './engine.js?v=500';
+import { MODELS } from './models.js?v=500';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords, slimShareRecord, unslimShareRecord } from './config.js?v=499';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords, slimShareRecord, unslimShareRecord } from './config.js?v=500';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=499';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=499';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=500';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=500';
+// LED 모델 · 픽셀 피치 추천(V2, PHASE 12-a 엔진 · 12-c 화면). 제안만 한다 — 선택 모델 · ② 칸 · 상태를 바꾸지 않는다.
+import { recommendModel, nearestViewerMm } from './model-recommend.js?v=500';
+import { modelRecommendationView, MODEL_REC_STATE } from './model-recommend-view.js?v=500';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=499';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=499';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=500';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=500';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=499';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=500';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=499';
-import { createViewerGL } from './render3d-gl.js?v=499';
+} from './room-presets.js?v=500';
+import { createViewerGL } from './render3d-gl.js?v=500';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=499';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=499';
-import { normalizeDesign, designsFor } from './room-design.js?v=499';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=499';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=499';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=499';
-import { ledImageFit } from './led-image.js?v=499';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=499';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=500';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=500';
+import { normalizeDesign, designsFor } from './room-design.js?v=500';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=500';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=500';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=500';
+import { ledImageFit } from './led-image.js?v=500';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=500';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -838,6 +841,7 @@ function renderPreview() {
   // 권장 크기 줄도 함께 새로 고친다 — 깊이·용도 옵션·디자인만 바꾸면 renderAll 없이 이 함수만 돈다(PHASE 11-c).
   renderLedRecommendation();
   renderLedClearanceNote();
+  renderModelRecommendation();   // 02 'LED 모델 추천'(V2) — 같은 이유로 여기서 함께 새로 고친다(PHASE 12-c)
   syncFrontMonitorCtl();
   // 3D 뷰가 켜져 있으면 캔버스 렌더러가 대신 그린다(정면 뷰 로직은 그대로 둔다).
   if (pvView === '3d') { syncFrontMonitorNote(); return renderPreview3D(); }
@@ -3302,6 +3306,64 @@ function ledClearanceNoteHTML(m, r) {
 }
 // ② LED 설치 크기 칸 바로 아래에 같은 안내를 보인다 — 값을 넣는 자리에서 바로 이유를 알 수 있게.
 //   '권장 크기' 상자(#ledRec, PHASE 11 동결 계약)는 건드리지 않고 그 아래에 별도 칸(#ledClrNote)으로 둔다.
+// ── 02 'LED 모델 추천' 카드 (PHASE 12-c, Model/Pitch Recommendation V2) ─────────────────────
+//   **제안만 한다.** 이 경로는 읽기만 한다 — selectedId · ② 칸(ledW/ledH) · ledSizeAuto · 하단 높이 · 방 치수 ·
+//   저장값을 바꾸지 않고, 적용 버튼도 없다(적용은 PHASE 12-d). V1 '권장 크기' 상자(#ledRec)와는 다른 카드다:
+//   V1 은 '화면을 얼마나 크게', V2 는 '그 크기에 어떤 모델'을 답한다.
+//   요청 크기는 지금 ② 칸 값(계산에 쓰는 opts() 와 같은 값)을 읽기만 한다.
+let modelRecMemo = { key: '', info: null };
+/** 추천에 쓰는 배치 정보(가장 가까운 · 먼 시청자). V1 의 ledLayoutInfo 는 건드리지 않고 따로 기억한다. */
+function modelRecLayoutInfo() {
+  const sW = spaceWmm(), sH = spaceHmm();
+  const D = spaceDmm() || autoDepthForType(roomTypeId, sW);
+  const baseH = num($('#baseHeight')?.value);
+  const key = JSON.stringify([roomTypeId, designId, roomOpts, sW, D, baseH]);
+  if (modelRecMemo.key !== key) {
+    const lay = layoutRoom(roomTypeId, roomOpts, { W: sW, D, ledBottom: baseH, design: designId });
+    modelRecMemo = { key, info: { near: nearestViewerMm(lay, roomTypeId), far: farthestViewerMm(lay) } };
+  }
+  return { sW, sH, baseH, ...modelRecMemo.info };
+}
+/** 지금 화면 상태로 V2 추천을 계산한다(읽기만). 배열 직접 지정 · 사이니지에서는 null. */
+function currentModelRecommendation() {
+  if (svCode || mode === 'manual') return null;
+  const { sW, sH, baseH, near, far } = modelRecLayoutInfo();
+  const o = opts();
+  return recommendModel({ roomTypeId, nearestViewerMm: near, farthestViewerMm: far,
+    requested: { w: o.ledW, h: o.ledH }, room: { W: sW, H: sH, ledBottom: baseH }, catalog: models });
+}
+function renderModelRecommendation() {
+  const box = $('#modelRec'); if (!box) return;
+  const result = currentModelRecommendation();
+  if (!result) { box.hidden = true; box.innerHTML = ''; delete box.dataset.status; return; }
+  const cur = models.find(x => x.id === selectedId) || null;
+  const v = modelRecommendationView(result, cur);
+  box.hidden = false;
+  box.dataset.status = result.status;
+  box.dataset.state = v.state;
+  box.dataset.recModel = v.recommended ? v.recommended.id : '';
+  box.dataset.current = cur ? cur.id : '';
+  box.dataset.same = v.same ? '1' : '0';
+  box.dataset.warn = v.warnings.length ? '1' : '0';
+  const row = (lab, val, cls = '') => `<div class="mrRow${cls}"><span class="mrLab">${lab}</span><b>${val}</b></div>`;
+  let html = `<div class="mrHead">LED 모델 추천 <span class="mrTag">제안</span></div>`
+    + row('현재 선택', esc(v.current ? v.current.name : '—'), ' mrCurrent');
+  if (v.state === MODEL_REC_STATE.RECOMMENDED) {
+    const t = v.recommended;
+    html += row('추천', `${esc(t.name)} · ${esc(t.pitch)}`, ' mrRec')
+      + (v.same ? `<div class="mrSame">${esc(v.sameText)}</div>` : '')
+      + `<div class="mrGrid">`
+      + `<span class="mrLab">예상 실제 설치</span><span>${esc(t.actual)}</span>`
+      + `<span class="mrLab">예상 해상도</span><span>${esc(t.resolution)}</span>`
+      + `<span class="mrLab">캐비닛 배열</span><span>${esc(t.matrix)}${t.sbox != null ? ` · 예상 S-Box ${t.sbox}` : ''}</span>`
+      + `</div>`
+      + (v.reasons.length ? `<div class="mrWhy">추천 이유: ${v.reasons.map(esc).join(' · ')}</div>` : '')
+      + v.warnings.map(w => `<div class="mrWarn" role="note">⚠ ${esc(w)}</div>`).join('');
+  } else {
+    html += `<div class="mrMsg">${esc(v.message)}</div>` + (v.detail ? `<div class="mrWhy">${esc(v.detail)}</div>` : '');
+  }
+  box.innerHTML = html;
+}
 function renderLedClearanceNote() {
   const box = $('#ledClrNote'); if (!box) return;
   const m = (!svCode && mode !== 'manual') ? models.find(x => x.id === selectedId) : null;

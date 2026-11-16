@@ -1540,3 +1540,18 @@ button.primary:hover{background:linear-gradient(135deg,#2b62d4,#5f4fe4)}
 @media (hover:none) and (pointer:coarse) and (prefers-color-scheme: dark){
   :root{--glass-fill:rgba(44,44,46,.92);--glass-fill-2:rgba(58,58,60,.86)}
 }
+/* 02 'LED 모델 추천'(PHASE 12-c) — 제안만 보이는 카드. ② '권장 크기' 상자와 같은 결을 쓰되 다른 카드에 둔다. */
+.modelRec{margin:0 0 12px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;box-sizing:border-box;font-size:13px;line-height:1.4;max-width:100%}
+.modelRec[hidden]{display:none}
+.mrHead{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.mrTag{font-size:11px;font-weight:600;padding:0 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+.mrRow{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px}
+.mrRow+.mrRow{margin-top:3px}
+.mrRow b{color:var(--ink);overflow-wrap:anywhere}
+.mrLab{color:var(--muted);font-size:12px}
+.mrSame{margin-top:4px;font-size:12px;color:var(--ink)}
+.mrGrid{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin-top:6px;font-size:12px}
+.mrGrid span{overflow-wrap:anywhere;min-width:0}
+.mrMsg{margin-top:4px;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere}
+.mrWhy{margin-top:5px;font-size:12px;color:var(--muted);word-break:keep-all;overflow-wrap:anywhere}
+.mrWarn{margin-top:5px;font-size:12px;color:var(--warn);word-break:keep-all;overflow-wrap:anywhere}

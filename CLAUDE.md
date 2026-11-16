@@ -25,8 +25,14 @@
 - **PHASE 11-f COMPLETE / RELEASED / FROZEN**(DEC-186 · DEC-190) — 오너가 공식 동결을 승인했다(2026-10-23).
   **`PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN`.** 권장 크기 규칙 · 기준 권장값 · 자동/직접 상태 규칙 ·
   적용/되돌리기 · 권장 상자 동작은 **동결 계약**이다 — 오너가 승인한 V2 또는 유지보수 결정 없이 바꾸지 않는다
-  (범위 · 정책 · 근거는 `docs/aidlc-state.md` 의 PHASE 11-f 절). 다음 단계: **NEXT PHASE: OWNER DECISION REQUIRED**.
-- `main` 기준 커밋: **`b2e6223`**(PR #162) · 화면 버전 **v490** · `npm test` **1276/1276** · 작업 트리 clean.
+  (범위 · 정책 · 근거는 `docs/aidlc-state.md` 의 PHASE 11-f 절).
+- **PHASE 12 — LED 모델 · 픽셀 피치 추천(Model/Pitch Recommendation V2).** V1 이 정한 요청 크기를 읽기만 하고
+  어떤 모델 · 피치가 맞는지 **제안**한다. 12-0 · 12-0.1(정책 감사 · 오너 정책 고정) 완료,
+  **12-a 엔진 COMPLETE / MERGED**(PR #170 · #171, DEC-197 · DEC-198, `src/model-recommend.js`),
+  **12-c 제안 전용 화면 COMPLETE / READY FOR OWNER REVIEW**(DEC-200, `src/model-recommend-view.js` · 02 카드 `#modelRec`).
+  적용 버튼(12-d)은 아직 없다. 정책 · 계약은 `docs/aidlc-state.md` 의 PHASE 12 절.
+- `main` 기준 커밋: **`e625d82`**(PR #172) · 화면 버전 **v499** · `npm test` **1322/1322** · 작업 트리 clean.
+  PHASE 12-c 가지(`claude/phase12c-model-recommend-ui`)는 v500 · 1334/1334.
 - **대회의실은 기능 상태가 `ready` 이고 시각 예외만 `DEFERRED` 다.** 제안 세 컷의 하단 띠
   61.6 / 67.0 / 67.2% 가 권장 55% 를 넘지만, 그 기준과 기존 계약 ㉒(상판 점유)·㉓(LED 담기)를
   동시에 만족하는 해가 지금의 계약 집합 안에 없다. 경위는 `docs/aidlc-state.md` 의 DEC-150 절과
@@ -71,6 +77,10 @@
 | 11-e.1 | **COMPLETE / MERGED**(PR #162, `main` `b2e6223`, DEC-189) — `Recommendation V1 Freeze Contract Hardening`. 검사만 7건 추가(`tests/led-recommend-freeze.test.js`). 변이 37/40 = 도달 가능 100%. `src` · `qa` 차이 0, 화면 버전 v490 그대로 |
 | 11-f | **COMPLETE / RELEASED / FROZEN**(DEC-186 · DEC-190) — `PHASE 11-f — Release and Freeze Recommendation V1`. 오너 동결 승인(2026-10-23). 기준 `main` `b2e6223` · v490 · `npm test` 1276/1276 · 변이 도달 가능 37/37 · Frozen 19컷 v490 정순·역순·새 페이지 19/19 같음, v487 대비 0 · P0 0 · P1 0. 문서만 바꿨다(`src`·`tests`·`qa` 차이 0) |
 | **PHASE 11 종료** | `PHASE 11 COMPLETE — RECOMMENDATION V1 RELEASED / FROZEN`. 다음 단계는 **NEXT PHASE: OWNER DECISION REQUIRED** |
+| 12-0 · 12-0.1 | **완료** — 모델 · 피치 추천 정책 감사(읽기 전용)와 오너 정책 고정: `ovd_m` 미사용 · 역할 기준 가장 가까운 시청자 · K = 2.5(3.44 는 설명용) · 먼 거리 · 해상도 · 가격 순위 제외 · 맞춤 하한 70% · 면적 손실 30% 경고 · 강당 제외 · 안전 후보 없으면 고르지 않음 · 격 가중 없음 · 새 모델 상태 없음 |
+| 12-a | **COMPLETE / MERGED**(PR #170 v497 · PR #171 v498, DEC-197 · DEC-198) — 순수 추천 엔진 `recommendModel`. 순위: 맞춤 70% 이상 → S-Box → 캐비닛 → 맞춤 → 굵은 피치. 강당 `OUT_OF_V2_INITIAL_SCOPE` · 모르는 공간 `UNSUPPORTED_ROOM_TYPE` · 후보 자격은 카탈로그 `onSale`. 변이 30/30. (12-b 후보 점수화 · 결정성 검사는 12-a 에 포함) |
+| 12-c | **COMPLETE / READY FOR OWNER REVIEW**(DEC-200) — 제안 전용 '모델 추천' 카드(02 모델 라이브러리 안, V1 권장 크기 상자와 분리). 현재 선택 · 추천을 나눠 보이고 적용 버튼은 없다. 그리기는 읽기만 한다. 화면 변이 18/18 · 브라우저 48/48 |
+| 12-d | 예정 — 추천 모델 적용(직접 누르는 버튼, 새 상태 없음). 오너 승인 후 시작 |
 
 ## 저장소 구조
 
@@ -121,7 +131,7 @@ docs/           SPEC.md, aidlc-state.md, audit.md.
     않는다.** 그래서 옛 주소는 갱신이 멈춘 옛 화면을 계속 보여 준다(2026-09-23 확인).
   - 화면이 최신인지 보는 법: 페이지 아래쪽 `화면 버전 vNNN` 이 `src/index.html` 의 값과
     같은지 확인한다. 다르면 **Ctrl+Shift+R** 로 캐시를 비우고 다시 본다.
-    지금 `main` 기준값은 **v490** 이다(`b2e6223`).
+    지금 `main` 기준값은 **v499** 이다(`e625d82`).
   - **배포 구조** — 배포용 GitHub Actions 는 **없다**. Pages 가 브랜치 내용을
     그대로 서비스하고, 저장소 루트의 `index.html` 이 `/src/index.html` 로 자동으로 보낸다.
     그래서 `main` 에 병합하는 것이 곧 배포다.
