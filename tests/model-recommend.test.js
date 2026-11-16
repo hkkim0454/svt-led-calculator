@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   recommendModel, nearestViewerMm, nearViewSafe, isAvailableModel, isAcceptableFit, isFitLossWarning,
-  NEAR_VIEW_K, PREMIUM_NEAR_VIEW_K, FIT_FLOOR, FIT_LOSS_WARN, SALE_PITCH_MIN, SALE_PITCH_MAX, V2_SCOPE,
+  NEAR_VIEW_K, PREMIUM_NEAR_VIEW_K, FIT_FLOOR, FIT_LOSS_WARN, V2_SCOPE, V2_DEFERRED,
   STATUS, REASON, WARNING, REJECT,
 } from '../src/model-recommend.js';
 import { recommendLedSize, farthestViewerMm } from '../src/led-recommend.js';
@@ -46,9 +46,7 @@ test('정책 상수 — K 2.5 · 보수 기준 1분각 · 하한 70% · 경고 3
   assert.equal(FIT_FLOOR, 0.70);
   assert.equal(FIT_LOSS_WARN, 0.30);
   assert.deepEqual([...V2_SCOPE].sort(), ['classroom', 'control', 'ideation', 'meeting']);
-  // 판매 범위는 화면(app.js)의 기본 목록 규칙과 같다.
-  assert.match(APP, new RegExp(`const MIN_PITCH = ${SALE_PITCH_MIN};`));
-  assert.match(APP, new RegExp(`const MAX_PITCH = ${SALE_PITCH_MAX};`));
+  assert.deepEqual([...V2_DEFERRED].sort(), ['hall_l', 'hall_m', 'hall_s']);
 });
 
 // ── 기준 공간 ─────────────────────────────────────────────────────────────
@@ -125,7 +123,57 @@ test('강당 셋 — OUT_OF_V2_INITIAL_SCOPE', () => {
     assert.deepEqual(r.ranked, []);
     assert.deepEqual(r.reasons, [REASON.OUT_OF_SCOPE]);
   }
-  for (const t of ['hall_s', 'hall_m', 'hall_l', 'unknown', undefined]) assert.equal(run(MODELS, { roomTypeId: t }).status, STATUS.OUT_OF_V2_INITIAL_SCOPE, String(t));
+  for (const t of ['hall_s', 'hall_m', 'hall_l']) {
+    const r = run(MODELS, { roomTypeId: t });
+    assert.equal(r.status, STATUS.OUT_OF_V2_INITIAL_SCOPE, t);
+    assert.deepEqual(r.reasons, [REASON.OUT_OF_SCOPE]);
+  }
+});
+
+test('모르는 공간 종류는 강당과 섞지 않고 UNSUPPORTED_ROOM_TYPE', () => {
+  // 오타 · 처음 보는 값 · 대소문자 다름 · 빈 값 · 문자열이 아닌 값 — 모두 '모름'으로 분명히 알린다.
+  for (const t of ['meetng', 'hall', 'hall_xl', 'HALL_S', 'Meeting', 'auditorium', '', ' ', null, undefined, 0, {}, ['meeting']]) {
+    const r = run(MODELS, { roomTypeId: t });
+    assert.equal(r.status, STATUS.UNSUPPORTED_ROOM_TYPE, JSON.stringify(t));
+    assert.deepEqual(r.reasons, [REASON.UNSUPPORTED_ROOM_TYPE]);
+    assert.equal(r.recommended, null);
+    assert.deepEqual(r.ranked, []);
+  }
+  // 입력 자체가 없으면(인자 없이 호출) 역시 모르는 공간 종류다 — 예외를 던지지 않는다.
+  assert.equal(recommendModel().status, STATUS.UNSUPPORTED_ROOM_TYPE);
+  assert.equal(recommendModel({}).status, STATUS.UNSUPPORTED_ROOM_TYPE);
+  assert.notEqual(STATUS.UNSUPPORTED_ROOM_TYPE, STATUS.OUT_OF_V2_INITIAL_SCOPE);
+});
+
+test('후보 자격은 카탈로그 정보(onSale · 단종)로만 — 피치 범위로 정하지 않는다', () => {
+  // 카탈로그의 모든 모델이 onSale 을 분명히 적어 둔다.
+  for (const m of MODELS) assert.equal(typeof m.onSale, 'boolean', `${m.id} onSale`);
+  // 지금 값은 오너 판매 정책(화면의 기본 목록 규칙: P0.8~1.8 · 단종 아님)과 같다.
+  const minP = Number(/const MIN_PITCH = ([\d.]+);/.exec(APP)[1]), maxP = Number(/const MAX_PITCH = ([\d.]+);/.exec(APP)[1]);
+  for (const m of MODELS) {
+    const shownByApp = m.pitch >= minP - 1e-9 && m.pitch <= maxP + 1e-9 && m.lifecycle !== 'discontinued';
+    assert.equal(m.onSale && m.lifecycle !== 'discontinued', shownByApp, `${m.id} 화면 규칙과 다르다`);
+  }
+  // 범위 밖 피치라도 onSale 이면 후보가 된다(P0.7 신제품 · P2.0 제품).
+  const p07 = clone('MP008F', { id: 'P07NEW', pitch: 0.7, onSale: true });
+  const p20 = clone('IE020AE', { id: 'P20ON', onSale: true, lifecycle: 'new' });
+  assert.equal(isAvailableModel(p07), true);
+  assert.equal(isAvailableModel(p20), true);
+  const r = run([p07], { nearestViewerMm: 4100 });
+  assert.equal(r.status, STATUS.RECOMMENDED);
+  assert.equal(r.recommended.modelId, 'P07NEW');
+  assert.equal(run([p20], { nearestViewerMm: 6000 }).recommended.modelId, 'P20ON');
+  // 범위 안 피치라도 onSale 이 아니면 후보가 아니다.
+  const off = clone('IF015RM', { id: 'OFF15', onSale: false });
+  const missing = clone('IF015RM', { id: 'NOFLAG' }); delete missing.onSale;
+  for (const m of [off, missing]) {
+    assert.equal(isAvailableModel(m), false, m.id);
+    assert.deepEqual(run([m]).rejected, [{ modelId: m.id, reason: REJECT.NOT_AVAILABLE }]);
+  }
+  // 단종이면 onSale 이 잘못 true 여도 후보가 아니다.
+  assert.equal(isAvailableModel(clone('IF015RM', { id: 'DISC', onSale: true, lifecycle: 'discontinued' })), false);
+  // 엔진에 판매 피치 범위가 박혀 있지 않다.
+  assert.doesNotMatch(SRC.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*\*[\s\S]*?\*\//g, ''), /\b(0\.8|1\.8)\b/);
 });
 
 // ── K 경계 ────────────────────────────────────────────────────────────────
