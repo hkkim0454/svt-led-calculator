@@ -1514,6 +1514,8 @@ button.primary:hover{background:linear-gradient(135deg,#2b62d4,#5f4fe4)}
 .ledModeTag.manual{color:var(--ink);font-weight:700}
 .ledRecWarn{margin-top:4px;font-size:12px;line-height:1.35;color:var(--warn)}
 .ledRecNote,.ledRecWarn{word-break:keep-all;overflow-wrap:anywhere}
+.ledClrNote{margin:-4px 0 12px;padding:7px 10px;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:8px;font-size:12px;line-height:1.45;color:var(--ink);box-sizing:border-box;word-break:keep-all;overflow-wrap:anywhere}   /* ② 칸 아래 '구조틀 여백 때문에 한 열(행) 줄었다' 안내 */
+.ledClrNote[hidden]{display:none}
 
 /* 모바일: 상단 버튼 줄을 한 줄 가로 스크롤로 (SVT 공통 디자인 v2, T7) */
 @media (max-width:720px){

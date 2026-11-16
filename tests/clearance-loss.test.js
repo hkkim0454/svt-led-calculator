@@ -59,11 +59,29 @@ test('역산 일관성 — 안내가 있으면 필요한 크기를 넣었을 때
   }
 });
 
+const htmlSrc = readFileSync(new URL('../src/index.html', import.meta.url), 'utf8');
+const cssSrc = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
+
 test('앱 연결 — 자동 채움 안내 줄에 이유를 붙이고, 직접 지정·사이니지에는 붙이지 않는다', () => {
   assert.match(appSrc, /\+ warn \+ ledClearanceNoteHTML\(m, r\);/);
-  assert.match(appSrc, /if \(o\.mode !== 'ledsize'\) return '';/);
+  assert.match(appSrc, /if \(o\.mode !== 'ledsize'\) return \[\];/);
   assert.match(appSrc, /clearanceLoss\(m, o\.ledW, o\.ledH, r\.cols, r\.rows\)/);
   assert.match(appSrc, /data-ledfit="clearance"/);
+});
+
+test('② 칸 아래 — 같은 안내를 별도 칸(#ledClrNote)으로 보이고, 권장 상자(#ledRec)는 건드리지 않는다', () => {
+  // 같은 문장 만드는 함수를 03 위 줄과 ② 칸이 함께 쓴다(문구를 두 곳에 적지 않는다).
+  assert.match(appSrc, /function ledClearanceNoteHTML\(m, r\) \{\n  const parts = ledClearanceLines\(m, r\);/);
+  assert.match(appSrc, /function renderLedClearanceNote\(\) \{/);
+  assert.match(appSrc, /const m = \(!svCode && mode !== 'manual'\) \? models\.find\(x => x\.id === selectedId\) : null;\n  const r = m \? computeConfig/);
+  assert.match(appSrc, /box\.hidden = !parts\.length;/);
+  // 미리보기를 다시 그릴 때와 전체를 다시 그릴 때 모두 갱신한다.
+  assert.match(appSrc, /renderLedRecommendation\(\);\n  renderLedClearanceNote\(\);/);
+  assert.match(appSrc, /renderLedRecommendation\(\); renderLedClearanceNote\(\); saveLastSession\(\);/);
+  // 마크업: 권장 상자 바로 뒤, 처음에는 숨김. 권장 상자 안에는 아무것도 더하지 않았다.
+  assert.match(htmlSrc, /<div class="ledRecWarn" id="ledRecWarn" hidden><\/div>\n        <\/div>\n        <div class="ledClrNote" id="ledClrNote" aria-live="polite" hidden><\/div>/);
+  assert.doesNotMatch(htmlSrc.slice(htmlSrc.indexOf('id="ledRec"'), htmlSrc.indexOf('<div class="ledClrNote"')), /ledClrNote/);
+  assert.match(cssSrc, /\.ledClrNote\[hidden\]\{display:none\}/);
 });
 
 test('안내 문구 — 조사가 맞고(9열로 · 3행으로), 소수 mm 는 올림해서 안내한다', () => {
