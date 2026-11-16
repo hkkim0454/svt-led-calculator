@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=491';
-import { MODELS } from './models.js?v=491';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=492';
+import { MODELS } from './models.js?v=492';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=491';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=492';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=491';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=491';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=492';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=492';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=491';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=491';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=492';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=492';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=491';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=492';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=491';
-import { createViewerGL } from './render3d-gl.js?v=491';
+} from './room-presets.js?v=492';
+import { createViewerGL } from './render3d-gl.js?v=492';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=491';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=491';
-import { normalizeDesign, designsFor } from './room-design.js?v=491';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=491';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=491';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=491';
-import { ledImageFit } from './led-image.js?v=491';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=491';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=492';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=492';
+import { normalizeDesign, designsFor } from './room-design.js?v=492';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=492';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=492';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=492';
+import { ledImageFit } from './led-image.js?v=492';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=492';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -3258,19 +3258,34 @@ function syncSignageMode() {
 // LED '배열 직접 지정' 요약 + 확장 안내 — 03 미리보기 위 바(비디오월과 동일 형태·위치, 이사 요청 2026-09-15).
 // ② LED 크기 지정에서 맞춘 LED 가 벽에 들어가지 않으면 알린다(PHASE 11-a).
 //   **다른 입력을 고쳐서 억지로 맞추지 않는다** — 사람이 LED 크기나 하단 높이를 직접 고치게 한다.
+// 자동 채움에서도 배열 요약(배열 · 전체 · 해상도 · 무게)을 배열 직접 지정과 같은 모양으로 보인다(오너 요청 2026-11-16).
+//   넘치면 그 뒤에 경고를 잇는다.
 function renderLedSizeFitWarning(bar) {
   const m = models.find(x => x.id === selectedId);
   const sW = spaceWmm(), sH = spaceHmm(), base = num($('#baseHeight')?.value);
   const r = m ? computeConfig(m, sW, sH, opts()) : null;
-  const p = (r && r.fits) ? ledFitProblem({ spaceW: sW, spaceH: sH, baseHeight: base, actualW: r.actualW, actualH: r.actualH }) : null;
-  if (!p) { bar.hidden = true; bar.innerHTML = ''; return; }
-  const why = [];
-  if (p.height) why.push(`높이: 하단 ${fmt(base)} + LED ${fmt(r.actualH)} = <b>${fmt(p.topMm)}</b>mm 가 벽 ${fmt(sH)}mm 를 넘습니다`);
-  if (p.width) why.push(`가로: LED <b>${fmt(r.actualW)}</b>mm 가 벽 ${fmt(sW)}mm 를 넘습니다`);
+  if (!r || !r.fits) { bar.hidden = true; bar.innerHTML = ''; return; }
+  const p = ledFitProblem({ spaceW: sW, spaceH: sH, baseHeight: base, actualW: r.actualW, actualH: r.actualH });
+  let warn = '';
+  if (p) {
+    const why = [];
+    if (p.height) why.push(`높이: 하단 ${fmt(base)} + LED ${fmt(r.actualH)} = <b>${fmt(p.topMm)}</b>mm 가 벽 ${fmt(sH)}mm 를 넘습니다`);
+    if (p.width) why.push(`가로: LED <b>${fmt(r.actualW)}</b>mm 가 벽 ${fmt(sW)}mm 를 넘습니다`);
+    warn = `<span class="notice warn" data-ledfit="over">LED 가 벽에 들어가지 않습니다. ${why.join(' · ')}. `
+      + `2번 LED 설치 크기나 하단 높이를 직접 조정해 주세요.</span>`;
+  }
   bar.hidden = false;
-  bar.innerHTML = `<span class="svField">LED 설치 크기</span>`
-    + `<span class="notice warn" data-ledfit="over">LED 가 벽에 들어가지 않습니다. ${why.join(' · ')}. `
-    + `2번 LED 설치 크기나 하단 높이를 직접 조정해 주세요.</span>`;
+  bar.innerHTML = `<span class="svField">자동 채움</span>` + ledArraySummaryHTML(m, r) + warn;
+}
+/** 03 미리보기 위 배열 요약 — 자동 채움과 배열 직접 지정이 같이 쓴다. r 은 computeConfig 결과. */
+function ledArraySummaryHTML(m, r) {
+  return `<span class="svSummary">`
+    // 배열 앞에 모델명을 붙인다 — 03 미리보기 우측 하단 라벨(DEC-167)과 같은 표기(오너 요청 2026-10-16).
+    + `<span>배열 <b>${esc(m.name)} ${r.cols}×${r.rows}</b> = ${r.total}캐비닛</span>`
+    + `<span>전체 <b>${fmt(r.actualW)}×${fmt(r.actualH)}</b>mm</span>`
+    + `<span>해상도 <b>${r.resW > 0 ? fmt(r.resW) + '×' + fmt(r.resH) : '—'}</b></span>`
+    + `<span>무게 <b>${r.weightKg != null ? fmt(r.weightKg, 1) + 'kg' : '—'}</b></span>`
+    + `</span>`;
 }
 // ② LED 설치 크기 아래 '권장 크기' 상자(PHASE 11-c · 11-d). **제안만 한다** — ② 칸을 스스로 바꾸지 않는다.
 //   세 값을 나눠 보인다: 현재 입력(계산에 쓰는 값) · 권장 크기(제안) · 실제 설치(엔진이 캐비닛으로 맞춘 값).
@@ -3344,13 +3359,7 @@ function renderLedFitBar() {
   const lf = ledManualFit();
   bar.hidden = false;
   const head = `<span class="svField">배열 직접 지정</span>`;
-  const summary = `<span class="svSummary">`
-    // 배열 앞에 모델명을 붙인다 — 03 미리보기 우측 하단 라벨(DEC-167)과 같은 표기(오너 요청 2026-10-16).
-    + `<span>배열 <b>${esc(m.name)} ${r.cols}×${r.rows}</b> = ${r.total}캐비닛</span>`
-    + `<span>전체 <b>${fmt(r.actualW)}×${fmt(r.actualH)}</b>mm</span>`
-    + `<span>해상도 <b>${r.resW > 0 ? fmt(r.resW) + '×' + fmt(r.resH) : '—'}</b></span>`
-    + `<span>무게 <b>${r.weightKg != null ? fmt(r.weightKg, 1) + 'kg' : '—'}</b></span>`
-    + `</span>`;
+  const summary = ledArraySummaryHTML(m, r);
   const expand = (lf && lf.over)
     ? `<span class="notice warn fitExpand">요청 <b>${lf.reqC}×${lf.reqR}</b> 은(는) 들어가지 않아 <b>${lf.cols}×${lf.rows}</b> 로 맞췄습니다. `
       + `<button type="button" class="tiny primary" data-expand="led">공간 넓혀 ${lf.reqC}×${lf.reqR} 로 확장</button>`
