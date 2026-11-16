@@ -25,8 +25,8 @@
 import * as THREE from './vendor/three/three.module.min.js';
 import {
   tileRepeat, resolveMaterialId, materialPreset, materialParams, renderSemantics,
-} from './materials.js?v=496';
-import { MM_PER_UNIT } from './gl-model.js?v=496';
+} from './materials.js?v=497';
+import { MM_PER_UNIT } from './gl-model.js?v=497';
 
 const TEX_SIZE = 256;
 
