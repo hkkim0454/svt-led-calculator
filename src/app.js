@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=493';
-import { MODELS } from './models.js?v=493';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=494';
+import { MODELS } from './models.js?v=494';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=493';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=494';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=493';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=493';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=494';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=494';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=493';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=493';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=494';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=494';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=493';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=494';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=493';
-import { createViewerGL } from './render3d-gl.js?v=493';
+} from './room-presets.js?v=494';
+import { createViewerGL } from './render3d-gl.js?v=494';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=493';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=493';
-import { normalizeDesign, designsFor } from './room-design.js?v=493';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=493';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=493';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=493';
-import { ledImageFit } from './led-image.js?v=493';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=493';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=494';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=494';
+import { normalizeDesign, designsFor } from './room-design.js?v=494';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=494';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=494';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=494';
+import { ledImageFit } from './led-image.js?v=494';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=494';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -4314,7 +4314,9 @@ async function renderSharedList() {
     const rows = await listShared(shareCode);
     if (!rows.length) {
       // 비었거나 비번 틀림 → 저장하지 않고 다시 입력 유도(맞는 비번이면 첫 구성 올리기 가능).
+      //   페이지 안에 남은 값도 비운다 — 남겨 두면 창을 다시 열어도 묻지 않고 틀린 값으로만 조회했다(오너 제보 2026-11-16).
       localStorage.removeItem(SHARE_KEY);
+      shareCode = '';
       sharedRowsCache = [];
       el.innerHTML = '<div class="previewEmpty">🔒 <b>비밀번호가 다르거나</b> 설계 프로젝트가 비어 있습니다.<br>'
         + '맞는 비번이면 아래 <b>현재 구성 올리기</b>로 첫 구성을 올리세요.<br>'
@@ -4455,7 +4457,9 @@ async function renderCaseList() {
     const rows = await listCases(caseViewCode);
     if (!rows.length) {
       // 비었거나 비번 틀림 → 저장하지 않고(틀린 비번을 기억하지 않도록) 다시 입력 유도.
+      //   페이지 안에 남은 값도 비워, 창을 다시 열면 다시 묻는다(오너 제보 2026-11-16).
       localStorage.removeItem(CASE_VIEW_KEY);
+      caseViewCode = '';
       caseRowsCache = [];
       el.innerHTML = '<div class="previewEmpty">🔒 <b>비밀번호가 다르거나</b> 아직 등록된 사례가 없습니다.<br>'
         + '<button class="tiny primary" id="btnCaseRetryPass" style="margin-top:8px">비밀번호 다시 입력</button></div>';
@@ -4562,7 +4566,7 @@ async function registerCurrentCase() {
     return;
   }
   try { await addCases(admin, [rec]); await renderCaseList(); alert(`'${name}' 사례를 등록했습니다.`); }
-  catch (e) { alert('사례 등록에 실패했습니다.\n' + e.message); }
+  catch (e) { localStorage.removeItem(CASE_ADMIN_KEY); alert('사례 등록에 실패했습니다.\n' + e.message + '\n\n(등록 비밀번호를 다시 입력받겠습니다.)'); }
 }
 // 기존 사례 수정. 사례명·장소·날짜·메모를 고치고, 원하면 모델·배열도 현재 화면 구성으로 교체.
 async function editCase(c) {
@@ -4614,7 +4618,7 @@ async function registerParsedCases(parsed, { clearPaste } = {}) {
     if (clearPaste && $('#casePaste')) $('#casePaste').value = '';
     await renderCaseList();
     alert(`${rows.length}건을 등록했습니다.${dupList.length ? ` (중복 ${dups.length}건 제외)` : ''}`);
-  } catch (e) { alert('일괄 등록에 실패했습니다.\n' + e.message); }
+  } catch (e) { localStorage.removeItem(CASE_ADMIN_KEY); alert('일괄 등록에 실패했습니다.\n' + e.message + '\n\n(등록 비밀번호를 다시 입력받겠습니다.)'); }
 }
 // 엑셀 붙여넣기(탭) 일괄 등록.
 async function bulkRegisterCases() {
