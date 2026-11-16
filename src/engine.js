@@ -245,6 +245,28 @@ export function arrayRequirement(model, spaceW, spaceH, cols, rows, opts = {}) {
   };
 }
 
+/**
+ * 자동 채움에서 '한 장 더 들어갈 크기인데 구조틀 여백 때문에 못 넣은' 방향을 찾는다.
+ * 입력한 크기에 캐비닛 (n+1)장이 여백 없이는 들어가지만 여백(각 변)까지 넣으면 모자란 경우다.
+ * 예: MP012F 가로 8,064mm = 10열 크기인데 여백 100mm 때문에 9열이 된다(10열은 8,164mm 이상).
+ * 캐비닛 (n+1)장이 여백 없이도 안 들어가면(= 정말로 공간이 모자라면) 그 방향은 null 이다.
+ * 계산은 fitCabinets('fill') 와 같은 규칙이다(arrayRequirement 를 (n+1)장에 적용).
+ *
+ * @param availW,availH  채움 대상 크기(mm) — 자동 채움에서는 ② LED 설치 크기
+ * @param cols,rows      지금 맞춰진 열·행
+ * @returns {{clr:number, w:null|{next,bare,need,avail,shortage}, h:null|{next,bare,need,avail,shortage}}}
+ */
+export function clearanceLoss(model, availW, availH, cols, rows, opts = {}) {
+  const q = arrayRequirement(model, availW, availH, cols + 1, rows + 1, opts);
+  const side = (next, bare, need, avail) =>
+    (next >= 2 && bare <= avail && need > avail) ? { next, bare, need, avail, shortage: need - avail } : null;
+  return {
+    clr: q.clr,
+    w: cols >= 1 ? side(cols + 1, q.bareW, q.needW, q.availW) : null,
+    h: rows >= 1 ? side(rows + 1, q.bareH, q.needH, q.availH) : null,
+  };
+}
+
 /** Full spec readout for a given model + space + options. */
 export function computeConfig(model, spaceW, spaceH, opts = {}) {
   const pf = opts.powerFactor ?? DEFAULTS.powerFactor;
