@@ -23,6 +23,7 @@ Inception 산출물. 계산 공식·데이터 스키마·엣지케이스를 코�
 | typicalPower | W/캐비닛 | ○ | 실측 평균전력. 있으면 평균전력 계산에 우선 사용, 없으면 `maxPower × 0.527` |
 | maxInputW, maxInputH | px | ○ | 컨트롤러(S-Box) 1대 최대 입력 픽셀. 미입력 시 S-Box 수량 산출 불가 |
 | sbox, cabinetPart | — | ○ | BOM용 부품 코드 |
+| onSale | bool | ● | 현재 판매·노출 대상인가. 모델 추천(V2)의 후보 자격은 이 값과 `lifecycle` 로만 정한다(피치 범위로 정하지 않는다, DEC-198) |
 | dataStatus | enum | ● | `verified`(전력까지 대조) / `derived`(치수 관측, 전력 파생·미상) / `needs-verification`(확인 필요) |
 
 ## 3. 계산 공식 (engine.js와 1:1 대응)

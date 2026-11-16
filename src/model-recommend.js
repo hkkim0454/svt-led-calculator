@@ -10,6 +10,8 @@
 //   · 모델의 `ovd_m` 은 쓰지 않는다(의미가 정의되지 않음 · 문서 명칭 불일치 · 일부 값은 복사한 수기값).
 //   · 가장 먼 시청자 · 해상도 · 가격은 순위에 쓰지 않는다. 해상도는 설명값으로만 돌려준다.
 //   · 강당은 초기 범위 밖(OUT_OF_V2_INITIAL_SCOPE). 안전한 후보가 없으면 억지로 고르지 않는다(NO_SAFE_CANDIDATE).
+//   · 모르는 공간 종류(오타 · 빈 값 등)는 강당과 섞지 않고 UNSUPPORTED_ROOM_TYPE 으로 알린다(DEC-198).
+//   · 후보 자격은 카탈로그 정보(onSale · lifecycle)로 정한다 — 피치 범위를 엔진에 박지 않는다(DEC-198).
 //   · 공간의 격(임원실 등)으로 가중하지 않는다 — 기하만 본다.
 //
 // 순서
@@ -19,8 +21,8 @@
 //              → (결정성용) 검증된 데이터 먼저 → 모델 id 사전순. 카탈로그 배열 순서는 결과에 영향이 없다.
 //   경고       추천 모델의 면적 손실이 30% 이상이면 FIT_LOSS_WARNING. 요청 크기는 절대 고치지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
-import { computeConfig } from './engine.js?v=497';
-import { ledFitProblem } from './led-request.js?v=497';
+import { computeConfig } from './engine.js?v=498';
+import { ledFitProblem } from './led-request.js?v=498';
 
 /** 기본 근거리 상수(m / 피치 mm). 가장 가까운 시청자 ≥ 피치 × 2.5 m 이면 적합. */
 export const NEAR_VIEW_K = 2.5;
@@ -30,17 +32,17 @@ export const PREMIUM_NEAR_VIEW_K = 1 / Math.tan(Math.PI / 180 / 60) / 1000;   //
 export const FIT_FLOOR = 0.70;
 /** 면적 손실이 이 비율 이상이면 경고한다. */
 export const FIT_LOSS_WARN = 0.30;
-/** 판매 범위(app.js 의 MIN_PITCH · MAX_PITCH 와 같은 값). */
-export const SALE_PITCH_MIN = 0.8;
-export const SALE_PITCH_MAX = 1.8;
-/** 초기 V2 범위 — 강당(hall_s · hall_m · hall_l)은 들지 않는다. */
+/** 초기 V2 범위. */
 export const V2_SCOPE = Object.freeze(['meeting', 'control', 'classroom', 'ideation']);
+/** 알고 있지만 초기 V2 범위에서 뺀 공간 — 강당 셋. 이 밖의 값은 모르는 공간 종류다. */
+export const V2_DEFERRED = Object.freeze(['hall_s', 'hall_m', 'hall_l']);
 export const MAX_RANKED = 3;
 
 export const STATUS = Object.freeze({
   RECOMMENDED: 'RECOMMENDED',
   NO_SAFE_CANDIDATE: 'NO_SAFE_CANDIDATE',
   OUT_OF_V2_INITIAL_SCOPE: 'OUT_OF_V2_INITIAL_SCOPE',
+  UNSUPPORTED_ROOM_TYPE: 'UNSUPPORTED_ROOM_TYPE',
 });
 export const REASON = Object.freeze({
   NEAR_VIEW_SAFE: 'NEAR_VIEW_SAFE',
@@ -50,6 +52,7 @@ export const REASON = Object.freeze({
   NO_SAFE_CANDIDATE: 'NO_SAFE_CANDIDATE',
   NO_NEAREST_VIEWER: 'NO_NEAREST_VIEWER',
   OUT_OF_SCOPE: 'OUT_OF_SCOPE',
+  UNSUPPORTED_ROOM_TYPE: 'UNSUPPORTED_ROOM_TYPE',
 });
 export const WARNING = Object.freeze({
   FIT_LOSS_WARNING: 'FIT_LOSS_WARNING',
@@ -95,11 +98,12 @@ export function nearestViewerMm(layout, roomTypeId) {
   return Number.isFinite(near) ? near : 0;
 }
 
-/** 판매 · 사용 가능한 모델인가(판매 범위 P0.8~1.8 · 단종 아님). */
+/**
+ * 판매 · 사용 가능한 모델인가 — 카탈로그 정보로만 정한다(onSale === true · 단종 아님).
+ *   피치 범위로 정하지 않는다: P0.7 신제품이나 P2.0 제품도 카탈로그의 onSale 만으로 후보가 될 수 있다.
+ */
 export function isAvailableModel(m) {
-  return !!m && Number.isFinite(m.pitch)
-    && m.pitch >= SALE_PITCH_MIN - 1e-9 && m.pitch <= SALE_PITCH_MAX + 1e-9
-    && m.lifecycle !== 'discontinued';
+  return !!m && m.onSale === true && m.lifecycle !== 'discontinued';
 }
 /** 추천 대상 제품(LED 캐비닛 모델)인가. */
 function isLedProduct(m) {
@@ -150,7 +154,10 @@ export function recommendModel({ roomTypeId, nearestViewerMm: near, farthestView
     recommended: null, ranked: [], reasons: [], warnings: [], rejected: [],
   };
   if (!V2_SCOPE.includes(roomTypeId)) {
-    out.status = STATUS.OUT_OF_V2_INITIAL_SCOPE; out.reasons.push(REASON.OUT_OF_SCOPE);
+    // 강당은 알고 있는 범위 밖, 그 밖(오타 · 빈 값 · 처음 보는 값)은 모르는 공간 종류다 — 둘을 섞지 않는다.
+    const deferred = V2_DEFERRED.includes(roomTypeId);
+    out.status = deferred ? STATUS.OUT_OF_V2_INITIAL_SCOPE : STATUS.UNSUPPORTED_ROOM_TYPE;
+    out.reasons.push(deferred ? REASON.OUT_OF_SCOPE : REASON.UNSUPPORTED_ROOM_TYPE);
     out.pitchBand.maxPitch = null; out.pitchBand.premiumMaxPitch = null;
     return out;
   }
