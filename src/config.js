@@ -175,6 +175,36 @@ export function parseImport(raw) {
   return [];
 }
 
+// ─── 공유 링크용 짧은 형식(DEC-195) ─────────────────────────────────────────
+// 링크에는 레코드 하나만 싣는다: { a:'svt', v:2, n:이름, d:줄인 구성 }.
+//   · 기본값과 같은 항목은 뺀다. 받는 쪽 normalizeConfig 가 기본값으로 다시 채운다.
+//   · 카탈로그(models.js)와 똑같은 모델 스냅샷은 뺀다. 받는 쪽은 selectedId 로 같은 모델을 고른다.
+//   · 빠지면 다른 항목을 따라가는 값(앞벽 두께 → 옆벽 두께 등)이 있으므로, 줄인 결과를 되살려
+//     원래와 다른 항목은 다시 넣는다(되살리면 언제나 같은 구성이 나온다).
+export const SHARE_TAG = 'svt';
+export function slimShareRecord(rec, catalog = []) {
+  const full = normalizeConfig(rec && rec.data);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const snap = full.selectedModel;
+  const dropSnap = !!snap && catalog.some(m => m.id === snap.id && same(m, snap));
+  const d = {};
+  for (const [k, v] of Object.entries(full)) {
+    if (k === 'selectedModel' && dropSnap) continue;
+    if (!same(v, CONFIG_DEFAULTS[k])) d[k] = v;
+  }
+  const back = normalizeConfig(d);
+  for (const k of Object.keys(full)) {
+    if (k === 'selectedModel' && dropSnap) continue;
+    if (!same(back[k], full[k])) d[k] = full[k];
+  }
+  return { a: SHARE_TAG, v: 2, n: String((rec && rec.name) || '공유 구성'), d };
+}
+// 짧은 형식을 레코드 배열로 되돌린다. 형식이 아니면 빈 배열.
+export function unslimShareRecord(obj) {
+  if (!obj || typeof obj !== 'object' || obj.a !== SHARE_TAG || !obj.d || typeof obj.d !== 'object') return [];
+  return [makeRecord(obj.n, obj.d)];
+}
+
 // 이름 충돌을 피해 고유한 이름을 만든다: 'A' → 'A (2)' → 'A (3)' …
 export function uniqueName(name, existingNames) {
   const taken = new Set(existingNames);

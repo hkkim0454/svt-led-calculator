@@ -1,32 +1,32 @@
 // app.js — UI controller. Pure calculation lives in engine.js; data in models.js.
-import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=494';
-import { MODELS } from './models.js?v=494';
+import { computeConfig, computeQuote, cabinetResolution, DEFAULTS, spareRateForSeries, frameClearanceMm, ledPlacement, arrayRequirement } from './engine.js?v=495';
+import { MODELS } from './models.js?v=495';
 import { PROCESSORS } from './processor-data.js?v=276';
 import { processorRequirements, inputsCapacity, outputCapacity, outputCapacity2k } from './processor-limits.js?v=276';
 import { rankProcessors, validateBuild } from './processor-validator.js?v=276';
-import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords } from './config.js?v=494';
+import { CONFIG_DEFAULTS, normalizeConfig, makeRecord, normalizeRecords, exportBundle, parseImport, mergeRecords, slimShareRecord, unslimShareRecord } from './config.js?v=495';
 // ② LED 크기의 자동/직접 상태 규칙(PHASE 11-a). 순수 함수만 있다.
-import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=494';
-import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=494';
+import { autoLedRequest, restoreLedSizeMode, ledFitProblem } from './led-request.js?v=495';
+import { recommendLedSize, farthestViewerMm, recommendationUiState } from './led-recommend.js?v=495';
 import { listShared, uploadShared, deleteShared, listCases, addCases, deleteCase, updateCase } from './share-remote.js?v=276';
 import { parseCasesText, normalizeDate } from './cases.js?v=276';
 import { SIGNAGE_MODELS } from './signage-data.js?v=276';
-import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=494';
-import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=494';
+import { docsFor, docViewUrl, ledSpecRows, DATA_STATUS_TEXT, isLockedDoc, DOC_LIBRARY, SIGNAGE_DOCS, DOC_KIND_LABEL } from './product-docs.js?v=495';
+import { unlockBytes, WrongPasswordError } from './doc-lock.js?v=495';
 // 3D(아이소메트릭) 미리보기 — 좌표·가구 배치·그리기. 계산(배열·스펙)은 engine.js 그대로 쓴다.
-import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=494';
+import { CUBE_VIEWS, DEFAULT_CUBE_VIEW, cubeView } from './scene3d.js?v=495';
 import { ROOM_TYPES, DEFAULT_ROOM_TYPE, roomType, defaultOptions, normalizeOptions, autoDepthForType, layoutRoom, personSpot, optionsForDesign, auditoriumLedSize,
-} from './room-presets.js?v=494';
-import { createViewerGL } from './render3d-gl.js?v=494';
+} from './room-presets.js?v=495';
+import { createViewerGL } from './render3d-gl.js?v=495';
 import { buildGLModel, CAMERA_PRESETS, cameraPreset, defaultWalls, featureWallSide,
-  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=494';
-import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=494';
-import { normalizeDesign, designsFor } from './room-design.js?v=494';
-import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=494';
-import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=494';
-import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=494';
-import { ledImageFit } from './led-image.js?v=494';
-import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=494';
+  COLUMN_DEFAULT, MAX_COLUMNS, columnLedConflicts } from './gl-model.js?v=495';
+import { annotateSeatViews, GRADE_LABELS } from './viewangle.js?v=495';
+import { normalizeDesign, designsFor } from './room-design.js?v=495';
+import { FOV_RANGE, clampFov, EYE3D, clampEyeMm } from './gl-model.js?v=495';
+import { seatKey, isSeatItem, removeSeats, reconcileSeatEdit, removedSeatCount } from './seat-edit.js?v=495';
+import { sideMonitorLayout, normalizeInches, frontMonitorBoxes } from './monitors.js?v=495';
+import { ledImageFit } from './led-image.js?v=495';
+import { RENDER_MODES, DEFAULT_RENDER_MODE } from './render-mode.js?v=495';
 
 // 가격표 출처(우선순위): ① 이 브라우저 저장값(localStorage, '가격표 불러오기'로 저장) →
 //   ② prices.local.js(사내 로컬 실행 시). 가격은 저장소·공개웹에 없으며, 브라우저에만 저장된다.
@@ -4189,35 +4189,52 @@ function renderConfigList() {
 //   서버로 전송되지 않는다. 가격 정보는 구성에 포함되지 않으므로 링크에도 없다.
 // 유니코드(한글) 안전 base64url 인코딩/디코딩.
 function b64urlEncode(str) {
-  const bytes = new TextEncoder().encode(str);
+  return bytesToB64url(new TextEncoder().encode(str));
+}
+function b64urlDecode(s) {
+  return new TextDecoder().decode(b64urlToBytes(s));
+}
+function bytesToB64url(bytes) {
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-function b64urlDecode(s) {
-  const b = s.replace(/-/g, '+').replace(/_/g, '/');
-  const bin = atob(b);
-  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+function b64urlToBytes(s) {
+  return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 }
-// 구성 레코드들로 공유 링크(현재 사이트 주소 + #share=...)를 만든다.
+// 짧은 링크(#s=, DEC-195) — 줄인 레코드(config.js slimShareRecord)를 브라우저 내장 압축(deflate-raw)으로 담는다.
+//   약 1,700자 → 약 400자. 압축 기능이 없는 옛 브라우저는 예전 형식(#share=)으로 만든다. 받는 쪽은 두 형식을 다 읽는다.
+const canDeflate = () => typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
+async function deflateToB64url(str) {
+  const stream = new Blob([str]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+  return bytesToB64url(new Uint8Array(await new Response(stream).arrayBuffer()));
+}
+async function inflateFromB64url(s) {
+  const stream = new Blob([b64urlToBytes(s)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return await new Response(stream).text();
+}
+// 구성 레코드들로 공유 링크(현재 사이트 주소 + #s=... 또는 #share=...)를 만든다.
 //   직접 넣은 기타 자재 원가·견적(etcCost·etcSell)도 금액이라 링크에는 0 으로 비워 보낸다(DEC-193).
-function buildShareLink(records) {
+async function buildShareLink(records) {
   const safe = records.map(r => ({ ...r, data: { ...r.data, etcCost: 0, etcSell: 0 } }));
-  const payload = JSON.stringify(exportBundle(safe));
-  return location.origin + location.pathname + '#share=' + b64urlEncode(payload);
+  const base = location.origin + location.pathname;
+  if (safe.length === 1 && canDeflate()) {
+    try { return base + '#s=' + await deflateToB64url(JSON.stringify(slimShareRecord(safe[0], MODELS))); }
+    catch { /* 압축 실패 → 예전 형식 */ }
+  }
+  return base + '#share=' + b64urlEncode(JSON.stringify(exportBundle(safe)));
 }
 // 구성 하나를 공유: 링크 생성 → 클립보드 복사(막히면 직접 복사 안내).
 async function shareConfig(name) {
   const rec = readConfigs().find(r => r.name === name);
   if (!rec) return;
-  await copyShareLink(buildShareLink([rec]));
+  await copyShareLink(await buildShareLink([rec]));
 }
 // 상단 '링크 공유' — 저장하지 않고 지금 화면의 구성을 바로 링크로 만든다(오너 요청 2026-11-16).
 //   이름은 불러온 구성이 있으면 그 이름, 없으면 '구성 저장'의 기본 제안(모델명_열X행)이다. 내 목록은 바꾸지 않는다.
 async function shareCurrentLink() {
   const rec = makeRecord(currentConfigName || defaultConfigName(), gatherConfig());
-  await copyShareLink(buildShareLink([rec]));
+  await copyShareLink(await buildShareLink([rec]));
 }
 async function copyShareLink(link) {
   try {
@@ -4227,14 +4244,20 @@ async function copyShareLink(link) {
     prompt('아래 링크를 복사(Ctrl+C)해 전달하세요:', link);
   }
 }
-// 페이지 진입 시 #share= 링크를 처리: 공유 구성을 내 목록에 합치고 바로 불러온다.
-function handleSharedLink() {
-  const m = /[#&]share=([^&]+)/.exec(location.hash || '');
-  if (!m) return;
+// 페이지 진입 시 공유 링크를 처리: 공유 구성을 내 목록에 합치고 바로 불러온다.
+//   #s= (짧은 형식, 압축) 과 #share= (예전 형식) 를 모두 읽는다 — 이미 보낸 옛 링크도 계속 열린다.
+async function handleSharedLink() {
+  const hash = location.hash || '';
+  const short = /[#&]s=([^&]+)/.exec(hash), old = /[#&]share=([^&]+)/.exec(hash);
+  if (!short && !old) return;
   // 링크는 한 번만 처리하고 주소에서 지운다(새로고침 시 반복 방지).
   history.replaceState(null, '', location.origin + location.pathname + location.search);
   let records = [];
-  try { records = parseImport(JSON.parse(b64urlDecode(m[1]))); } catch { records = []; }
+  try {
+    records = short ? unslimShareRecord(JSON.parse(await inflateFromB64url(short[1])))
+      : parseImport(JSON.parse(b64urlDecode(old[1])));
+  } catch { records = []; }
+  if (short && !records.length && !canDeflate()) { alert('이 브라우저는 짧은 공유 링크를 열 수 없습니다. 최신 크롬·엣지·사파리·삼성 인터넷으로 열어 주세요.'); return; }
   if (!records.length) { alert('공유 링크를 읽지 못했습니다. 링크가 중간에 잘렸을 수 있어요. 다시 받아 열어보세요.'); return; }
   const { list, added } = mergeRecords(readConfigs(), records);
   writeConfigs(list);
